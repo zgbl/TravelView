@@ -24,4 +24,9 @@ app/android/local.properties
 *.keystore
 
 # macOS
-.DS_Store
+.DS_Stora
+
+# 忽略同步工具或 Git 残留的垃圾目录及锁文件
+_to_delete/
+*.lock
+.git/*.lock
