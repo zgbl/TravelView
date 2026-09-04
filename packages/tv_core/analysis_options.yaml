@@ -1,0 +1,6 @@
+include: package:lints/recommended.yaml
+
+linter:
+  rules:
+    # 原则 4: 库必须能自愈，禁止吞掉异常
+    avoid_catches_without_on_clauses: false

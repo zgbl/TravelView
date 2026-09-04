@@ -1,0 +1,27 @@
+# 真机测试产物 —— 含真实旅行照片，绝不入库
+test-output/runs/
+*.heic
+*.HEIC
+*.jpg
+*.jpeg
+*.png
+!Design/**/*.png
+!Design/**/*.jpg
+
+# Flutter / Dart
+app/build/
+app/.dart_tool/
+app/.flutter-plugins*
+.fvm/
+*.iml
+
+# iOS / Android
+app/ios/Pods/
+app/ios/.symlinks/
+app/android/.gradle/
+app/android/local.properties
+*.jks
+*.keystore
+
+# macOS
+.DS_Store

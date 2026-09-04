@@ -1,0 +1,20 @@
+# TravelView pandoc 默认配置 —— 所有 MD 转 PDF 都走这份
+# 用法: pandoc --defaults=tools/pandoc/defaults.yaml Design/xx.md -o Design/xx.pdf
+#      或直接: ./tools/md2pdf.sh Design/xx.md
+
+from: markdown+east_asian_line_breaks
+pdf-engine: xelatex          # 必须是 xelatex 或 lualatex；pdflatex 不支持中文
+standalone: true
+toc: true
+toc-depth: 3
+highlight-style: tango
+
+variables:
+  mainfont: "Helvetica Neue" # 西文正文 (中文走 header.tex 里的 PingFang SC)
+  monofont: "Menlo"          # 代码块西文字体 (macOS 自带)
+  fontsize: "11pt"
+  geometry: "margin=2.2cm"
+  colorlinks: true
+  linkcolor: "RoyalBlue"
+  urlcolor: "RoyalBlue"
+  documentclass: "article"

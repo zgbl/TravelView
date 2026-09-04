@@ -1,0 +1,39 @@
+% TravelView - pandoc/xelatex 中文 PDF 支持
+% 由 tools/pandoc/defaults.yaml 通过 include-in-header 引入
+%
+% 背景: pandoc 默认用 pdflatex + Helvetica，没有任何中文字形，
+%       于是每个汉字都报 "Missing character"，PDF 里整片空白。
+%       修复的三个要素: (1) 换 xelatex (2) 指定中文字体 (3) 让符号也走中文字体。
+
+\usepackage{xeCJK}
+\usepackage{newunicodechar}
+
+% --- 中文字体 (macOS 自带 PingFang SC，无需安装) ---
+\setCJKmainfont{PingFang SC}[BoldFont = PingFang SC Semibold]
+\setCJKsansfont{PingFang SC}
+
+% --- 代码块字体 (关键) ---
+% 想让 ASCII 流程图框线严格对齐，须用「中文=西文两倍宽」的等宽字体
+% (Sarasa Mono SC)。本机当前未安装，故先用 PingFang SC (自带)，代价是
+% 代码里夹杂中文时流程图边界会略微错位。要完美对齐:
+%     brew install --cask font-sarasa-gothic
+%     再把下面一行换回  \setCJKmonofont{Sarasa Mono SC}
+\setCJKmonofont{PingFang SC}
+
+% --- 让制表符 / 箭头 / 带圈数字 也交给中文字体 ---
+% Helvetica、Menlo 里没有这些字形，不做这一步同样会掉字。
+\xeCJKDeclareCharClass{CJK}{
+  "2010 -> "2027,   % 破折号、省略号
+  "2190 -> "21FF,   % 箭头
+  "2460 -> "24FF,   % 带圈数字
+  "2500 -> "257F,   % 制表符 (ASCII 流程图边框)
+  "25A0 -> "25FF,   % 几何图形
+  "2600 -> "27BF    % 杂项符号
+}
+
+% emoji 的变体选择符 U+FE0F 直接吞掉，防止触发缺字警告
+\newunicodechar{^^^^fe0f}{}
+
+% 代码块自动换行，避免长命令溢出页面
+\usepackage{fvextra}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{breaklines,breakanywhere,commandchars=\\\{\}}
