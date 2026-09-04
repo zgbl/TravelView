@@ -114,13 +114,18 @@ class Catalog {
   /// 供 Importer 在写完 sidecar 之后同步内存索引。
   /// 注意: 调用方必须先把同样的信息写进 sidecar（sidecar 才是真相）。
   void absorb(PhotoRecord rec, String relPath) {
+    relPath = toPosix(relPath);
     final existing = _byId[rec.id];
     _byId[rec.id] = existing == null ? rec : existing.mergeWith(rec);
     _pathById[rec.id] = relPath;
   }
 
+  /// 库可能放在移动硬盘上，被 Mac 和 Windows 轮流读写，
+  /// 所以索引里的路径一律用 / 分隔，不能带平台相关的 \。
+  static String toPosix(String relPath) => p.posix.joinAll(p.split(relPath));
+
   void _register(PhotoRecord rec, File f) {
-    final rel = p.relative(f.path, from: root.path);
+    final rel = toPosix(p.relative(f.path, from: root.path));
     final existing = _byId[rec.id];
     _byId[rec.id] = existing == null ? rec : existing.mergeWith(rec);
     _pathById[rec.id] = rel;

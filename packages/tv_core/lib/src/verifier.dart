@@ -29,7 +29,7 @@ class Verifier {
         problems.add(LibraryIssue('missing', id, '索引里没有路径'));
         continue;
       }
-      final f = File(p.join(catalog.root.path, rel));
+      final f = File(p.joinAll([catalog.root.path, ...p.posix.split(rel)]));
       if (!await f.exists()) {
         problems.add(LibraryIssue('missing', rel, '文件不存在'));
       } else {

@@ -33,8 +33,10 @@ void main() {
 
     expect(r.outcome, ImportOutcome.imported);
     expect(r.relPath,
-        p.join('photos', '2025', '2025-09-12', '2025-09-12 14-30-22 IMG_1234.HEIC'));
-    expect(File(p.join(lib.path, r.relPath)).existsSync(), isTrue);
+        'photos/2025/2025-09-12/2025-09-12 14-30-22 IMG_1234.HEIC',
+        reason: '索引里的路径一律用 / 分隔，Mac 和 Windows 读同一块移动硬盘才不会打架');
+    expect(File(p.joinAll([lib.path, ...p.posix.split(r.relPath)])).existsSync(),
+        isTrue);
     // 原则: 只读源文件，永不删除
     expect(f.existsSync(), isTrue);
   });
@@ -122,7 +124,7 @@ void main() {
     final r = await Importer(c).importFile(f, takenAt: at(2025, 6, 1, 8, 0, 0));
 
     // 模拟用户手动改名（sidecar 里还是老名字）
-    final onDisk = File(p.join(lib.path, r.relPath));
+    final onDisk = File(p.joinAll([lib.path, ...p.posix.split(r.relPath)]));
     final renamed = File(p.join(onDisk.parent.path, '我改的名字.jpg'));
     onDisk.renameSync(renamed.path);
 
@@ -142,7 +144,7 @@ void main() {
 
     expect((await Verifier(c).run()).ok, isTrue);
 
-    File(p.join(lib.path, r.relPath)).writeAsBytesSync([1, 2, 3]);
+    File(p.joinAll([lib.path, ...p.posix.split(r.relPath)])).writeAsBytesSync([1, 2, 3]);
     final report = await Verifier(c).run();
     expect(report.ok, isFalse);
     expect(report.problems.single.kind, 'mismatch');
@@ -152,7 +154,7 @@ void main() {
     final c = await freshCatalog();
     final f = makeFakePhoto(src, 'y.jpg', seed: 10);
     final r = await Importer(c).importFile(f, takenAt: at(2025, 8, 8));
-    File(p.join(lib.path, r.relPath)).deleteSync();
+    File(p.joinAll([lib.path, ...p.posix.split(r.relPath)])).deleteSync();
 
     final report = await Verifier(c).run();
     expect(report.problems.single.kind, 'missing');

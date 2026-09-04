@@ -63,7 +63,8 @@ class Importer {
     // 已在库里: 不复制字节，只把新元数据并进去（原则 2）
     final existingRel = catalog.relPathOf(id);
     if (existingRel != null) {
-      final existingFile = File(p.join(catalog.root.path, existingRel));
+      final existingFile =
+          File(p.joinAll([catalog.root.path, ...p.posix.split(existingRel)]));
       final dayDir = existingFile.parent;
       final sc = await Sidecar.load(dayDir);
       final before = catalog.byId(id)!;
@@ -108,7 +109,7 @@ class Importer {
     sc.put(fileName, incoming);
     await sc.save(dayDir);
 
-    final rel = p.relative(target.path, from: catalog.root.path);
+    final rel = Catalog.toPosix(p.relative(target.path, from: catalog.root.path));
     catalog.absorb(incoming, rel);
     return ImportResult(ImportOutcome.imported, incoming, rel);
   }
