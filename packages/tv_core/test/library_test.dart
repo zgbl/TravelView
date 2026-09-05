@@ -197,6 +197,39 @@ void main() {
     expect(c.length, 1);
   });
 
+  test('setTag: 选取与取消选取都要落到 sidecar', () async {
+    final c = await freshCatalog();
+    final f = makeFakePhoto(src, 'pick.jpg', seed: 88);
+    final r = await Importer(c).importFile(f, takenAt: at(2025, 9, 20));
+    const pick = Tag('pick', '精选');
+
+    await c.setTag(r.record.id, pick, on: true);
+    expect(c.byId(r.record.id)!.tags, contains(pick));
+
+    // 重建后仍在 —— 说明真的写进了 sidecar，不只是内存
+    var reloaded = Catalog(lib);
+    await reloaded.rebuild();
+    expect(reloaded.byId(r.record.id)!.tags, contains(pick));
+
+    // 取消选取必须真的删掉，不能被 merge 又并回来
+    await c.setTag(r.record.id, pick, on: false);
+    reloaded = Catalog(lib);
+    await reloaded.rebuild();
+    expect(reloaded.byId(r.record.id)!.tags, isNot(contains(pick)),
+        reason: '取消选取要能真的去掉 tag');
+  });
+
+  test('setTag: 取消选取不影响其它 tag', () async {
+    final c = await freshCatalog();
+    final f = makeFakePhoto(src, 'multi2.jpg', seed: 89);
+    final r = await Importer(c).importFile(f,
+        takenAt: at(2025, 9, 21), tags: [const Tag('trip', 'usa-2025')]);
+    const pick = Tag('pick', '精选');
+    await c.setTag(r.record.id, pick, on: true);
+    await c.setTag(r.record.id, pick, on: false);
+    expect(c.byId(r.record.id)!.tags, contains(const Tag('trip', 'usa-2025')));
+  });
+
   test('JSONL 镜像可读且每行一条', () async {
     final c = await freshCatalog();
     final imp = Importer(c);

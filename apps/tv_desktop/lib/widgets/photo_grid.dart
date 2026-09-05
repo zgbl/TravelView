@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
+import '../pages/photo_viewer.dart';
 import 'photo_tile.dart';
 
 /// 按天分组的照片网格。
@@ -20,6 +21,15 @@ class PhotoGrid extends StatelessWidget {
     this.tileSize = 116,
     this.gap = 8,
   });
+
+  /// 全部照片按界面显示顺序摊平 —— 查看器里左右翻页就能跨日期连续浏览
+  List<PhotoRecord> _flatPhotos() {
+    final out = <PhotoRecord>[];
+    for (final day in c.byDay) {
+      out.addAll(day.value);
+    }
+    return out;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +94,14 @@ class PhotoGrid extends StatelessWidget {
               file: c.fileOf(r),
               thumbs: c.thumbs!,
               size: tileSize,
+              picked: c.isPicked(r),
+              onTap: () {
+                final all = _flatPhotos();
+                final i = all.indexWhere((e) => e.id == r.id);
+                if (i >= 0) {
+                  PhotoViewer.open(context, c: c, photos: all, index: i);
+                }
+              },
             ),
             SizedBox(width: gap),
           ],

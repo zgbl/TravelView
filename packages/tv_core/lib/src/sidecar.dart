@@ -92,5 +92,17 @@ class Sidecar {
     photos[fileName] = prev == null ? rec : prev.mergeWith(rec);
   }
 
+  /// 直接覆盖，不做合并。
+  ///
+  /// [put] 会把新旧记录取并集（导入时不能丢信息），
+  /// 但**取消选取**这类操作必须能真的删掉一个 tag，所以需要这条路径。
+  void replace(String fileName, PhotoRecord rec) {
+    final existingName = fileNameOf(rec.id);
+    if (existingName != null && existingName != fileName) {
+      photos.remove(existingName);
+    }
+    photos[fileName] = rec;
+  }
+
   bool get isEmpty => photos.isEmpty;
 }

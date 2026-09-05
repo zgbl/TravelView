@@ -144,6 +144,43 @@ class Catalog {
     return out;
   }
 
+  // ---- 打标签: 挑选、分组、归属旅行，都是同一件事 ----
+
+  /// 给一张照片加上或去掉一个 tag。
+  ///
+  /// 先写 sidecar（真相），再更新内存索引 —— 顺序不能反。
+  /// 返回更新后的记录；照片不在库里时返回 null。
+  Future<PhotoRecord?> setTag(
+    String photoId,
+    Tag tag, {
+    required bool on,
+  }) async {
+    final rec = _byId[photoId];
+    final rel = _pathById[photoId];
+    if (rec == null || rel == null) return null;
+
+    final file = File(p.joinAll([root.path, ...p.posix.split(rel)]));
+    final dayDir = file.parent;
+    final fileName = p.basename(file.path);
+
+    final tags = rec.tags.toList();
+    final has = tags.contains(tag);
+    if (on == has) return rec; // 没有变化，不写盘
+    if (on) {
+      tags.add(tag);
+    } else {
+      tags.removeWhere((t) => t == tag);
+    }
+
+    final updated = rec.copyWith(tags: tags);
+    final sc = await Sidecar.load(dayDir);
+    sc.replace(fileName, updated);
+    await sc.save(dayDir);
+
+    _byId[photoId] = updated;
+    return updated;
+  }
+
   // ---- 查询: 所有"分类"都是对 tag 的查询，零文件副本 ----
 
   List<PhotoRecord> query({

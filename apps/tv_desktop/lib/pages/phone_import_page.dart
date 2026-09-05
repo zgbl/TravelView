@@ -123,7 +123,8 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
       deviceId: selected!.id,
       keys: keys,
       // 兜底: 即使设备侧筛选出了范围外的文件，入库时按 EXIF 拍摄时间再挡一道
-      limitTo: range,
+      limitFrom: range?.start,
+      limitUntil: range?.end,
       tags: trip.isEmpty ? const [] : [Tag('trip', trip)],
     );
   }

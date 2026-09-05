@@ -7,6 +7,7 @@ import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
 import '../widgets/photo_tile.dart';
+import 'photo_viewer.dart';
 
 /// 行程地图 —— 把一堆散落的照片坐标还原成一条能看的路线。
 class MapPage extends StatefulWidget {
@@ -352,22 +353,33 @@ class _MapPageState extends State<MapPage> {
                 ],
               ),
             ),
-            if (widget.c.thumbs != null && s.photoIds.isNotEmpty)
-              _cover(s.photoIds.first),
+            if (widget.c.thumbs != null && s.photoIds.isNotEmpty) _cover(s),
           ],
         ),
       ),
     );
   }
 
-  Widget _cover(String photoId) {
-    final rec = widget.c.catalog?.byId(photoId);
+  Widget _cover(StayPoint stay) {
+    final cat = widget.c.catalog;
+    if (cat == null) return const SizedBox.shrink();
+    final rec = cat.byId(stay.photoIds.first);
     if (rec == null) return const SizedBox.shrink();
     return PhotoTile(
       record: rec,
       file: widget.c.fileOf(rec),
       thumbs: widget.c.thumbs!,
       size: 46,
+      onTap: () {
+        // 翻页范围就是这个地点的照片
+        final photos = stay.photoIds
+            .map(cat.byId)
+            .whereType<PhotoRecord>()
+            .toList()
+          ..sort((a, b) => a.takenAt.compareTo(b.takenAt));
+        if (photos.isEmpty) return;
+        PhotoViewer.open(context, c: widget.c, photos: photos, index: 0);
+      },
     );
   }
 

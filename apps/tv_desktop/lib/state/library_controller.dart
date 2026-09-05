@@ -21,6 +21,10 @@ class LibraryController extends ChangeNotifier {
   ThumbnailCache? _thumbs;
   ThumbnailCache? get thumbs => _thumbs;
 
+  /// 当前正在挑选的专辑名。选取只是打一个 tag，
+  /// **不选取不等于删除** —— 照片一直在库里，只是没进这个专辑。
+  String pickAlbum = '精选';
+
   ThumbnailWarmer? _warmer;
   int warmDone = 0;
   int warmTotal = 0;
@@ -65,6 +69,36 @@ class LibraryController extends ChangeNotifier {
   File fileOf(PhotoRecord r) {
     final rel = _catalog!.relPathOf(r.id)!;
     return File(p.joinAll([_root!.path, ...p.posix.split(rel)]));
+  }
+
+  Tag get _pickTag => Tag('pick', pickAlbum);
+
+  bool isPicked(PhotoRecord r) => r.tags.contains(_pickTag);
+
+  int get pickedCount =>
+      _catalog?.query(tagKind: 'pick', tagValue: pickAlbum).length ?? 0;
+
+  /// 切换选取。写 sidecar 是真相，内存索引跟着更新。
+  /// 返回切换后的状态，供 UI 立即反馈。
+  Future<bool> togglePick(PhotoRecord r) async {
+    final want = !isPicked(r);
+    await setPicked(r, want);
+    return want;
+  }
+
+  Future<void> setPicked(PhotoRecord r, bool on) async {
+    final cat = _catalog;
+    if (cat == null) return;
+    if (isPicked(r) == on) return;
+    await cat.setTag(r.id, _pickTag, on: on);
+    notifyListeners();
+  }
+
+  void setPickAlbum(String name) {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty || trimmed == pickAlbum) return;
+    pickAlbum = trimmed;
+    notifyListeners();
   }
 
   Future<void> openLibrary(String path) async {
@@ -176,11 +210,15 @@ class LibraryController extends ChangeNotifier {
   ///
   /// [keys] 是 PhoneItem.key（文件夹路径+文件名），不能用裸文件名 ——
   /// iPhone 的 DCIM 分多个文件夹且文件名会绕回重复。
-  /// [limitTo] 是最后一道防线: 即使设备侧筛错了，按 EXIF 拍摄时间再挡一次。
+  /// [limitFrom]/[limitUntil] 是最后一道防线: 即使设备侧筛错了，
+  /// 按 EXIF 拍摄时间再挡一次。传日期即可，内部按自然日取整。
+  /// 这里刻意不用 DateTimeRange —— 那是 material 的类型，
+  /// 状态层不该依赖 widget 库。
   Future<void> importFromPhone({
     required String deviceId,
     required List<String> keys,
-    DateTimeRange? limitTo,
+    DateTime? limitFrom,
+    DateTime? limitUntil,
     List<Tag> tags = const [],
   }) async {
     if (_catalog == null) return;
@@ -207,12 +245,12 @@ class LibraryController extends ChangeNotifier {
         status = '正在写入照片库...';
         notifyListeners();
 
-        final from = limitTo == null
+        final from = limitFrom == null
             ? null
-            : DateTime(limitTo.start.year, limitTo.start.month, limitTo.start.day);
-        final to = limitTo == null
+            : DateTime(limitFrom.year, limitFrom.month, limitFrom.day);
+        final to = limitUntil == null
             ? null
-            : DateTime(limitTo.end.year, limitTo.end.month, limitTo.end.day)
+            : DateTime(limitUntil.year, limitUntil.month, limitUntil.day)
                 .add(const Duration(days: 1));
 
         final importer = Importer(_catalog!);
@@ -225,7 +263,8 @@ class LibraryController extends ChangeNotifier {
           final takenAt = meta.takenAt ?? stat.modified;
 
           // 兜底: 拍摄时间落在选定范围外的一律不入库
-          if (from != null && (takenAt.isBefore(from) || !takenAt.isBefore(to!))) {
+          if ((from != null && takenAt.isBefore(from)) ||
+              (to != null && !takenAt.isBefore(to))) {
             skipped++;
             continue;
           }

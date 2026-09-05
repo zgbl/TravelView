@@ -19,6 +19,10 @@ class StatBar extends StatelessWidget {
           hint: '${(gpsRatio * 100).toStringAsFixed(0)}%',
         ),
         _Stat(
+          label: '已选「${c.pickAlbum}」',
+          value: '${c.pickedCount}',
+        ),
+        _Stat(
           label: '待处理',
           value: '${c.issues.length}',
           warn: c.issues.isNotEmpty,

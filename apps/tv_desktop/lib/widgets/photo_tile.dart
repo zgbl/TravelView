@@ -26,17 +26,20 @@ class ThumbnailCache {
 
   ThumbnailCache(this.libraryRoot);
 
-  File pathFor(String photoId) => File(
-      p.join(libraryRoot.path, LibraryLayout.catalogDir, 'thumbs', '$photoId.jpg'));
+  /// 派生图分两档: thumbs 给列表，previews 给全图查看。
+  /// 都放在 catalog/ 下 —— 属于可随时删除重建的派生数据。
+  File pathFor(String photoId, {String variant = 'thumbs'}) => File(p.join(
+      libraryRoot.path, LibraryLayout.catalogDir, variant, '$photoId.jpg'));
 
   Future<File?> get(
     String photoId,
     File source, {
     int maxPixels = 480,
     bool background = false,
+    String variant = 'thumbs',
   }) {
-    return _memo.putIfAbsent(photoId, () async {
-      final dst = pathFor(photoId);
+    return _memo.putIfAbsent('$variant/$photoId', () async {
+      final dst = pathFor(photoId, variant: variant);
       if (await dst.exists()) return dst;
       await _acquire(background);
       try {
@@ -54,7 +57,13 @@ class ThumbnailCache {
   }
 
   /// 已经生成过就跳过，连平台通道都不用走
-  Future<bool> exists(String photoId) => pathFor(photoId).exists();
+  Future<bool> exists(String photoId, {String variant = 'thumbs'}) =>
+      pathFor(photoId, variant: variant).exists();
+
+  /// 全图查看用的大图。2400px 在 5K 屏上够清晰，
+  /// 又远小于原图，解码快得多。
+  Future<File?> preview(String photoId, File source) =>
+      get(photoId, source, maxPixels: 2400, variant: 'previews');
 
   Future<void> _acquire(bool background) {
     if (_running < _maxConcurrent) {
@@ -129,6 +138,8 @@ class PhotoTile extends StatelessWidget {
   final File file;
   final ThumbnailCache thumbs;
   final double size;
+  final VoidCallback? onTap;
+  final bool picked;
 
   const PhotoTile({
     super.key,
@@ -136,6 +147,8 @@ class PhotoTile extends StatelessWidget {
     required this.file,
     required this.thumbs,
     this.size = 116,
+    this.onTap,
+    this.picked = false,
   });
 
   @override
@@ -147,7 +160,13 @@ class PhotoTile extends StatelessWidget {
     return Tooltip(
       message: _tooltip(),
       waitDuration: const Duration(milliseconds: 400),
-      child: SizedBox(
+      child: GestureDetector(
+        onTap: onTap,
+        child: MouseRegion(
+          cursor: onTap == null
+              ? MouseCursor.defer
+              : SystemMouseCursors.click,
+          child: SizedBox(
         width: size,
         height: size,
         child: ClipRRect(
@@ -156,6 +175,23 @@ class PhotoTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               _image(scheme, ext),
+              if (picked)
+                IgnorePointer(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                          color: const Color(0xFF4FBFA8), width: 3),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                ),
+              if (picked)
+                const Positioned(
+                  right: 4,
+                  top: 4,
+                  child: Icon(Icons.check_circle,
+                      size: 17, color: Color(0xFF4FBFA8)),
+                ),
               if (isVideo)
                 Positioned(
                   left: 5,
@@ -178,6 +214,8 @@ class PhotoTile extends StatelessWidget {
                       size: 12, color: Colors.white)),
                 ),
             ],
+          ),
+        ),
           ),
         ),
       ),
