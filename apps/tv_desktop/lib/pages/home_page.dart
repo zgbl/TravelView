@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
+import 'map_page.dart';
 import 'phone_import_page.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/stat_bar.dart';
@@ -16,6 +17,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final c = LibraryController();
+  int view = 0; // 0 = 照片, 1 = 地图
 
   @override
   void initState() {
@@ -61,10 +63,14 @@ class _HomePageState extends State<HomePage> {
             onOpen: _pickLibrary,
             onImport: _pickImportSource,
             onPhoneImport: _importFromPhone,
+            selectedView: view,
+            onView: (v) => setState(() => view = v),
           ),
           const VerticalDivider(width: 1),
           Expanded(
-            child: c.hasLibrary ? _libraryView(context) : _emptyState(context),
+            child: !c.hasLibrary
+                ? _emptyState(context)
+                : (view == 1 ? MapPage(key: ValueKey(c.photoCount), c: c) : _libraryView(context)),
           ),
         ],
       ),
@@ -184,12 +190,16 @@ class _Sidebar extends StatelessWidget {
   final VoidCallback onOpen;
   final VoidCallback onImport;
   final VoidCallback onPhoneImport;
+  final int selectedView;
+  final ValueChanged<int> onView;
 
   const _Sidebar({
     required this.c,
     required this.onOpen,
     required this.onImport,
     required this.onPhoneImport,
+    required this.selectedView,
+    required this.onView,
   });
 
   @override
@@ -229,6 +239,20 @@ class _Sidebar extends StatelessWidget {
             label: '从文件夹导入',
             onTap: c.busy || !c.hasLibrary ? null : onImport,
           ),
+          const SizedBox(height: 14),
+          _Action(
+            icon: Icons.photo_library_outlined,
+            label: '照片',
+            selected: selectedView == 0,
+            onTap: !c.hasLibrary ? null : () => onView(0),
+          ),
+          _Action(
+            icon: Icons.map_outlined,
+            label: '行程地图',
+            selected: selectedView == 1,
+            onTap: !c.hasLibrary ? null : () => onView(1),
+          ),
+          const SizedBox(height: 14),
           _Action(
             icon: Icons.refresh,
             label: '重建索引',
@@ -251,11 +275,18 @@ class _Action extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final bool selected;
 
-  const _Action({required this.icon, required this.label, this.onTap});
+  const _Action({
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.selected = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: InkWell(
@@ -263,13 +294,24 @@ class _Action extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         child: Opacity(
           opacity: onTap == null ? 0.4 : 1,
-          child: Padding(
+          child: Container(
+            decoration: BoxDecoration(
+              color: selected ? scheme.secondaryContainer : null,
+              borderRadius: BorderRadius.circular(8),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
             child: Row(
               children: [
-                Icon(icon, size: 18),
+                Icon(icon,
+                    size: 18,
+                    color: selected ? scheme.onSecondaryContainer : null),
                 const SizedBox(width: 10),
-                Text(label, style: const TextStyle(fontSize: 13)),
+                Text(label,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: selected ? FontWeight.w600 : null,
+                      color: selected ? scheme.onSecondaryContainer : null,
+                    )),
               ],
             ),
           ),

@@ -15,3 +15,4 @@ export 'src/sidecar.dart';
 export 'src/catalog.dart';
 export 'src/importer.dart';
 export 'src/verifier.dart';
+export 'src/route.dart';
