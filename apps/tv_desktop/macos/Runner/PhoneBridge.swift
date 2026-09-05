@@ -328,7 +328,14 @@ extension PhoneBridge: ICCameraDeviceDelegate {
     }
   }
 
+  /// ICDeviceDelegate 的（可选）就绪回调
   func deviceDidBecomeReady(_ device: ICDevice) {
+    channel.invokeMethod("onDevicesChanged", arguments: deviceList())
+  }
+
+  /// ICCameraDeviceDelegate 的**必需**方法 —— 内容目录读完才是真的可以列文件了。
+  /// 注意这个和上面那个同名但不同协议，之前就是漏了这个导致不满足协议。
+  func deviceDidBecomeReadyWithCompleteContentCatalog(_ device: ICCameraDevice) {
     channel.invokeMethod("onDevicesChanged", arguments: deviceList())
   }
 
@@ -341,6 +348,7 @@ extension PhoneBridge: ICCameraDeviceDelegate {
     _ camera: ICCameraDevice, didReceiveMetadata metadata: [AnyHashable: Any]?,
     for item: ICCameraItem, error: Error?) {}
   func cameraDevice(_ camera: ICCameraDevice, didRenameItems items: [ICCameraItem]) {}
+  func cameraDevice(_ camera: ICCameraDevice, didReceivePTPEvent eventData: Data) {}
   func cameraDeviceDidChangeCapability(_ camera: ICCameraDevice) {}
   func cameraDevice(_ camera: ICCameraDevice, didCompleteDeleteFilesWithError error: Error?) {}
   func cameraDeviceDidRemoveAccessRestriction(_ device: ICDevice) {}
