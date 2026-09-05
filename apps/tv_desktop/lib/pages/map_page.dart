@@ -227,7 +227,8 @@ class _MapPageState extends State<MapPage> {
           points: [a, b],
           color: const Color(0xFF9C6ADE),
           strokeWidth: 2,
-          isDotted: true,
+          // flutter_map 7.0 起 isDotted 被 pattern 取代
+          pattern: StrokePattern.dotted(),
         ));
       } else {
         out.add(Polyline(
