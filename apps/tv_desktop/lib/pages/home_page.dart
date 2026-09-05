@@ -357,7 +357,11 @@ class _DaySection extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: entry.value
-                .map((r) => PhotoTile(record: r, file: c.fileOf(r)))
+                .map((r) => PhotoTile(
+                      record: r,
+                      file: c.fileOf(r),
+                      thumbs: c.thumbs!,
+                    ))
                 .toList(),
           ),
         ],

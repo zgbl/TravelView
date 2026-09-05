@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
 import '../native/native_bridge.dart';
+import '../widgets/photo_tile.dart';
 
 /// 桌面端的全部状态。业务逻辑一律在 tv_core 里，这里只负责调度和进度上报。
 class LibraryController extends ChangeNotifier {
@@ -16,6 +17,9 @@ class LibraryController extends ChangeNotifier {
   double? progress;
   List<LibraryIssue> issues = const [];
   String? lastError;
+
+  ThumbnailCache? _thumbs;
+  ThumbnailCache? get thumbs => _thumbs;
 
   Directory? get root => _root;
   Catalog? get catalog => _catalog;
@@ -54,6 +58,7 @@ class LibraryController extends ChangeNotifier {
           .create(recursive: true);
       _root = dir;
       _catalog = Catalog(dir);
+      _thumbs = ThumbnailCache(dir);
       final res = await _catalog!.rebuild();
       issues = res.issues;
       status = '已打开 ${res.photoCount} 张照片';
@@ -119,12 +124,12 @@ class LibraryController extends ChangeNotifier {
     await _guard('正在从手机读取...', () async {
       final staging = await Directory(
         p.join(Directory.systemTemp.path,
-            'travelview_staging_\${DateTime.now().millisecondsSinceEpoch}'),
+            'travelview_staging_${DateTime.now().millisecondsSinceEpoch}'),
       ).create(recursive: true);
 
       NativeBridge.setDownloadProgressHandler((done, total, name, error) {
         progress = total == 0 ? null : done / total;
-        status = '正在从手机读取 \$done/\$total  \$name';
+        status = '正在从手机读取 $done/$total  $name';
         if (error != null) lastError = error;
         notifyListeners();
       });
@@ -162,13 +167,13 @@ class LibraryController extends ChangeNotifier {
             dup++;
           }
           progress = (i + 1) / paths.length;
-          status = '正在写入照片库 \${i + 1}/\${paths.length}';
+          status = '正在写入照片库 ${i + 1}/${paths.length}';
           notifyListeners();
         }
         await _catalog!.writeJsonl();
         final res = await _catalog!.rebuild();
         issues = res.issues;
-        status = '从手机导入完成: 新增 \$imported 张，已有 \$dup 张';
+        status = '从手机导入完成: 新增 $imported 张，已有 $dup 张';
       } finally {
         NativeBridge.setDownloadProgressHandler(null);
         // 只清理 Mac 上的中转副本

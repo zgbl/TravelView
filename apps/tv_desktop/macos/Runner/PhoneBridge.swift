@@ -3,6 +3,7 @@ import FlutterMacOS
 import ImageCaptureCore
 import ImageIO
 import CoreLocation
+import AVFoundation
 
 /// iPhone / 相机直读桥。
 ///
@@ -252,10 +253,19 @@ class PhoneBridge: NSObject {
     return out
   }
 
-  /// 把任意格式（含 HEIC）转成一张 JPEG 缩略图，解决 Flutter 不认 HEIC 的问题。
+  private static let videoExtensions: Set<String> = ["mov", "mp4", "m4v", "avi"]
+
+  /// 把任意格式转成一张 JPEG 缩略图。
+  /// 图片走 ImageIO（原生支持 HEIC），视频走 AVFoundation 取第一帧。
+  /// 解决 Flutter 既不认 HEIC 也不能把视频当图片显示的问题。
   static func makeThumbnail(src: String, dst: String, maxPixels: Int) -> Bool {
     let srcURL = URL(fileURLWithPath: src)
     let dstURL = URL(fileURLWithPath: dst)
+
+    if videoExtensions.contains(srcURL.pathExtension.lowercased()) {
+      return makeVideoThumbnail(srcURL: srcURL, dstURL: dstURL, maxPixels: maxPixels)
+    }
+
     guard let source = CGImageSourceCreateWithURL(srcURL as CFURL, nil) else {
       return false
     }
@@ -274,6 +284,35 @@ class PhoneBridge: NSObject {
     guard let out = CGImageDestinationCreateWithURL(
       dstURL as CFURL, "public.jpeg" as CFString, 1, nil) else { return false }
     CGImageDestinationAddImage(out, thumb, [
+      kCGImageDestinationLossyCompressionQuality: 0.82,
+    ] as CFDictionary)
+    return CGImageDestinationFinalize(out)
+  }
+}
+
+extension PhoneBridge {
+
+  /// 视频首帧。Live Photo 的 MOV 和真视频都走这里。
+  static func makeVideoThumbnail(srcURL: URL, dstURL: URL, maxPixels: Int) -> Bool {
+    let asset = AVURLAsset(url: srcURL)
+    let generator = AVAssetImageGenerator(asset: asset)
+    generator.appliesPreferredTrackTransform = true
+    generator.maximumSize = CGSize(width: maxPixels, height: maxPixels)
+    // 取第 0.1 秒，避开某些视频全黑的首帧
+    let time = CMTime(seconds: 0.1, preferredTimescale: 600)
+    guard let cg = try? generator.copyCGImage(at: time, actualTime: nil) else {
+      return false
+    }
+    return writeJPEG(cg, to: dstURL)
+  }
+
+  static func writeJPEG(_ image: CGImage, to dstURL: URL) -> Bool {
+    try? FileManager.default.createDirectory(
+      at: dstURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true)
+    guard let out = CGImageDestinationCreateWithURL(
+      dstURL as CFURL, "public.jpeg" as CFString, 1, nil) else { return false }
+    CGImageDestinationAddImage(out, image, [
       kCGImageDestinationLossyCompressionQuality: 0.82,
     ] as CFDictionary)
     return CGImageDestinationFinalize(out)
