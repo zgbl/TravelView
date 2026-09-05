@@ -23,13 +23,19 @@ class PhoneDevice {
       );
 }
 
+/// 手机上的一个文件。
+///
+/// `key` 才是身份，不是 `name` —— iPhone 的 DCIM 分成 100APPLE / 101APPLE 等
+/// 多个文件夹，计数器到 IMG_9999 会绕回，不同年份的照片会重名。
 class PhoneItem {
+  final String key;
   final String name;
   final int size;
   final DateTime? created;
   final String? uti;
 
   const PhoneItem({
+    required this.key,
     required this.name,
     required this.size,
     this.created,
@@ -37,6 +43,7 @@ class PhoneItem {
   });
 
   factory PhoneItem.fromMap(Map m) => PhoneItem(
+        key: m['key'] as String? ?? m['name'] as String? ?? '',
         name: m['name'] as String? ?? '',
         size: (m['size'] as num?)?.toInt() ?? 0,
         created: m['created'] == null
@@ -44,6 +51,12 @@ class PhoneItem {
             : DateTime.fromMillisecondsSinceEpoch((m['created'] as num).toInt()),
         uti: m['uti'] as String?,
       );
+}
+
+class DownloadedFile {
+  final String path;
+  final String origName;
+  const DownloadedFile({required this.path, required this.origName});
 }
 
 /// 照片的 EXIF 元数据。macOS 走 ImageIO，原生支持 HEIC。
@@ -112,17 +125,27 @@ class NativeBridge {
   }
 
   /// 把选中的文件下载到一个临时目录。**只读手机，不删不改。**
-  static Future<List<String>> downloadItems({
+  ///
+  /// `keys` 传的是 [PhoneItem.key]（文件夹路径+文件名），不是裸文件名。
+  /// 返回每个文件的中转路径和它在手机上的原始文件名。
+  static Future<List<DownloadedFile>> downloadItems({
     required String deviceId,
-    required List<String> names,
+    required List<String> keys,
     required String destDir,
   }) async {
     final r = await _channel.invokeMethod<List<Object?>>('downloadItems', {
       'deviceId': deviceId,
-      'names': names,
+      'names': keys,
       'destDir': destDir,
     });
-    return (r ?? []).whereType<String>().toList();
+    return (r ?? [])
+        .whereType<Map>()
+        .map((m) => DownloadedFile(
+              path: m['path'] as String? ?? '',
+              origName: m['name'] as String? ?? '',
+            ))
+        .where((e) => e.path.isNotEmpty)
+        .toList();
   }
 
   static Future<void> closeDevice(String deviceId) async {

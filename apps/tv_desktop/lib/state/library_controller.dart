@@ -115,9 +115,19 @@ class LibraryController extends ChangeNotifier {
   /// **手机上的照片全程只读**: 只调下载，从不删除、从不修改。
   /// 流程是「下载到临时目录 -> 导入照片库 -> 删掉临时副本」，
   /// 删的是 Mac 上的中转文件，不是手机上的照片。
+  /// 从 iPhone 直接导入。
+  ///
+  /// **手机上的照片全程只读**: 只调下载，从不删除、从不修改。
+  /// 流程是「下载到临时目录 -> 导入照片库 -> 删掉临时副本」，
+  /// 删的是 Mac 上的中转文件，不是手机上的照片。
+  ///
+  /// [keys] 是 PhoneItem.key（文件夹路径+文件名），不能用裸文件名 ——
+  /// iPhone 的 DCIM 分多个文件夹且文件名会绕回重复。
+  /// [limitTo] 是最后一道防线: 即使设备侧筛错了，按 EXIF 拍摄时间再挡一次。
   Future<void> importFromPhone({
     required String deviceId,
-    required List<String> names,
+    required List<String> keys,
+    DateTimeRange? limitTo,
     List<Tag> tags = const [],
   }) async {
     if (_catalog == null) return;
@@ -135,30 +145,47 @@ class LibraryController extends ChangeNotifier {
       });
 
       try {
-        final paths = await NativeBridge.downloadItems(
+        final files = await NativeBridge.downloadItems(
           deviceId: deviceId,
-          names: names,
+          keys: keys,
           destDir: staging.path,
         );
 
         status = '正在写入照片库...';
         notifyListeners();
 
+        final from = limitTo == null
+            ? null
+            : DateTime(limitTo.start.year, limitTo.start.month, limitTo.start.day);
+        final to = limitTo == null
+            ? null
+            : DateTime(limitTo.end.year, limitTo.end.month, limitTo.end.day)
+                .add(const Duration(days: 1));
+
         final importer = Importer(_catalog!);
-        var imported = 0, dup = 0;
-        for (var i = 0; i < paths.length; i++) {
-          final f = File(paths[i]);
+        var imported = 0, dup = 0, skipped = 0;
+        for (var i = 0; i < files.length; i++) {
+          final f = File(files[i].path);
           if (!await f.exists()) continue;
           final meta = await NativeBridge.readMetadata(f.path);
           final stat = await f.stat();
+          final takenAt = meta.takenAt ?? stat.modified;
+
+          // 兜底: 拍摄时间落在选定范围外的一律不入库
+          if (from != null && (takenAt.isBefore(from) || !takenAt.isBefore(to!))) {
+            skipped++;
+            continue;
+          }
+
           final r = await importer.importFile(
             f,
-            takenAt: meta.takenAt ?? stat.modified,
+            takenAt: takenAt,
             lat: meta.lat,
             lon: meta.lon,
             width: meta.width,
             height: meta.height,
             device: meta.device,
+            origFilename: files[i].origName,
             tags: tags,
           );
           if (r.outcome == ImportOutcome.imported) {
@@ -166,14 +193,17 @@ class LibraryController extends ChangeNotifier {
           } else {
             dup++;
           }
-          progress = (i + 1) / paths.length;
-          status = '正在写入照片库 ${i + 1}/${paths.length}';
+          progress = (i + 1) / files.length;
+          status = '正在写入照片库 ${i + 1}/${files.length}';
           notifyListeners();
         }
         await _catalog!.writeJsonl();
         final res = await _catalog!.rebuild();
         issues = res.issues;
-        status = '从手机导入完成: 新增 $imported 张，已有 $dup 张';
+        status = skipped > 0
+            ? '从手机导入完成: 新增 $imported 张，已有 $dup 张，'
+                '$skipped 张不在所选日期范围内已跳过'
+            : '从手机导入完成: 新增 $imported 张，已有 $dup 张';
       } finally {
         NativeBridge.setDownloadProgressHandler(null);
         // 只清理 Mac 上的中转副本

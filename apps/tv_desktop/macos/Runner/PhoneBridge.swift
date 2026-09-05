@@ -25,7 +25,7 @@ class PhoneBridge: NSObject {
 
   private var pendingDownloads: [ICCameraFile] = []
   private var downloadDestination: URL?
-  private var downloadedPaths: [String] = []
+  private var downloadedFiles: [[String: String]] = []
   private var downloadResult: FlutterResult?
   private var downloadTotal = 0
 
@@ -128,11 +128,25 @@ class PhoneBridge: NSObject {
     }
   }
 
+  /// 文件的唯一标识 = 所在文件夹路径 + 文件名。
+  /// 只用文件名是不够的: iPhone 的 DCIM 分成 100APPLE / 101APPLE 等多个文件夹，
+  /// 计数器到 IMG_9999 后绕回 IMG_0001，不同年份的照片会重名。
+  private func itemKey(_ item: ICCameraItem) -> String {
+    var parts: [String] = [item.name ?? ""]
+    var folder = item.parentFolder
+    while let f = folder {
+      if let n = f.name, !n.isEmpty { parts.insert(n, at: 0) }
+      folder = f.parentFolder
+    }
+    return parts.joined(separator: "/")
+  }
+
   private func itemList(_ cam: ICCameraDevice) -> [[String: Any]] {
     guard let files = cam.mediaFiles else { return [] }
     return files.compactMap { item in
       guard let f = item as? ICCameraFile else { return nil }
       var m: [String: Any] = [
+        "key": itemKey(f),
         "name": f.name ?? "",
         "size": f.fileSize,
       ]
@@ -153,9 +167,10 @@ class PhoneBridge: NSObject {
     guard let files = cam.mediaFiles else {
       result(err("NO_ITEMS", "设备上没有可读取的文件")); return
     }
+    // names 里传的是 itemKey（文件夹路径+文件名），不是裸文件名
     let wanted = Set(names)
     pendingDownloads = files.compactMap { $0 as? ICCameraFile }
-      .filter { wanted.contains($0.name ?? "") }
+      .filter { wanted.contains(itemKey($0)) }
 
     if pendingDownloads.isEmpty {
       result([String]()); return
@@ -166,7 +181,7 @@ class PhoneBridge: NSObject {
       at: url, withIntermediateDirectories: true)
 
     downloadDestination = url
-    downloadedPaths = []
+    downloadedFiles = []
     downloadResult = result
     downloadTotal = pendingDownloads.count
     downloadNext(cam)
@@ -175,7 +190,7 @@ class PhoneBridge: NSObject {
   private func downloadNext(_ cam: ICCameraDevice) {
     guard let dest = downloadDestination else { return }
     guard let file = pendingDownloads.first else {
-      let out = downloadedPaths
+      let out = downloadedFiles
       downloadResult?(out)
       downloadResult = nil
       downloadDestination = nil
@@ -183,9 +198,12 @@ class PhoneBridge: NSObject {
     }
     pendingDownloads.removeFirst()
 
+    // 中转文件名必须唯一 —— 同名文件同时下载会互相冲突。
+    // 原始文件名通过 didDownloadFile 单独回传，入库时仍用真名。
+    let staged = stagedName(for: file)
     let options: [ICDownloadOption: Any] = [
       .downloadsDirectoryURL: dest,
-      .saveAsFilename: file.name ?? UUID().uuidString,
+      .saveAsFilename: staged,
       .overwrite: false,
       // 绝不加 .deleteAfterSuccessfulDownload —— 手机上的照片只读
     ]
@@ -198,12 +216,22 @@ class PhoneBridge: NSObject {
       contextInfo: nil)
   }
 
+  /// 中转文件名: 由 itemKey 唯一决定（不能依赖计数器，
+  /// 否则下载前和回调时算出来的名字对不上）
+  private func stagedName(for file: ICCameraFile) -> String {
+    return itemKey(file).replacingOccurrences(of: "/", with: "_")
+  }
+
   @objc func didDownloadFile(
     _ file: ICCameraFile, error: Error?,
     options: [String: Any], contextInfo: UnsafeMutableRawPointer?
   ) {
-    if error == nil, let dest = downloadDestination, let name = file.name {
-      downloadedPaths.append(dest.appendingPathComponent(name).path)
+    if error == nil, let dest = downloadDestination {
+      let staged = stagedName(for: file)
+      downloadedFiles.append([
+        "path": dest.appendingPathComponent(staged).path,
+        "name": file.name ?? staged,
+      ])
     }
     let done = downloadTotal - pendingDownloads.count
     channel.invokeMethod("onDownloadProgress", arguments: [

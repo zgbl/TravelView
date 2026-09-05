@@ -65,7 +65,7 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
           .compareTo(b.created ?? DateTime(1970)));
       setState(() {
         items = list;
-        chosen.addAll(list.map((e) => e.name));
+        chosen.addAll(list.map((e) => e.key));
       });
     } catch (e) {
       setState(() => error = '$e');
@@ -88,8 +88,12 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
   }
 
   int get chosenBytes => filtered
-      .where((e) => chosen.contains(e.name))
+      .where((e) => chosen.contains(e.key))
       .fold<int>(0, (a, e) => a + e.size);
+
+  /// 拿不到拍摄时间的文件。设了日期范围时它们会被排除，
+  /// 必须让用户知道漏了多少，不能默默丢掉。
+  int get undatedCount => items.where((e) => e.created == null).length;
 
   Future<void> _pickRange() async {
     final now = DateTime.now();
@@ -104,20 +108,22 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
         range = r;
         chosen
           ..clear()
-          ..addAll(filtered.map((e) => e.name));
+          ..addAll(filtered.map((e) => e.key));
       });
     }
   }
 
   Future<void> _import() async {
-    final names =
-        filtered.where((e) => chosen.contains(e.name)).map((e) => e.name).toList();
-    if (names.isEmpty || selected == null) return;
+    final keys =
+        filtered.where((e) => chosen.contains(e.key)).map((e) => e.key).toList();
+    if (keys.isEmpty || selected == null) return;
     final trip = tripController.text.trim();
     Navigator.of(context).pop();
     await widget.controller.importFromPhone(
       deviceId: selected!.id,
-      names: names,
+      keys: keys,
+      // 兜底: 即使设备侧筛选出了范围外的文件，入库时按 EXIF 拍摄时间再挡一道
+      limitTo: range,
       tags: trip.isEmpty ? const [] : [Tag('trip', trip)],
     );
   }
@@ -170,7 +176,7 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
                     TextButton(
                       onPressed: () => setState(() => chosen
                         ..clear()
-                        ..addAll(filtered.map((e) => e.name))),
+                        ..addAll(filtered.map((e) => e.key))),
                       child: const Text('全选'),
                     ),
                     TextButton(
@@ -248,6 +254,16 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
                   icon: const Icon(Icons.close, size: 16),
                 ),
               const SizedBox(width: 16),
+              if (range != null && undatedCount > 0)
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Tooltip(
+                    message: '$undatedCount 个文件没有拍摄时间，日期筛选会把它们排除在外',
+                    child: Icon(Icons.info_outline,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ),
               Expanded(
                 child: TextField(
                   controller: tripController,
@@ -267,15 +283,15 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
             itemCount: filtered.length,
             itemBuilder: (context, i) {
               final it = filtered[i];
-              final on = chosen.contains(it.name);
+              final on = chosen.contains(it.key);
               return CheckboxListTile(
                 dense: true,
                 value: on,
                 onChanged: (v) => setState(() {
                   if (v == true) {
-                    chosen.add(it.name);
+                    chosen.add(it.key);
                   } else {
-                    chosen.remove(it.name);
+                    chosen.remove(it.key);
                   }
                 }),
                 title: Text(it.name, style: const TextStyle(fontSize: 13)),
@@ -305,7 +321,7 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
   }
 
   String _selectionSummary() {
-    final n = chosen.where((n) => filtered.any((e) => e.name == n)).length;
+    final n = chosen.where((k) => filtered.any((e) => e.key == k)).length;
     return '已选 $n / ${filtered.length} 张 · ${humanBytes(chosenBytes)}';
   }
 
