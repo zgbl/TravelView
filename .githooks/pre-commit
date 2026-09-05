@@ -1,0 +1,14 @@
+#!/bin/sh
+# 只读铁律: 禁止任何修改/删除手机内容或相册的代码进入版本库。
+# 只看新增的“代码行”: 跳过注释、Markdown，以及本钩子自身。
+PAT_FILE="$(git rev-parse --show-toplevel)/.githooks/banned.txt"
+HITS=$(git diff --cached -U0 -- . ':(exclude)*.md' ':(exclude).githooks/*' \
+  | grep -E "^\+" \
+  | grep -vE "^\+[[:space:]]*(//|#|%|<!--|\*)" \
+  | grep -Ef "$PAT_FILE")
+if [ -n "$HITS" ]; then
+  echo "[禁止] 检测到会修改手机照片的代码/权限，已阻止提交:"
+  echo "$HITS"
+  exit 1
+fi
+exit 0

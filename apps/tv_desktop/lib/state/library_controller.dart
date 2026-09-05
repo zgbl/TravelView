@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
+import '../native/native_bridge.dart';
+
 /// 桌面端的全部状态。业务逻辑一律在 tv_core 里，这里只负责调度和进度上报。
 class LibraryController extends ChangeNotifier {
   Directory? _root;
@@ -58,7 +60,8 @@ class LibraryController extends ChangeNotifier {
     });
   }
 
-  Future<void> importFrom(String sourcePath) async {
+  /// 从一个文件夹导入。`tags` 用于给这批照片统一打标（例如"来自 iPhone 的这次旅行"）。
+  Future<void> importFrom(String sourcePath, {List<Tag> tags = const []}) async {
     if (_catalog == null) return;
     await _guard('正在导入...', () async {
       final src = Directory(sourcePath);
@@ -72,8 +75,19 @@ class LibraryController extends ChangeNotifier {
       for (var i = 0; i < files.length; i++) {
         final f = files[i];
         try {
+          final meta = await NativeBridge.readMetadata(f.path);
           final stat = await f.stat();
-          final r = await importer.importFile(f, takenAt: stat.modified);
+          final r = await importer.importFile(
+            f,
+            // EXIF 拍摄时间才是真的；拿不到才退回文件修改时间
+            takenAt: meta.takenAt ?? stat.modified,
+            lat: meta.lat,
+            lon: meta.lon,
+            width: meta.width,
+            height: meta.height,
+            device: meta.device,
+            tags: tags,
+          );
           if (r.outcome == ImportOutcome.imported) {
             imported++;
           } else {
@@ -88,6 +102,80 @@ class LibraryController extends ChangeNotifier {
       }
       await _catalog!.writeJsonl();
       status = '导入完成: 新增 $imported 张，重复跳过 $dup 张';
+    });
+  }
+
+  /// 从 iPhone 直接导入。
+  ///
+  /// **手机上的照片全程只读**: 只调下载，从不删除、从不修改。
+  /// 流程是「下载到临时目录 -> 导入照片库 -> 删掉临时副本」，
+  /// 删的是 Mac 上的中转文件，不是手机上的照片。
+  Future<void> importFromPhone({
+    required String deviceId,
+    required List<String> names,
+    List<Tag> tags = const [],
+  }) async {
+    if (_catalog == null) return;
+    await _guard('正在从手机读取...', () async {
+      final staging = await Directory(
+        p.join(Directory.systemTemp.path,
+            'travelview_staging_\${DateTime.now().millisecondsSinceEpoch}'),
+      ).create(recursive: true);
+
+      NativeBridge.setDownloadProgressHandler((done, total, name, error) {
+        progress = total == 0 ? null : done / total;
+        status = '正在从手机读取 \$done/\$total  \$name';
+        if (error != null) lastError = error;
+        notifyListeners();
+      });
+
+      try {
+        final paths = await NativeBridge.downloadItems(
+          deviceId: deviceId,
+          names: names,
+          destDir: staging.path,
+        );
+
+        status = '正在写入照片库...';
+        notifyListeners();
+
+        final importer = Importer(_catalog!);
+        var imported = 0, dup = 0;
+        for (var i = 0; i < paths.length; i++) {
+          final f = File(paths[i]);
+          if (!await f.exists()) continue;
+          final meta = await NativeBridge.readMetadata(f.path);
+          final stat = await f.stat();
+          final r = await importer.importFile(
+            f,
+            takenAt: meta.takenAt ?? stat.modified,
+            lat: meta.lat,
+            lon: meta.lon,
+            width: meta.width,
+            height: meta.height,
+            device: meta.device,
+            tags: tags,
+          );
+          if (r.outcome == ImportOutcome.imported) {
+            imported++;
+          } else {
+            dup++;
+          }
+          progress = (i + 1) / paths.length;
+          status = '正在写入照片库 \${i + 1}/\${paths.length}';
+          notifyListeners();
+        }
+        await _catalog!.writeJsonl();
+        final res = await _catalog!.rebuild();
+        issues = res.issues;
+        status = '从手机导入完成: 新增 \$imported 张，已有 \$dup 张';
+      } finally {
+        NativeBridge.setDownloadProgressHandler(null);
+        // 只清理 Mac 上的中转副本
+        if (await staging.exists()) {
+          await staging.delete(recursive: true);
+        }
+      }
     });
   }
 

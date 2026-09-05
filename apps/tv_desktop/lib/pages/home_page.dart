@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
+import 'phone_import_page.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/stat_bar.dart';
 
@@ -43,6 +44,13 @@ class _HomePageState extends State<HomePage> {
     if (dir != null) await c.importFrom(dir);
   }
 
+  Future<void> _importFromPhone() async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => PhoneImportDialog(controller: c),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -52,6 +60,7 @@ class _HomePageState extends State<HomePage> {
             c: c,
             onOpen: _pickLibrary,
             onImport: _pickImportSource,
+            onPhoneImport: _importFromPhone,
           ),
           const VerticalDivider(width: 1),
           Expanded(
@@ -148,10 +157,21 @@ class _HomePageState extends State<HomePage> {
           Text('从一个文件夹导入照片开始',
               style: TextStyle(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 20),
-          FilledButton.tonalIcon(
-            onPressed: c.busy ? null : _pickImportSource,
-            icon: const Icon(Icons.download_outlined),
-            label: const Text('导入照片'),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              FilledButton.icon(
+                onPressed: c.busy ? null : _importFromPhone,
+                icon: const Icon(Icons.phone_iphone),
+                label: const Text('从 iPhone 导入'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.tonalIcon(
+                onPressed: c.busy ? null : _pickImportSource,
+                icon: const Icon(Icons.folder_outlined),
+                label: const Text('从文件夹导入'),
+              ),
+            ],
           ),
         ],
       ),
@@ -163,11 +183,13 @@ class _Sidebar extends StatelessWidget {
   final LibraryController c;
   final VoidCallback onOpen;
   final VoidCallback onImport;
+  final VoidCallback onPhoneImport;
 
   const _Sidebar({
     required this.c,
     required this.onOpen,
     required this.onImport,
+    required this.onPhoneImport,
   });
 
   @override
@@ -198,8 +220,13 @@ class _Sidebar extends StatelessWidget {
             onTap: c.busy ? null : onOpen,
           ),
           _Action(
-            icon: Icons.download_outlined,
-            label: '导入照片',
+            icon: Icons.phone_iphone,
+            label: '从手机导入',
+            onTap: c.busy || !c.hasLibrary ? null : onPhoneImport,
+          ),
+          _Action(
+            icon: Icons.folder_outlined,
+            label: '从文件夹导入',
             onTap: c.busy || !c.hasLibrary ? null : onImport,
           ),
           _Action(
