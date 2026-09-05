@@ -7,6 +7,7 @@ import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
 import '../widgets/photo_tile.dart';
+import '../widgets/route_settings_dialog.dart';
 import 'photo_viewer.dart';
 
 /// 行程地图 —— 把一堆散落的照片坐标还原成一条能看的路线。
@@ -20,9 +21,11 @@ class MapPage extends StatefulWidget {
 
 class _MapPageState extends State<MapPage> {
   final mapController = MapController();
-  ClusterOptions options = ClusterOptions.roadTrip;
+  ClusterOptions get options => widget.c.clusterPreset == 'city'
+      ? ClusterOptions.city
+      : ClusterOptions.roadTrip;
   TripRoute? route;
-  StayPoint? selected;
+  Stop? selected;
   bool computing = false;
   String _lastSignature = '';
 
@@ -41,7 +44,8 @@ class _MapPageState extends State<MapPage> {
 
   /// 全局时间范围一变，地图立刻重算 —— 这是"随时换一段行程来看"的关键
   String get _signature =>
-      '${widget.c.rangeStart}|${widget.c.rangeEnd}|${widget.c.photoCount}';
+      '${widget.c.rangeStart}|${widget.c.rangeEnd}|${widget.c.photoCount}'
+      '|${widget.c.clusterPreset}';
 
   void _onLibraryChanged() {
     if (_signature != _lastSignature) _recompute();
@@ -83,7 +87,30 @@ class _MapPageState extends State<MapPage> {
     return Column(
       children: [
         _toolbar(context),
-        if (computing) const LinearProgressIndicator(),
+        if (computing || widget.c.routing) const LinearProgressIndicator(),
+        if (widget.c.routeError != null)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            color: Theme.of(context).colorScheme.errorContainer,
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    widget.c.routeError!,
+                    style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onErrorContainer),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      RouteSettingsDialog.show(context, widget.c),
+                  child: const Text('去设置', style: TextStyle(fontSize: 12)),
+                ),
+              ],
+            ),
+          ),
         Expanded(
           child: r == null || r.isEmpty
               ? _empty(context)
@@ -124,21 +151,63 @@ class _MapPageState extends State<MapPage> {
       ),
       child: Row(
         children: [
+          // 窗口变窄时这一排放不下，让它自己横向滚动
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'road', label: Text('长途自驾')),
               ButtonSegment(value: 'city', label: Text('城市游玩')),
             ],
-            selected: {
-              options.radiusMeters >= 1000 ? 'road' : 'city',
-            },
-            onSelectionChanged: (s) {
-              setState(() => options =
-                  s.first == 'road' ? ClusterOptions.roadTrip : ClusterOptions.city);
-              _recompute();
-            },
+            selected: {widget.c.clusterPreset},
+            onSelectionChanged: (s) => widget.c.setClusterPreset(s.first),
           ),
-          const Spacer(),
+          const SizedBox(width: 20),
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'driving', label: Text('驾车')),
+              ButtonSegment(value: 'walking', label: Text('步行')),
+              ButtonSegment(value: 'direct', label: Text('直线')),
+            ],
+            selected: {widget.c.routeMode},
+            onSelectionChanged: (s) => widget.c.routeMode = s.first,
+          ),
+          const SizedBox(width: 10),
+          if (widget.c.routeMode != 'direct')
+            widget.c.routing
+                ? Row(
+                    children: [
+                      const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                      const SizedBox(width: 8),
+                      Text('${widget.c.routeDone}/${widget.c.routeTotal}',
+                          style: const TextStyle(fontSize: 12)),
+                    ],
+                  )
+                : FilledButton.tonalIcon(
+                    onPressed: r == null || r.isEmpty
+                        ? null
+                        : () => widget.c.computeRoads(r),
+                    icon: const Icon(Icons.alt_route, size: 15),
+                    label: Text(
+                        widget.c.roadLegs.isEmpty ? '贴合道路' : '重算路线',
+                        style: const TextStyle(fontSize: 12)),
+                  ),
+          IconButton(
+            tooltip: '道路路线服务设置',
+            onPressed: () => RouteSettingsDialog.show(context, widget.c),
+            icon: const Icon(Icons.settings_outlined, size: 18),
+          ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
           if (r != null && !r.isEmpty) _summary(context, r),
         ],
       ),
@@ -147,10 +216,17 @@ class _MapPageState extends State<MapPage> {
 
   Widget _summary(BuildContext context, TripRoute r) {
     final scheme = Theme.of(context).colorScheme;
+    final roads = widget.c.roadLegs;
+    final roadMiles = roads.isEmpty
+        ? null
+        : roads.fold<double>(0, (a, l) => a + l.distanceMeters) / 1609.344;
     final items = <String, String>{
       '天数': '${r.dayCount}',
-      '地点': '${r.stays.length}',
-      '里程': '${r.totalMiles.round()} mi',
+      '站': '${r.stays.length}',
+      // 有道路路线时用道路里程 —— 直线里程总会明显偏小
+      '里程': roadMiles == null
+          ? '${r.totalMiles.round()} mi 直线'
+          : '${roadMiles.round()} mi 道路',
       '照片': '${r.stays.fold<int>(0, (a, s) => a + s.photoCount)}',
     };
     return Row(
@@ -201,8 +277,29 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  /// 自驾/步行画实线，飞行画虚线（用等距点模拟大圆弧的断续效果）
+  /// 有算好的道路路线就画道路，否则退回站与站之间的直线。
   List<Polyline> _polylines(TripRoute r) {
+    final roads = widget.c.roadLegs;
+    if (roads.isNotEmpty) {
+      return roads.map((leg) {
+        final pts = leg.geometry
+            .map((e) => LatLng(e.lat, e.lon))
+            .toList(growable: false);
+        final isFlight = leg.mode == TravelMode2.flight;
+        return Polyline(
+          points: pts,
+          color: isFlight
+              ? const Color(0xFF9C6ADE)
+              : (leg.provider == 'direct'
+                  // 退回直线的段用浅色区分，一眼看出哪几段没取到道路
+                  ? const Color(0xFF9AA6A5)
+                  : const Color(0xFF2E6F6A)),
+          strokeWidth: isFlight ? 2 : 3.4,
+          pattern: isFlight ? StrokePattern.dotted() : const StrokePattern.solid(),
+        );
+      }).toList();
+    }
+
     final out = <Polyline>[];
     for (final leg in r.legs) {
       final a = LatLng(leg.from.lat, leg.from.lon);
@@ -290,6 +387,15 @@ class _MapPageState extends State<MapPage> {
                   Text(day,
                       style: TextStyle(
                           fontSize: 11, color: scheme.onSurfaceVariant)),
+                  const Spacer(),
+                  Text(
+                    '${LibraryLayout.timeStamp(stays.first.arrive).substring(0, 5)}'
+                    ' - '
+                    '${LibraryLayout.timeStamp(stays.last.leave).substring(0, 5)}',
+                    style: TextStyle(
+                        fontSize: 11, color: scheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(width: 14),
                 ],
               ),
             ),
@@ -300,7 +406,7 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  Widget _nodeRow(StayPoint s) {
+  Widget _nodeRow(Stop s) {
     final scheme = Theme.of(context).colorScheme;
     final isSel = selected?.seq == s.seq;
     return InkWell(
@@ -318,9 +424,15 @@ class _MapPageState extends State<MapPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '${LibraryLayout.timeStamp(s.arrive).substring(0, 5)}'
-                    '  ${s.lat.toStringAsFixed(3)}, ${s.lon.toStringAsFixed(3)}',
-                    style: const TextStyle(fontSize: 12),
+                    _timeSpan(s),
+                    style: const TextStyle(
+                        fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    '${s.lat.toStringAsFixed(4)}, ${s.lon.toStringAsFixed(4)}',
+                    style: TextStyle(
+                        fontSize: 10.5, color: scheme.onSurfaceVariant),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -338,7 +450,7 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  Widget _cover(StayPoint stay) {
+  Widget _cover(Stop stay) {
     final cat = widget.c.catalog;
     if (cat == null) return const SizedBox.shrink();
     final rec = cat.byId(stay.photoIds.first);
@@ -359,6 +471,14 @@ class _MapPageState extends State<MapPage> {
         PhotoViewer.open(context, c: widget.c, photos: photos, index: 0);
       },
     );
+  }
+
+  /// 到达 - 离开，精确到分钟。只有一张照片时就只显示一个时刻。
+  static String _timeSpan(Stop s) {
+    final a = LibraryLayout.timeStamp(s.arrive).substring(0, 5);
+    if (s.duration.inMinutes < 1) return a;
+    final b = LibraryLayout.timeStamp(s.leave).substring(0, 5);
+    return '$a - $b';
   }
 
   static String _dur(Duration d) {

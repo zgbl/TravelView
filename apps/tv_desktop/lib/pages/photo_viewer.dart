@@ -36,9 +36,11 @@ class PhotoViewer extends StatefulWidget {
     required List<PhotoRecord> photos,
     required int index,
   }) {
+    // opaque: true —— 透明路由在 macOS 的 Impeller 后端上会整片渲染成黑色，
+    // 而我们本来就是不透明的黑底，不需要透明。
     return Navigator.of(context).push(PageRouteBuilder(
-      opaque: false,
-      barrierColor: Colors.black87,
+      opaque: true,
+      fullscreenDialog: true,
       pageBuilder: (_, __, ___) =>
           PhotoViewer(c: c, photos: photos, initialIndex: index),
       transitionsBuilder: (_, anim, __, child) =>
@@ -58,6 +60,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
   /// 刚刚改过选取状态的时刻，用来闪一下提示，让"到底选上没有"一目了然
   DateTime? _pickFlash;
+
+  /// 手动重新生成预览时用来强制刷新 FutureBuilder
+  int _reloadToken = 0;
 
   /// 滚动翻页的累积量。
   ///
@@ -197,12 +202,23 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
   @override
   Widget build(BuildContext context) {
-    return Focus(
+    return CallbackShortcuts(
+      bindings: {
+        // Esc 单独挂在这里 —— 即使下面的 Focus 没拿到键盘，也一定关得掉
+        const SingleActivator(LogicalKeyboardKey.escape): () =>
+            Navigator.of(context).maybePop(),
+      },
+      child: Focus(
       autofocus: true,
       onKeyEvent: _onKey,
       child: Scaffold(
-        backgroundColor: Colors.black.withValues(alpha: 0.94),
+        backgroundColor: const Color(0xFF0E0E10),
+        // fit: StackFit.expand 是必须的！
+        // Stack 只有在"没有任何非定位子组件"时才会自己撑满；一旦出现一个
+        // 非定位子组件（_pickToast 大多数时候返回 SizedBox.shrink，就是 0x0），
+        // Stack 就会缩成 0x0，所有 Positioned.fill 的内容随之消失 —— 整片全黑。
         body: Stack(
+          fit: StackFit.expand,
           children: [
             Positioned.fill(
               child: Listener(
@@ -227,10 +243,11 @@ class _PhotoViewerState extends State<PhotoViewer> {
             if (index > 0) _navButton(left: true),
             if (index < widget.photos.length - 1) _navButton(left: false),
             if (showInfo) _infoPanel(),
-            _pickToast(),
+            Positioned.fill(child: _pickToast()),
             _bottomBar(),
           ],
         ),
+      ),
       ),
     );
   }
@@ -242,7 +259,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
     return FutureBuilder<File?>(
       // key 保证切换照片时重新取图，而不是复用上一张的 Future
-      key: ValueKey(rec.id),
+      key: ValueKey('${rec.id}/$_reloadToken'),
       future: widget.c.thumbs!.preview(rec.id, file),
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
@@ -254,15 +271,14 @@ class _PhotoViewerState extends State<PhotoViewer> {
             ),
           );
         }
+        if (snap.hasError) {
+          return _failure('生成预览时出错', '${snap.error}', file);
+        }
         final f = snap.data;
         if (f == null) {
-          return Center(
-            child: Text('这个文件无法预览: ${rec.origFilename}',
-                style: const TextStyle(color: Colors.white70)),
-          );
+          return _failure('无法为这个文件生成预览', rec.origFilename, file);
         }
-        // scaleEnabled: false —— 否则 InteractiveViewer 会把滚轮吃掉做缩放，
-        // 和翻页打架。缩放改成: 双击切换，或按住 Cmd/Ctrl 时用滚轮。
+
         final image = GestureDetector(
           onDoubleTap: _toggleZoom,
           child: InteractiveViewer(
@@ -271,19 +287,91 @@ class _PhotoViewerState extends State<PhotoViewer> {
             maxScale: 6,
             scaleEnabled: false,
             panEnabled: true,
-            child: Center(child: Image.file(f, fit: BoxFit.contain)),
+            child: Center(
+              child: Image.file(
+                f,
+                fit: BoxFit.contain,
+                filterQuality: FilterQuality.medium,
+                // 之前这里没有 errorBuilder —— 预览图损坏时 Flutter 什么都不画，
+                // 表现就是"一片黑"，完全看不出发生了什么
+                errorBuilder: (context, err, stack) =>
+                    _failure('预览图读不出来', '$err', file, badPreview: f),
+              ),
+            ),
           ),
         );
         if (!isVideo) return image;
         return Stack(
           alignment: Alignment.center,
-          children: [
-            image,
-            _playOverlay(file),
-          ],
+          children: [image, _playOverlay(file)],
         );
       },
     );
+  }
+
+  /// 出问题时给出可操作的信息，而不是一片黑
+  Widget _failure(String title, String detail, File source,
+      {File? badPreview}) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.broken_image_outlined,
+                size: 44, color: Colors.white38),
+            const SizedBox(height: 14),
+            Text(title,
+                style: const TextStyle(color: Colors.white, fontSize: 15)),
+            const SizedBox(height: 8),
+            SelectableText(
+              detail,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            SelectableText(
+              source.path,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white38, fontSize: 11),
+            ),
+            const SizedBox(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed: () => _regenerate(badPreview),
+                  icon: const Icon(Icons.refresh, size: 16),
+                  label: const Text('重新生成预览'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: () => _openWithSystem(source),
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  label: const Text('用系统程序打开原图'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 删掉坏掉的预览图并重来。缓存是派生数据，删了随时能重建。
+  Future<void> _regenerate(File? badPreview) async {
+    final rec = current;
+    final th = widget.c.thumbs!;
+    for (final f in [badPreview, th.pathFor(rec.id, variant: 'previews')]) {
+      if (f != null && await f.exists()) {
+        await f.delete();
+      }
+    }
+    th.forget(rec.id, variant: 'previews');
+    // 让 Flutter 的图片缓存也忘掉这个文件，否则会继续拿旧的坏数据
+    imageCache.clear();
+    imageCache.clearLiveImages();
+    if (mounted) setState(() => _reloadToken++);
   }
 
   Widget _playOverlay(File file) {
@@ -354,10 +442,10 @@ class _PhotoViewerState extends State<PhotoViewer> {
               icon: Icon(Icons.info_outline,
                   color: showInfo ? Colors.white : Colors.white54),
             ),
-            IconButton(
-              tooltip: '关闭 (Esc)',
-              onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.close, color: Colors.white70),
+            FilledButton.tonalIcon(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.close, size: 16),
+              label: const Text('关闭'),
             ),
           ],
           ),

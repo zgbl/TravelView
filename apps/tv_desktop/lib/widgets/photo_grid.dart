@@ -38,7 +38,7 @@ class PhotoGrid extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, box) {
-        final usable = box.maxWidth - 48;
+        final usable = box.maxWidth - 48 - 2; // 留 2px 余量，防止取整误差撑爆行
         final perRow = ((usable + gap) / (tileSize + gap)).floor().clamp(1, 20);
         final rows = _flatten(days, perRow);
 
@@ -88,22 +88,24 @@ class PhotoGrid extends StatelessWidget {
       padding: EdgeInsets.only(bottom: gap),
       child: Row(
         children: [
-          for (final r in row.items) ...[
+          // 注意: 最后一个 tile 后面不能再加间隔，否则整行宽度超出可用空间
+          for (var i = 0; i < row.items.length; i++) ...[
+            if (i > 0) SizedBox(width: gap),
             PhotoTile(
-              record: r,
-              file: c.fileOf(r),
+              record: row.items[i],
+              file: c.fileOf(row.items[i]),
               thumbs: c.thumbs!,
               size: tileSize,
-              picked: c.isPicked(c.catalog?.byId(r.id) ?? r),
+              picked: c.isPicked(
+                  c.catalog?.byId(row.items[i].id) ?? row.items[i]),
               onTap: () {
                 final all = _flatPhotos();
-                final i = all.indexWhere((e) => e.id == r.id);
-                if (i >= 0) {
-                  PhotoViewer.open(context, c: c, photos: all, index: i);
+                final at = all.indexWhere((e) => e.id == row.items[i].id);
+                if (at >= 0) {
+                  PhotoViewer.open(context, c: c, photos: all, index: at);
                 }
               },
             ),
-            SizedBox(width: gap),
           ],
         ],
       ),

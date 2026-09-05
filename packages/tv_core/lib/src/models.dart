@@ -51,6 +51,22 @@ class PhotoRecord {
   final String? editOf;
 
   final bool isScreenshot;
+
+  // ---- 自动精选用的信号（导入时由原生层一次算出，存进 sidecar）----
+
+  /// 清晰度: 缩略图的拉普拉斯方差，越大越锐利。模糊和手抖的照片会很低。
+  final double? sharpness;
+
+  /// 亮度均值 0..1。过曝或欠曝的照片会靠近两端。
+  final double? brightness;
+
+  /// 感知哈希（dHash, 16 位十六进制）。用汉明距离判断"是不是同一张"，
+  /// 这是去掉连拍和同一景物重复拍摄的关键。
+  final String? phash;
+
+  /// 人脸数量。有人的照片通常更值得放进回顾。
+  final int? faceCount;
+
   final List<Tag> tags;
 
   PhotoRecord({
@@ -67,10 +83,18 @@ class PhotoRecord {
     this.liveVideoId,
     this.editOf,
     this.isScreenshot = false,
+    this.sharpness,
+    this.brightness,
+    this.phash,
+    this.faceCount,
     List<Tag>? tags,
   }) : tags = List.unmodifiable((tags ?? const <Tag>[]).toList()..sort());
 
   bool get hasLocation => lat != null && lon != null;
+
+  bool get isPortrait => (width ?? 0) > 0 && (height ?? 0) > (width ?? 0);
+  bool get isLandscape => (width ?? 0) > (height ?? 0);
+  int get pixels => (width ?? 0) * (height ?? 0);
 
   PhotoRecord copyWith({List<Tag>? tags, String? liveVideoId, String? editOf}) =>
       PhotoRecord(
@@ -87,6 +111,10 @@ class PhotoRecord {
         liveVideoId: liveVideoId ?? this.liveVideoId,
         editOf: editOf ?? this.editOf,
         isScreenshot: isScreenshot,
+        sharpness: sharpness,
+        brightness: brightness,
+        phash: phash,
+        faceCount: faceCount,
         tags: tags ?? this.tags,
       );
 
@@ -109,6 +137,10 @@ class PhotoRecord {
       liveVideoId: liveVideoId ?? other.liveVideoId,
       editOf: editOf ?? other.editOf,
       isScreenshot: isScreenshot || other.isScreenshot,
+      sharpness: sharpness ?? other.sharpness,
+      brightness: brightness ?? other.brightness,
+      phash: phash ?? other.phash,
+      faceCount: faceCount ?? other.faceCount,
       tags: merged,
     );
   }
@@ -132,6 +164,10 @@ class PhotoRecord {
     put('device', device);
     put('live_video_id', liveVideoId);
     put('edit_of', editOf);
+    put('sharpness', sharpness);
+    put('brightness', brightness);
+    put('phash', phash);
+    put('face_count', faceCount);
     if (isScreenshot) m['is_screenshot'] = true;
     if (tags.isNotEmpty) m['tags'] = tags.map((t) => t.toJson()).toList();
     return m;
@@ -151,6 +187,10 @@ class PhotoRecord {
         liveVideoId: j['live_video_id'] as String?,
         editOf: j['edit_of'] as String?,
         isScreenshot: j['is_screenshot'] as bool? ?? false,
+        sharpness: (j['sharpness'] as num?)?.toDouble(),
+        brightness: (j['brightness'] as num?)?.toDouble(),
+        phash: j['phash'] as String?,
+        faceCount: (j['face_count'] as num?)?.toInt(),
         tags: (j['tags'] as List?)
             ?.map((e) => Tag.fromJson(e as Map<String, dynamic>))
             .toList(),

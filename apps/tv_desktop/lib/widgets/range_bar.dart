@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
+import 'range_dialog.dart';
 
 /// 全局时间范围条。照片视图和行程地图共用同一个范围。
 ///
@@ -18,6 +19,12 @@ class RangeBar extends StatelessWidget {
 
     return Row(
       children: [
+        // 窗口变窄时这一排会放不下，让它自己横向滚动，而不是溢出报错
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
         Icon(Icons.filter_alt_outlined, size: 16, color: scheme.primary),
         const SizedBox(width: 8),
         _chip(
@@ -31,7 +38,7 @@ class RangeBar extends StatelessWidget {
             context,
             label: '$y',
             selected: _isYearSelected(y),
-            onTap: () => c.setRange(DateTime(y), DateTime(y, 12, 31)),
+            onTap: () => c.setDayRange(DateTime(y), DateTime(y, 12, 31)),
           ),
         const SizedBox(width: 8),
         OutlinedButton.icon(
@@ -45,6 +52,10 @@ class RangeBar extends StatelessWidget {
             onPressed: c.clearRange,
             icon: const Icon(Icons.close, size: 15),
           ),
+              ],
+            ),
+          ),
+        ),
         const SizedBox(width: 12),
         Text(
           c.hasRange
@@ -68,33 +79,31 @@ class RangeBar extends StatelessWidget {
 
   bool _isYearSelected(int y) =>
       c.rangeStart == DateTime(y) &&
-      c.rangeEnd == DateTime(y, 12, 31).add(const Duration(days: 1));
+      c.rangeEnd == DateTime(y, 12, 31, 23, 59, 59);
 
   String _label() {
     if (!c.hasRange) return '自定义时间范围';
-    final from = c.rangeStart;
-    final to = c.rangeEnd?.subtract(const Duration(days: 1));
-    final a = from == null ? '最早' : LibraryLayout.dateStamp(from);
-    final b = to == null ? '最新' : LibraryLayout.dateStamp(to);
-    return '$a ~ $b';
+    return '${_stamp(c.rangeStart, '最早')} ~ ${_stamp(c.rangeEnd, '最新')}';
+  }
+
+  /// 精确到分钟 —— 同一天可能要切成上下午两段行程
+  static String _stamp(DateTime? t, String fallback) {
+    if (t == null) return fallback;
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '${LibraryLayout.dateStamp(t)} $hh:$mm';
   }
 
   Future<void> _pick(BuildContext context) async {
     final span = c.libraryTimeSpan;
-    final first = span == null ? DateTime(2000) : span.$1;
-    final last = span == null ? DateTime.now() : span.$2;
-    final r = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(first.year - 1),
-      lastDate: DateTime(last.year + 1, 12, 31),
-      initialDateRange: c.rangeStart != null && c.rangeEnd != null
-          ? DateTimeRange(
-              start: c.rangeStart!,
-              end: c.rangeEnd!.subtract(const Duration(days: 1)))
-          : DateTimeRange(start: first, end: last),
-      helpText: '选择要做行程报告的时间范围',
+    final r = await RangeDialog.show(
+      context,
+      start: c.rangeStart,
+      end: c.rangeEnd,
+      firstDate: span?.$1 ?? DateTime(2000),
+      lastDate: span?.$2 ?? DateTime.now(),
     );
-    if (r != null) c.setRange(r.start, r.end);
+    if (r != null) c.setRange(r.$1, r.$2);
   }
 
   Widget _chip(

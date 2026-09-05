@@ -53,6 +53,34 @@ class PhoneItem {
       );
 }
 
+class ExportedImage {
+  final String path;
+  final String format;
+  final int width;
+  final int height;
+  final int bytes;
+  const ExportedImage({
+    required this.path,
+    required this.format,
+    required this.width,
+    required this.height,
+    required this.bytes,
+  });
+}
+
+class PhotoSignals {
+  final double? sharpness;
+  final double? brightness;
+  final String? phash;
+  final int? faceCount;
+  const PhotoSignals({
+    this.sharpness,
+    this.brightness,
+    this.phash,
+    this.faceCount,
+  });
+}
+
 class DownloadedFile {
   final String path;
   final String origName;
@@ -190,6 +218,53 @@ class NativeBridge {
           false;
     } catch (_) {
       return false;
+    }
+  }
+
+  /// 导出网页用的派生图: 缩放 + 烤进方向 + **剥掉全部元数据**。
+  /// 优先 WebP，系统不支持时退回 JPEG（返回值里说明实际格式与路径）。
+  static Future<ExportedImage?> exportWeb(
+    String path,
+    String destPath, {
+    int maxPixels = 1600,
+    double quality = 0.82,
+  }) async {
+    if (!supported) return null;
+    try {
+      final m = await _channel.invokeMethod<Map>('exportWeb', {
+        'path': path,
+        'destPath': destPath,
+        'maxPixels': maxPixels,
+        'quality': quality,
+      });
+      if (m == null || m['ok'] != true) return null;
+      return ExportedImage(
+        path: m['path'] as String,
+        format: m['format'] as String? ?? 'jpeg',
+        width: (m['width'] as num?)?.toInt() ?? 0,
+        height: (m['height'] as num?)?.toInt() ?? 0,
+        bytes: (m['bytes'] as num?)?.toInt() ?? 0,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 分析一张图，算出自动精选需要的信号（清晰度、亮度、感知哈希、人脸数）。
+  /// 传入的应该是**已生成的缩略图**，不是原图 —— 省一次全尺寸解码。
+  static Future<PhotoSignals?> analyze(String path) async {
+    if (!supported) return null;
+    try {
+      final m = await _channel.invokeMethod<Map>('analyze', {'path': path});
+      if (m == null || m['phash'] == null) return null;
+      return PhotoSignals(
+        sharpness: (m['sharpness'] as num?)?.toDouble(),
+        brightness: (m['brightness'] as num?)?.toDouble(),
+        phash: m['phash'] as String?,
+        faceCount: (m['faceCount'] as num?)?.toInt(),
+      );
+    } catch (_) {
+      return null;
     }
   }
 

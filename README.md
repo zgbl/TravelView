@@ -6,7 +6,13 @@
 - 游记 = 从库里读
 
 - 使用说明：`docs/user-manual.md`（**改快捷键或鼠标行为必须同步更新它**）
-- 设计文档：`Design/`，先读 `architecture.md`
+- 设计文档：`Design/`
+  - `architecture.md` 开放照片库的地基（先读这个）
+  - `story-and-curation.md` 自动精选、Stop、道路路线
+  - `story-output.md` Story 数据模型与输出架构
+  - `publish-pipeline.md` 派生图格式与发布管线
+  - `map-tiles.md` 地图底图选型
+  - `dev-setup.md` / `build-and-package.md` 环境与打包
 
 ## 目录结构
 
@@ -18,7 +24,8 @@ packages/
 apps/
   tv_app/           Flutter 手机端 (iOS / Android)
   tv_desktop/       Flutter Desktop (macOS)
-web/                分享站（发布出去的游记页面）
+web/                配套网站（Next.js）: 注册 / 支付 / 发布 / 公开链接
+                    独立开发部署，只和 App 共享 Story manifest 这一份契约
 tools/
   devsink/          开发期产物回收服务
   spikes/           技术验证小程序

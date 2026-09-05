@@ -4,6 +4,8 @@ import ImageCaptureCore
 import ImageIO
 import CoreLocation
 import AVFoundation
+import Vision
+import Accelerate
 
 /// iPhone / 相机直读桥。
 ///
@@ -127,6 +129,28 @@ class PhoneBridge: NSObject {
       queue.async {
         let ok = PhoneBridge.makeThumbnail(src: src, dst: dst, maxPixels: maxPx)
         DispatchQueue.main.async { result(ok) }
+      }
+
+    case "analyze":
+      guard let path = args["path"] as? String else {
+        result(err("BAD_ARGS", "缺少 path")); return
+      }
+      PhoneBridge.bgWork.async {
+        let m = PhoneBridge.analyze(path: path)
+        DispatchQueue.main.async { result(m) }
+      }
+
+    case "exportWeb":
+      guard let src = args["path"] as? String,
+            let dst = args["destPath"] as? String else {
+        result(err("BAD_ARGS", "缺少 path/destPath")); return
+      }
+      let maxPx = args["maxPixels"] as? Int ?? 1600
+      let quality = args["quality"] as? Double ?? 0.82
+      PhoneBridge.bgWork.async {
+        let m = PhoneBridge.exportWeb(
+          src: src, dst: dst, maxPixels: maxPx, quality: quality)
+        DispatchQueue.main.async { result(m) }
       }
 
     case "rotate":
@@ -365,6 +389,154 @@ extension PhoneBridge {
       return false
     }
     return writeJPEG(cg, to: dstURL)
+  }
+
+  /// 导出网页用的派生图。
+  ///
+  /// 三件事一次做完:
+  ///   1. 解码（HEIC 也行）并缩到长边 maxPixels
+  ///   2. **烤进方向** —— 用 ThumbnailWithTransform，网页端不用再管 EXIF Orientation
+  ///   3. **不写任何元数据** —— GPS、时间、设备型号全部不进派生图
+  ///
+  /// 优先写 WebP（体积比 JPEG 小 25-35%）；系统不支持时自动退回 JPEG，
+  /// 返回值里带上实际格式，调用方据此决定文件后缀。
+  static func exportWeb(src: String, dst: String, maxPixels: Int,
+                        quality: Double) -> [String: Any] {
+    let srcURL = URL(fileURLWithPath: src)
+    guard let source = CGImageSourceCreateWithURL(srcURL as CFURL, nil) else {
+      return ["ok": false, "error": "无法读取源文件"]
+    }
+    let opts: [CFString: Any] = [
+      kCGImageSourceCreateThumbnailFromImageAlways: true,
+      kCGImageSourceCreateThumbnailWithTransform: true,
+      kCGImageSourceThumbnailMaxPixelSize: maxPixels,
+    ]
+    guard let img = CGImageSourceCreateThumbnailAtIndex(
+      source, 0, opts as CFDictionary) else {
+      return ["ok": false, "error": "解码失败"]
+    }
+
+    var dstURL = URL(fileURLWithPath: dst)
+    try? FileManager.default.createDirectory(
+      at: dstURL.deletingLastPathComponent(),
+      withIntermediateDirectories: true)
+
+    // 只写图像本身，properties 里不放任何 EXIF/GPS
+    let props: [CFString: Any] = [
+      kCGImageDestinationLossyCompressionQuality: quality,
+    ]
+
+    var format = "webp"
+    var out = CGImageDestinationCreateWithURL(
+      dstURL as CFURL, "org.webmproject.webp" as CFString, 1, nil)
+    if out == nil {
+      // 系统不支持写 WebP，退回 JPEG
+      format = "jpeg"
+      dstURL = dstURL.deletingPathExtension().appendingPathExtension("jpg")
+      out = CGImageDestinationCreateWithURL(
+        dstURL as CFURL, "public.jpeg" as CFString, 1, nil)
+    }
+    guard let dest = out else {
+      return ["ok": false, "error": "无法创建输出文件"]
+    }
+    CGImageDestinationAddImage(dest, img, props as CFDictionary)
+    guard CGImageDestinationFinalize(dest) else {
+      return ["ok": false, "error": "写入失败"]
+    }
+
+    let size = (try? FileManager.default
+      .attributesOfItem(atPath: dstURL.path)[.size] as? Int) ?? 0
+    return [
+      "ok": true,
+      "path": dstURL.path,
+      "format": format,
+      "width": img.width,
+      "height": img.height,
+      "bytes": size ?? 0,
+    ]
+  }
+
+  /// 分析一张图，算出自动精选需要的几个信号。
+  ///
+  /// **输入的是已经生成好的缩略图**，不是原图 —— 480px 足够算这些指标，
+  /// 而且省掉一次 HEIC 全尺寸解码，快一个数量级。
+  ///
+  /// 全部在本地算完，不联网、不上传。
+  static func analyze(path: String) -> [String: Any] {
+    var out: [String: Any] = [:]
+    let url = URL(fileURLWithPath: path)
+    guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let cg = CGImageSourceCreateImageAtIndex(src, 0, nil) else {
+      return out
+    }
+
+    // 统一缩到 64x64 灰度，后面几个指标都基于它算
+    let n = 64
+    var gray = [Float](repeating: 0, count: n * n)
+    guard let ctx = CGContext(
+      data: nil, width: n, height: n, bitsPerComponent: 8, bytesPerRow: n,
+      space: CGColorSpaceCreateDeviceGray(),
+      bitmapInfo: CGImageAlphaInfo.none.rawValue),
+      let buf = ctx.data else { return out }
+    ctx.draw(cg, in: CGRect(x: 0, y: 0, width: n, height: n))
+    let px = buf.bindMemory(to: UInt8.self, capacity: n * n)
+    for i in 0..<(n * n) { gray[i] = Float(px[i]) / 255.0 }
+
+    // 亮度: 均值。过曝或欠曝会靠近 0 或 1
+    out["brightness"] = Double(gray.reduce(0, +) / Float(n * n))
+
+    // 清晰度: 拉普拉斯算子的方差。模糊和手抖的照片这个值很低
+    var lap = [Float]()
+    lap.reserveCapacity((n - 2) * (n - 2))
+    for y in 1..<(n - 1) {
+      for x in 1..<(n - 1) {
+        let v = 4 * gray[y * n + x]
+          - gray[(y - 1) * n + x] - gray[(y + 1) * n + x]
+          - gray[y * n + x - 1] - gray[y * n + x + 1]
+        lap.append(v)
+      }
+    }
+    if !lap.isEmpty {
+      let mean = lap.reduce(0, +) / Float(lap.count)
+      let variance = lap.reduce(Float(0)) { $0 + ($1 - mean) * ($1 - mean) }
+        / Float(lap.count)
+      // 乘个大系数只是为了让数值好读，比较时用的是相对排名
+      out["sharpness"] = Double(variance * 10000)
+    }
+
+    // 感知哈希 dHash: 缩到 9x8，比较左右相邻像素，得到 64 位
+    out["phash"] = dHash(cg)
+
+    // 人脸数: Vision 框架，完全本地
+    let req = VNDetectFaceRectanglesRequest()
+    let handler = VNImageRequestHandler(cgImage: cg, options: [:])
+    try? handler.perform([req])
+    out["faceCount"] = req.results?.count ?? 0
+
+    return out
+  }
+
+  /// dHash: 9x8 灰度，逐行比较相邻像素的明暗，共 64 位，输出 16 位十六进制。
+  /// 对缩放、轻微调色都稳定，正适合判断"是不是同一张"。
+  private static func dHash(_ image: CGImage) -> String {
+    let w = 9, h = 8
+    guard let ctx = CGContext(
+      data: nil, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+      space: CGColorSpaceCreateDeviceGray(),
+      bitmapInfo: CGImageAlphaInfo.none.rawValue),
+      let buf = ctx.data else { return "" }
+    ctx.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
+    let px = buf.bindMemory(to: UInt8.self, capacity: w * h)
+
+    var bits: UInt64 = 0
+    var i = 0
+    for y in 0..<h {
+      for x in 0..<(w - 1) {
+        if px[y * w + x] > px[y * w + x + 1] { bits |= (1 << UInt64(63 - i)) }
+        i += 1
+      }
+    }
+    return String(format: "%016llx", bits)
   }
 
   /// EXIF 方向值的旋转表。1..8 覆盖了正常与镜像两条链。

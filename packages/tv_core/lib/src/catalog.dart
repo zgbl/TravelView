@@ -63,6 +63,11 @@ class Catalog {
 
     final orphanFiles = <File>[];
 
+    // sidecar 有记录但文件不在原处的，先扣在这里。
+    // **不能马上判成 missing** —— 用户很可能只是把文件改了名，
+    // 下一轮按内容哈希就能把它认回来。
+    final absent = <String, ({PhotoRecord rec, String path})>{};
+
     await for (final entity in photosRoot.list(recursive: true)) {
       if (entity is! Directory) continue;
       final sidecarFile = Sidecar.fileFor(entity);
@@ -84,11 +89,10 @@ class Catalog {
         _register(rec, f);
       }
 
-      for (final name in sc.photos.keys) {
-        if (!seen.contains(name)) {
-          issues.add(LibraryIssue(
-              'missing', p.join(entity.path, name), 'sidecar 有记录但文件不在'));
-        }
+      for (final e in sc.photos.entries) {
+        if (seen.contains(e.key)) continue;
+        absent[e.value.id] =
+            (rec: e.value, path: p.join(entity.path, e.key));
       }
     }
 
@@ -99,13 +103,22 @@ class Catalog {
         continue;
       }
       final id = await Fingerprint.contentId(f);
-      final known = _byId[id];
+      final gone = absent.remove(id);
+      final known = _byId[id] ?? gone?.rec;
       if (known != null) {
+        // 认领: 把它按新位置登记进来，库自己就长好了
+        if (gone != null) _register(known, f);
         issues.add(LibraryIssue(
             'adopted', f.path, '按内容哈希认出是已知照片 ${known.origFilename}'));
       } else {
         issues.add(LibraryIssue('orphan', f.path, '未登记的新文件，需 import'));
       }
+    }
+
+    // 认领之后还是找不到的，才是真的丢了
+    for (final a in absent.values) {
+      issues.add(
+          LibraryIssue('missing', a.path, 'sidecar 有记录但文件不在'));
     }
 
     return RebuildResult(_byId.length, dayDirs, issues);
@@ -230,6 +243,47 @@ class Catalog {
     _pathById.remove(photoId);
     _byId[newId] = updated;
     _pathById[newId] = rel;
+    return updated;
+  }
+
+  /// 写入自动精选用的信号。和 setTag 一样: 先 sidecar，再内存索引。
+  Future<PhotoRecord?> setSignals(
+    String photoId, {
+    double? sharpness,
+    double? brightness,
+    String? phash,
+    int? faceCount,
+  }) async {
+    final rec = _byId[photoId];
+    final rel = _pathById[photoId];
+    if (rec == null || rel == null) return null;
+
+    final updated = PhotoRecord(
+      id: rec.id,
+      takenAt: rec.takenAt,
+      bytes: rec.bytes,
+      origFilename: rec.origFilename,
+      lat: rec.lat,
+      lon: rec.lon,
+      width: rec.width,
+      height: rec.height,
+      mime: rec.mime,
+      device: rec.device,
+      liveVideoId: rec.liveVideoId,
+      editOf: rec.editOf,
+      isScreenshot: rec.isScreenshot,
+      sharpness: sharpness ?? rec.sharpness,
+      brightness: brightness ?? rec.brightness,
+      phash: phash ?? rec.phash,
+      faceCount: faceCount ?? rec.faceCount,
+      tags: rec.tags.toList(),
+    );
+
+    final file = File(p.joinAll([root.path, ...p.posix.split(rel)]));
+    final sc = await Sidecar.load(file.parent);
+    sc.replace(p.basename(file.path), updated);
+    await sc.save(file.parent);
+    _byId[photoId] = updated;
     return updated;
   }
 

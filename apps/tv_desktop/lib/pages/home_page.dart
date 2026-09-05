@@ -5,7 +5,9 @@ import 'package:tv_core/tv_core.dart';
 import '../state/library_controller.dart';
 import 'map_page.dart';
 import 'phone_import_page.dart';
+import 'story_page.dart';
 import '../widgets/photo_grid.dart';
+import '../widgets/project_bar.dart';
 import '../widgets/range_bar.dart';
 import '../widgets/stat_bar.dart';
 
@@ -18,12 +20,13 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final c = LibraryController();
-  int view = 0; // 0 = 照片, 1 = 地图
 
   @override
   void initState() {
     super.initState();
     c.addListener(_onChanged);
+    // 恢复上次打开的照片库和时间范围，不用每次重新选文件夹
+    c.restore();
   }
 
   void _onChanged() {
@@ -64,8 +67,8 @@ class _HomePageState extends State<HomePage> {
             onOpen: _pickLibrary,
             onImport: _pickImportSource,
             onPhoneImport: _importFromPhone,
-            selectedView: view,
-            onView: (v) => setState(() => view = v),
+            selectedView: c.view,
+            onView: c.setView,
           ),
           const VerticalDivider(width: 1),
           Expanded(
@@ -76,9 +79,11 @@ class _HomePageState extends State<HomePage> {
                       _header(context),
                       if (c.busy) LinearProgressIndicator(value: c.progress),
                       Expanded(
-                        child: view == 1
-                            ? MapPage(c: c)
-                            : _photoView(context),
+                        child: switch (c.view) {
+                          1 => MapPage(c: c),
+                          2 => StoryPage(c: c),
+                          _ => _photoView(context),
+                        },
                       ),
                       _StatusBar(c: c),
                     ],
@@ -141,6 +146,8 @@ class _HomePageState extends State<HomePage> {
           const SizedBox(height: 14),
           // 时间范围两个视图共用 —— 换一段时间，照片和地图同时跟着变
           RangeBar(c: c),
+          const SizedBox(height: 10),
+          ProjectBar(c: c),
         ],
       ),
     );
@@ -252,6 +259,12 @@ class _Sidebar extends StatelessWidget {
             label: '行程地图',
             selected: selectedView == 1,
             onTap: !c.hasLibrary ? null : () => onView(1),
+          ),
+          _Action(
+            icon: Icons.auto_stories_outlined,
+            label: '生成旅行回顾',
+            selected: selectedView == 2,
+            onTap: !c.hasLibrary ? null : () => onView(2),
           ),
           const SizedBox(height: 14),
           _Action(

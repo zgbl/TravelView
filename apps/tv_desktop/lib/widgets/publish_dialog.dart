@@ -1,0 +1,243 @@
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
+import '../state/library_controller.dart';
+
+/// 发布到网站。
+///
+/// 这里是整条商业链路的最后一段: 导出 -> 发布 -> 拿到永久公开链接 -> 分享。
+/// **令牌只存在这台机器上**，App 里不碰用户密码。
+class PublishDialog extends StatefulWidget {
+  final LibraryController c;
+  const PublishDialog({super.key, required this.c});
+
+  static Future<void> show(BuildContext context, LibraryController c) =>
+      showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => PublishDialog(c: c));
+
+  @override
+  State<PublishDialog> createState() => _PublishDialogState();
+}
+
+class _PublishDialogState extends State<PublishDialog> {
+  late final site = TextEditingController(text: widget.c.settings.siteUrl);
+  late final token =
+      TextEditingController(text: widget.c.settings.publishToken);
+  String visibility = 'public';
+
+  @override
+  void initState() {
+    super.initState();
+    widget.c.addListener(_tick);
+  }
+
+  void _tick() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    widget.c.removeListener(_tick);
+    site.dispose();
+    token.dispose();
+    super.dispose();
+  }
+
+  Future<void> _open(String url) async {
+    if (Platform.isMacOS) {
+      await Process.run('open', [url]);
+    } else if (Platform.isWindows) {
+      await Process.run('cmd', ['/c', 'start', '', url]);
+    }
+  }
+
+  Future<void> _publish() async {
+    await widget.c.savePublishSettings(
+        siteUrl: site.text, token: token.text);
+    await widget.c.publishStory(visibility: visibility);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = widget.c;
+    final scheme = Theme.of(context).colorScheme;
+    final export = c.lastExport;
+    final done = c.lastPublish;
+
+    return AlertDialog(
+      title: const Text('发布到网站'),
+      content: SizedBox(
+        width: 540,
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (export == null)
+                _hint(scheme,
+                    '还没有导出。先点「导出 Story 网页」，发布上传的就是那份产物。')
+              else
+                _hint(scheme,
+                    '将上传 ${export.photoCount} 张网页用图'
+                    '（${(export.totalBytes / 1024 / 1024).toStringAsFixed(1)} MB）。'
+                    '原图一张都不会离开这台电脑。'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: site,
+                decoration: const InputDecoration(
+                  labelText: '网站地址',
+                  hintText: 'https://travelview.app',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: token,
+                obscureText: true,
+                decoration: InputDecoration(
+                  labelText: '发布令牌',
+                  hintText: 'tv_...',
+                  isDense: true,
+                  border: const OutlineInputBorder(),
+                  suffixIcon: IconButton(
+                    tooltip: '去网站生成',
+                    icon: const Icon(Icons.open_in_new, size: 16),
+                    onPressed: () => _open(
+                        '${site.text.trim().replaceAll(RegExp(r"/+$"), "")}'
+                        '/account'),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('在网站 /account 页面生成，粘贴到这里。令牌只存在本机。',
+                  style: TextStyle(fontSize: 11, color: scheme.outline)),
+              const SizedBox(height: 16),
+              SegmentedButton<String>(
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: const [
+                  ButtonSegment(
+                      value: 'public',
+                      label: Text('公开', style: TextStyle(fontSize: 12))),
+                  ButtonSegment(
+                      value: 'unlisted',
+                      label: Text('仅凭链接访问',
+                          style: TextStyle(fontSize: 12))),
+                ],
+                selected: {visibility},
+                onSelectionChanged: (v) =>
+                    setState(() => visibility = v.first),
+              ),
+              if (c.publishing) ...[
+                const SizedBox(height: 18),
+                LinearProgressIndicator(
+                    value: c.publishTotal == 0
+                        ? null
+                        : c.publishDone / c.publishTotal),
+                const SizedBox(height: 8),
+                Text(c.status, style: const TextStyle(fontSize: 12)),
+              ],
+              if (done != null) ...[
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('已发布，这个链接永久有效',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 6),
+                      SelectableText(done.publicUrl,
+                          style: const TextStyle(fontSize: 13)),
+                      const SizedBox(height: 8),
+                      Row(children: [
+                        TextButton.icon(
+                          onPressed: () => Clipboard.setData(
+                              ClipboardData(text: done.publicUrl)),
+                          icon: const Icon(Icons.copy, size: 15),
+                          label: const Text('复制链接',
+                              style: TextStyle(fontSize: 12)),
+                        ),
+                        TextButton.icon(
+                          onPressed: () => _open(done.publicUrl),
+                          icon: const Icon(Icons.open_in_new, size: 15),
+                          label: const Text('打开',
+                              style: TextStyle(fontSize: 12)),
+                        ),
+                      ]),
+                    ],
+                  ),
+                ),
+              ],
+              if (c.needsPayment) ...[
+                const SizedBox(height: 18),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: scheme.tertiaryContainer,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('还没有可用的发布额度',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 4),
+                      const Text('照片和文字都还在这台电脑上，付款后回来再点一次发布即可。',
+                          style: TextStyle(fontSize: 12)),
+                      const SizedBox(height: 8),
+                      FilledButton.tonalIcon(
+                        onPressed: () => _open(
+                            '${site.text.trim().replaceAll(RegExp(r"/+$"), "")}'
+                            '/pricing'),
+                        icon: const Icon(Icons.open_in_new, size: 15),
+                        label: const Text('去网站购买',
+                            style: TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ),
+              ] else if (c.lastError != null && !c.publishing) ...[
+                const SizedBox(height: 14),
+                Text(c.lastError!,
+                    style: TextStyle(fontSize: 12, color: scheme.error)),
+              ],
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: c.publishing ? null : () => Navigator.pop(context),
+          child: Text(done == null ? '取消' : '完成'),
+        ),
+        FilledButton(
+          onPressed: (c.publishing || export == null) ? null : _publish,
+          child: Text(done == null ? '发布' : '重新发布'),
+        ),
+      ],
+    );
+  }
+
+  Widget _hint(ColorScheme scheme, String text) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(text, style: const TextStyle(fontSize: 12, height: 1.5)),
+      );
+}

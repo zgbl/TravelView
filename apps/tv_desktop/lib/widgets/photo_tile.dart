@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
@@ -49,11 +50,22 @@ class ThumbnailCache {
           maxPixels: maxPixels,
           background: background,
         );
-        return ok && await dst.exists() ? dst : null;
+        final made = ok && await dst.exists();
+        if (!made) {
+          debugPrint('[TravelView] 生成派生图失败 variant=$variant '
+              'maxPixels=$maxPixels src=${source.path}');
+        }
+        return made ? dst : null;
       } finally {
         _release();
       }
     });
+  }
+
+  /// 忘掉某一张的缓存结果，下次重新生成。
+  /// 预览图损坏时必须调它 —— 否则 _memo 会一直返回那个失败的 Future。
+  void forget(String photoId, {String variant = 'thumbs'}) {
+    _memo.remove('$variant/$photoId');
   }
 
   /// 已经生成过就跳过，连平台通道都不用走
@@ -97,10 +109,18 @@ class ThumbnailWarmer {
   final ThumbnailCache cache;
   final void Function(int done, int total) onProgress;
 
+  /// 生成完缩略图后顺手补算精选信号。
+  /// 已经导入的库靠这条回填 —— 否则自动精选没有燃料，去重形同虚设。
+  final Future<void> Function(String photoId, File thumb)? onThumbReady;
+
   bool _cancelled = false;
   bool running = false;
 
-  ThumbnailWarmer({required this.cache, required this.onProgress});
+  ThumbnailWarmer({
+    required this.cache,
+    required this.onProgress,
+    this.onThumbReady,
+  });
 
   void cancel() => _cancelled = true;
 
@@ -113,8 +133,13 @@ class ThumbnailWarmer {
     try {
       for (final e in items) {
         if (_cancelled) break;
-        if (!await cache.exists(e.key)) {
-          await cache.get(e.key, e.value, background: true);
+        var thumb = cache.pathFor(e.key);
+        if (!await thumb.exists()) {
+          final made = await cache.get(e.key, e.value, background: true);
+          if (made != null) thumb = made;
+        }
+        if (onThumbReady != null && await thumb.exists()) {
+          await onThumbReady!(e.key, thumb);
         }
         done++;
         if (done % 20 == 0 || done == items.length) {
@@ -141,6 +166,10 @@ class PhotoTile extends StatelessWidget {
   final VoidCallback? onTap;
   final bool picked;
 
+  /// 传了它就在右上角显示一个可点的圈: 点圈=选取/取消，点图=打开大图。
+  /// 两个动作必须分开 —— 挑图时既要能看清，又要能快速勾选。
+  final VoidCallback? onToggleSelect;
+
   const PhotoTile({
     super.key,
     required this.record,
@@ -149,6 +178,7 @@ class PhotoTile extends StatelessWidget {
     this.size = 116,
     this.onTap,
     this.picked = false,
+    this.onToggleSelect,
   });
 
   @override
@@ -162,6 +192,9 @@ class PhotoTile extends StatelessWidget {
       waitDuration: const Duration(milliseconds: 400),
       child: GestureDetector(
         onTap: onTap,
+        // opaque: 整块方格都可点。缩略图还没生成完时，
+        // 默认的 deferToChild 有可能命中不到子组件而漏掉点击。
+        behavior: HitTestBehavior.opaque,
         child: MouseRegion(
           cursor: onTap == null
               ? MouseCursor.defer
@@ -185,7 +218,31 @@ class PhotoTile extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (picked)
+              if (onToggleSelect != null)
+                Positioned(
+                  right: 3,
+                  top: 3,
+                  child: GestureDetector(
+                    onTap: onToggleSelect,
+                    child: Container(
+                      width: 22,
+                      height: 22,
+                      decoration: BoxDecoration(
+                        color: picked
+                            ? const Color(0xFF4FBFA8)
+                            : Colors.black.withValues(alpha: 0.35),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 1.5),
+                      ),
+                      child: Icon(
+                        picked ? Icons.check : Icons.add,
+                        size: 13,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                )
+              else if (picked)
                 const Positioned(
                   right: 4,
                   top: 4,

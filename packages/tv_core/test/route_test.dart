@@ -22,7 +22,7 @@ void main() {
     });
   });
 
-  group('停留点聚类', () {
+  group('站点聚类', () {
     test('同一地点的连续照片合成一个节点', () {
       final base = DateTime(2025, 9, 12, 9, 0);
       final photos = [

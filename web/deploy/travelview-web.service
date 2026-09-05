@@ -1,0 +1,25 @@
+[Unit]
+Description=TravelView Web (Next.js standalone)
+After=network.target postgresql.service
+
+[Service]
+Type=simple
+User=travelview
+Group=travelview
+WorkingDirectory=/opt/apps/travelview/web/current
+EnvironmentFile=/etc/travelview/env
+Environment=NODE_ENV=production
+Environment=PORT=3001
+ExecStart=/usr/bin/node server.js
+Restart=always
+RestartSec=3
+
+# 这个服务只该写图片目录，别的地方一律只读
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/travelview/media
+
+[Install]
+WantedBy=multi-user.target

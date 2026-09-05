@@ -20,8 +20,9 @@ double _rad(double deg) => deg * math.pi / 180.0;
 /// 交通方式，由两个停留点之间的平均速度反推。
 enum TravelMode { stay, walk, drive, fly }
 
-/// 一个"停留点"= 行程里的一个节点。
-class StayPoint {
+/// 一「站」= 行程里的一个停留点。UI 上称作"站"（第 3 站），
+/// 因为它天然带路线感，和 TOKYO - HAKONE - KYOTO 是同一个心智模型。
+class Stop {
   final int seq;
   final double lat;
   final double lon;
@@ -29,14 +30,33 @@ class StayPoint {
   final DateTime leave;
   final List<String> photoIds;
 
-  StayPoint({
+  /// 进出这一站的实际位置。
+  ///
+  /// 路线规划**不能用簇中心**: 在一个城市里拍了 80 张照片，中心点可能落在
+  /// 谁都没去过的地方，两站之间连出来的路会绕得莫名其妙。
+  /// 用"最早那张照片的位置"作为入口、"最晚那张"作为出口，贴近真实动线。
+  final double? entryLat;
+  final double? entryLon;
+  final double? exitLat;
+  final double? exitLon;
+
+  Stop({
     required this.seq,
     required this.lat,
     required this.lon,
     required this.arrive,
     required this.leave,
     required this.photoIds,
+    this.entryLat,
+    this.entryLon,
+    this.exitLat,
+    this.exitLon,
   });
+
+  double get routeEntryLat => entryLat ?? lat;
+  double get routeEntryLon => entryLon ?? lon;
+  double get routeExitLat => exitLat ?? lat;
+  double get routeExitLon => exitLon ?? lon;
 
   Duration get duration => leave.difference(arrive);
   int get photoCount => photoIds.length;
@@ -57,8 +77,8 @@ class StayPoint {
 
 /// 两个停留点之间的移动段。
 class Leg {
-  final StayPoint from;
-  final StayPoint to;
+  final Stop from;
+  final Stop to;
   final double meters;
   final Duration duration;
 
@@ -86,7 +106,7 @@ class Leg {
 
 /// 一次行程还原出来的路线。
 class TripRoute {
-  final List<StayPoint> stays;
+  final List<Stop> stays;
   final List<Leg> legs;
 
   const TripRoute(this.stays, this.legs);
@@ -110,8 +130,8 @@ class TripRoute {
   }
 
   /// 按自然日分组，用于"Day 1 / Day 2"的展示
-  Map<String, List<StayPoint>> get byDay {
-    final m = <String, List<StayPoint>>{};
+  Map<String, List<Stop>> get byDay {
+    final m = <String, List<Stop>>{};
     for (final s in stays) {
       m.putIfAbsent(_dayKey(s.arrive), () => []).add(s);
     }
@@ -123,7 +143,7 @@ class TripRoute {
   static String _p2(int n) => n.toString().padLeft(2, '0');
 }
 
-/// 停留点聚类的参数。默认值针对**自驾长途 + 照片稀疏采样**调过。
+/// 站点聚类的参数。默认值针对**自驾长途 + 照片稀疏采样**调过。
 ///
 /// 注意这不是 GPS 轨迹日志：照片是稀疏且不均匀的采样，
 /// 所以用"离开半径或时间断裂就开新簇"的增量聚类，比经典的
@@ -191,16 +211,20 @@ TripRoute buildRoute(
     _mergeSmall(clusters, options);
   }
 
-  final stays = <StayPoint>[];
+  final stays = <Stop>[];
   for (var i = 0; i < clusters.length; i++) {
     final c = clusters[i];
-    stays.add(StayPoint(
+    stays.add(Stop(
       seq: i,
       lat: c.lat,
       lon: c.lon,
       arrive: c.firstTime,
       leave: c.lastTime,
       photoIds: c.ids,
+      entryLat: c.firstLat,
+      entryLon: c.firstLon,
+      exitLat: c.lastLat,
+      exitLon: c.lastLon,
     ));
   }
 
@@ -247,6 +271,8 @@ class _Cluster {
   double _sumLat = 0, _sumLon = 0;
   late DateTime firstTime;
   late DateTime lastTime;
+  // 最早/最晚那张照片的位置 —— 用作这一站的进出口
+  double? firstLat, firstLon, lastLat, lastLon;
 
   double get lat => _sumLat / ids.length;
   double get lon => _sumLon / ids.length;
@@ -255,9 +281,21 @@ class _Cluster {
     if (ids.isEmpty) {
       firstTime = p.takenAt;
       lastTime = p.takenAt;
+      firstLat = p.lat;
+      firstLon = p.lon;
+      lastLat = p.lat;
+      lastLon = p.lon;
     } else {
-      if (p.takenAt.isBefore(firstTime)) firstTime = p.takenAt;
-      if (p.takenAt.isAfter(lastTime)) lastTime = p.takenAt;
+      if (p.takenAt.isBefore(firstTime)) {
+        firstTime = p.takenAt;
+        firstLat = p.lat;
+        firstLon = p.lon;
+      }
+      if (p.takenAt.isAfter(lastTime)) {
+        lastTime = p.takenAt;
+        lastLat = p.lat;
+        lastLon = p.lon;
+      }
     }
     ids.add(p.id);
     _sumLat += p.lat!;
@@ -268,7 +306,15 @@ class _Cluster {
     ids.addAll(other.ids);
     _sumLat += other._sumLat;
     _sumLon += other._sumLon;
-    if (other.firstTime.isBefore(firstTime)) firstTime = other.firstTime;
-    if (other.lastTime.isAfter(lastTime)) lastTime = other.lastTime;
+    if (other.firstTime.isBefore(firstTime)) {
+      firstTime = other.firstTime;
+      firstLat = other.firstLat;
+      firstLon = other.firstLon;
+    }
+    if (other.lastTime.isAfter(lastTime)) {
+      lastTime = other.lastTime;
+      lastLat = other.lastLat;
+      lastLon = other.lastLon;
+    }
   }
 }

@@ -3,6 +3,36 @@ import 'package:flutter/material.dart';
 import 'pages/home_page.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // 默认的错误组件在 release 下是一片灰黑、什么信息都没有。
+  // 换成能看清错误、并且明确告诉用户按 Esc 返回的样子。
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    return Material(
+      color: const Color(0xFF1A1113),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, color: Colors.orangeAccent, size: 40),
+              const SizedBox(height: 12),
+              const Text('这一块出错了（按 Esc 返回）',
+                  style: TextStyle(color: Colors.white, fontSize: 14)),
+              const SizedBox(height: 10),
+              SelectableText(
+                details.exceptionAsString(),
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white60, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  };
+
   runApp(const TravelViewApp());
 }
 

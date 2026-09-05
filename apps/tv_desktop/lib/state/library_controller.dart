@@ -5,6 +5,9 @@ import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
 import '../native/native_bridge.dart';
+import 'app_settings.dart';
+import 'projects.dart';
+import '../export/story_exporter.dart';
 import '../widgets/photo_tile.dart';
 
 /// 桌面端的全部状态。业务逻辑一律在 tv_core 里，这里只负责调度和进度上报。
@@ -31,20 +34,29 @@ class LibraryController extends ChangeNotifier {
 
   bool get hasRange => rangeStart != null || rangeEnd != null;
 
+  /// 精确到分钟。做行程报告时同一天可能要切成上下午两段，
+  /// 只能选到"天"是不够的。
   void setRange(DateTime? from, DateTime? to) {
-    rangeStart = from == null ? null : DateTime(from.year, from.month, from.day);
-    rangeEnd = to == null
-        ? null
-        : DateTime(to.year, to.month, to.day).add(const Duration(days: 1));
+    rangeStart = from;
+    rangeEnd = to;
     _invalidate();
+    _persist();
     notifyListeners();
   }
+
+  /// 按整天设置（选日期时用），结束日包含当天 23:59:59
+  void setDayRange(DateTime? from, DateTime? to) => setRange(
+        from == null ? null : DateTime(from.year, from.month, from.day),
+        to == null
+            ? null
+            : DateTime(to.year, to.month, to.day, 23, 59, 59),
+      );
 
   void clearRange() => setRange(null, null);
 
   bool inRange(PhotoRecord r) {
     if (rangeStart != null && r.takenAt.isBefore(rangeStart!)) return false;
-    if (rangeEnd != null && !r.takenAt.isBefore(rangeEnd!)) return false;
+    if (rangeEnd != null && r.takenAt.isAfter(rangeEnd!)) return false;
     return true;
   }
 
@@ -79,6 +91,10 @@ class LibraryController extends ChangeNotifier {
 
   /// 后台预热进度。注意它**不占用** busy —— 预热期间所有操作照常可用。
   bool get warming => warmTotal > 0 && warmDone < warmTotal;
+
+  /// 已经算出精选信号的照片数。没有信号 = 去重用不上，只能靠时间兜底。
+  int get signalReadyCount =>
+      _catalog?.photos.where((r) => r.phash != null).length ?? 0;
 
   Directory? get root => _root;
   Catalog? get catalog => _catalog;
@@ -182,14 +198,597 @@ class LibraryController extends ChangeNotifier {
     return updated.id;
   }
 
+  /// 批量设置选取。给"自动精选"用 —— 一站几十张逐个写 sidecar 太慢，
+  /// 这里按天合并，一个目录只写一次。
+  Future<void> applyPicks({
+    required Iterable<PhotoRecord> photos,
+    required Set<String> pickedIds,
+  }) async {
+    final cat = _catalog;
+    if (cat == null) return;
+    for (final r in photos) {
+      final want = pickedIds.contains(r.id);
+      final live = cat.byId(r.id) ?? r;
+      if (isPicked(live) == want) continue;
+      await cat.setTag(r.id, _pickTag, on: want);
+    }
+    _invalidate();
+    notifyListeners();
+  }
+
   void setPickAlbum(String name) {
     final trimmed = name.trim();
     if (trimmed.isEmpty || trimmed == pickAlbum) return;
     pickAlbum = trimmed;
+    _persist();
     notifyListeners();
   }
 
-  Future<void> openLibrary(String path) async {
+  // ---- 道路路线 ----
+
+  List<RouteLeg> roadLegs = const [];
+  bool routing = false;
+  int routeDone = 0;
+  int routeTotal = 0;
+  String? routeError;
+
+  RouteCache? _routeCache;
+
+  /// 路线模式: driving / walking / direct
+  String get routeMode => settings.routeMode;
+
+  set routeMode(String v) {
+    if (settings.routeMode == v) return;
+    settings.routeMode = v;
+    roadLegs = const [];
+    settings.save();
+    notifyListeners();
+  }
+
+  RouteProvider _buildProvider() {
+    switch (settings.routeProvider) {
+      case 'osrm':
+        return OsrmRouteProvider(baseUrl: settings.osrmBaseUrl);
+      case 'direct':
+        return const DirectRouteProvider();
+      default:
+        return OrsRouteProvider(apiKey: settings.orsApiKey);
+    }
+  }
+
+  /// 导出/发布时用的路线。**Story 里绝不能没有线。**
+  ///
+  /// 地图是这个产品的核心画面，导出来只有几个孤零零的点是不能接受的。
+  /// 所以这里保证覆盖当前行程的每一段:
+  ///   1. 已经算过的道路路线直接用
+  ///   2. 缺的（换过时间范围、改过聚类、还没点过"计算道路路线"）就现算
+  ///   3. 还缺的用直线补上 —— 直线难看，但比断掉强，而且会如实标成 inferred
+  Future<List<RouteLeg>> legsForStory(TripRoute trip) async {
+    String key(String a, String b) => '$a>$b';
+    final have = {for (final l in roadLegs) key(l.fromStopId, l.toStopId): l};
+    final needed = [
+      for (final l in trip.legs)
+        (leg: l, k: key('stop-${l.from.seq}', 'stop-${l.to.seq}')),
+    ];
+
+    final missing = needed.where((n) => !have.containsKey(n.k)).toList();
+    if (missing.isNotEmpty && settings.routeMode != 'direct' && !routing) {
+      await computeRoads(trip);
+      have
+        ..clear()
+        ..addEntries(
+            roadLegs.map((l) => MapEntry(key(l.fromStopId, l.toStopId), l)));
+    }
+
+    // 直线兜底: 不进缓存 —— 缓存里只该有真实的道路数据
+    final direct = RoutePlanner(provider: const DirectRouteProvider());
+    final out = <RouteLeg>[];
+    var fallback = 0;
+    for (final n in needed) {
+      var leg = have[n.k];
+      // 缓存里可能存着几何为空的坏数据（早期版本、请求被截断），
+      // 那会让地图上凭空少一段。宁可退回直线，也不能断线。
+      if (leg == null || leg.geometry.length < 2) {
+        leg = await direct.planLeg(n.leg);
+        fallback++;
+      }
+      out.add(leg);
+    }
+    lastRouteSummary = fallback == 0
+        ? '${out.length} 段全部是实际道路'
+        : '${out.length} 段中有 $fallback 段没有道路数据，已用直线连上';
+    return out;
+  }
+
+  /// 上一次导出时路线的实际情况，导出完成后显示给用户看
+  String? lastRouteSummary;
+
+  /// 算一次，永久存在照片库里。之后换模板、改范围、换电脑都不再请求网络。
+  Future<void> computeRoads(TripRoute trip) async {
+    if (_root == null || routing) return;
+    if (settings.routeMode == 'direct') {
+      roadLegs = const [];
+      notifyListeners();
+      return;
+    }
+    // 先做本地检查，避免明知会失败还打二十几次请求
+    if (settings.routeProvider == 'ors' && settings.orsApiKey.trim().isEmpty) {
+      routeError = '还没有填 openrouteservice 的 API key。'
+          '点右边的齿轮填上，或改用自托管 OSRM / 只用直线。';
+      notifyListeners();
+      return;
+    }
+
+    routing = true;
+    routeError = null;
+    routeDone = 0;
+    routeTotal = trip.legs.length;
+    notifyListeners();
+
+    try {
+      _routeCache ??= RouteCache(
+          File(p.join(_root!.path, LibraryLayout.catalogDir, 'routes.json')));
+      await _routeCache!.load();
+
+      final planner = RoutePlanner(
+        provider: _buildProvider(),
+        cache: _routeCache,
+      );
+      final mode = settings.routeMode == 'walking'
+          ? TravelMode2.walking
+          : TravelMode2.driving;
+
+      roadLegs = await planner.planTrip(
+        trip,
+        mode: mode,
+        onProgress: (d, t) {
+          routeDone = d;
+          routeTotal = t;
+          notifyListeners();
+        },
+      );
+
+      final fellBack = roadLegs
+          .where((l) => l.provider == 'direct' && l.mode != TravelMode2.flight)
+          .length;
+      if (fellBack > 0) {
+        // 把供应商返回的真实原因带出来，而不是让用户猜
+        final why = planner.lastError;
+        routeError = '$fellBack 段没能取到道路路线，已退回直线。'
+            '${why == null ? '' : '原因: $why'}';
+      }
+    } catch (e) {
+      routeError = '$e';
+    } finally {
+      routing = false;
+      notifyListeners();
+    }
+  }
+
+  // ---- 站点文字 / 地名 / AI ----
+
+  NoteStore? _notes;
+  Geocoder? _geo;
+  bool aiBusy = false;
+  String? aiError;
+
+  NoteStore? get notes => _notes;
+  Geocoder? get geocoder => _geo;
+
+  StopNote? noteOf(Stop stop) => _notes?.get(stop);
+
+  Future<void> saveNote(Stop stop, StopNote note) async {
+    await _notes?.put(stop, note);
+    notifyListeners();
+  }
+
+  PlaceInfo? placeOf(Stop stop) => _geo?.cached(stop.lat, stop.lon);
+
+  /// 查这一站的地名和附近地标。每个站只查一次，结果永久缓存在照片库里。
+  Future<PlaceInfo?> lookupPlace(Stop stop) async {
+    final g = _geo;
+    if (g == null) return null;
+    final hit = g.cached(stop.lat, stop.lon);
+    if (hit != null) return hit;
+    final info = await g.lookup(stop.lat, stop.lon);
+    notifyListeners();
+    return info;
+  }
+
+  AiConfig get aiConfig => AiConfig(
+        baseUrl: settings.aiBaseUrl,
+        apiKey: settings.aiApiKey,
+        model: settings.aiModel,
+      );
+
+  /// 组装这一站的提示词。**只有文字，没有照片。**
+  StopFacts _factsOf(Stop stop, TripRoute trip) {
+    final place = placeOf(stop);
+    final idx = trip.stays.indexWhere((s) => s.seq == stop.seq);
+    Leg? incoming;
+    String? from;
+    if (idx > 0) {
+      incoming = trip.legs.firstWhere(
+        (l) => l.to.seq == stop.seq,
+        orElse: () => trip.legs.first,
+      );
+      final prev = trip.stays[idx - 1];
+      from = placeOf(prev)?.primary ?? noteOf(prev)?.title;
+    }
+    return StopFacts.fromStop(
+      stop,
+      index: idx < 0 ? 0 : idx,
+      total: trip.stays.length,
+      placeNames: place?.names ?? const [],
+      landmarks: place?.landmarks ?? const [],
+      arrivedFrom: from,
+      incomingLeg: idx > 0 ? incoming : null,
+    );
+  }
+
+  String buildPrompt(Stop stop, TripRoute trip, {String? userHint}) {
+    return PromptBuilder.forStop(
+      _factsOf(stop, trip),
+      language: settings.aiLanguage,
+      tone: settings.aiTone,
+      tripTitle: currentProjectName,
+      userHint: userHint,
+    );
+  }
+
+  /// Level 1: **不用 AI 的事实型文案。**
+  ///
+  /// 只把已知信息写成一句话，不做任何推测，所以可以放心地批量自动填。
+  /// [lookup] 为 true 时先查地名（会联网，且有 1 秒多的节流）。
+  Future<FactCaption> factCaption(Stop stop, TripRoute trip,
+      {bool lookup = true}) async {
+    if (lookup) await lookupPlace(stop);
+    return FactCaption.forStop(_factsOf(stop, trip));
+  }
+
+  /// 给还没有写过文字的站批量生成。**已经写过的一律不碰** ——
+  /// 覆盖用户手写的内容是不可原谅的。
+  Future<int> fillEmptyCaptions(TripRoute trip,
+      {void Function(int done, int total)? onProgress}) async {
+    var n = 0;
+    final targets = trip.stays
+        .where((s) => (noteOf(s)?.note.trim().isEmpty ?? true))
+        .toList();
+    for (var i = 0; i < targets.length; i++) {
+      final stop = targets[i];
+      final cap = await factCaption(stop, trip);
+      final old = noteOf(stop);
+      await saveNote(
+        stop,
+        StopNote(
+          title: (old?.title.trim().isNotEmpty ?? false)
+              ? old!.title
+              : cap.title,
+          note: cap.text,
+          source: 'facts',
+          updatedAt: DateTime.now(),
+        ),
+      );
+      n++;
+      onProgress?.call(i + 1, targets.length);
+    }
+    notifyListeners();
+    return n;
+  }
+
+  /// 让用户自己的 AI 起草。生成的文字标记为 ai，用户改过就变成 aiEdited。
+  Future<AiDraft?> draftNote(Stop stop, TripRoute trip,
+      {String? userHint}) async {
+    if (aiBusy) return null;
+    aiBusy = true;
+    aiError = null;
+    notifyListeners();
+    try {
+      await lookupPlace(stop);
+      final prompt = buildPrompt(stop, trip, userHint: userHint);
+      final raw = await AiClient(aiConfig).complete(prompt);
+      return AiDraft.parse(raw);
+    } catch (e) {
+      aiError = e is AiException ? e.toString() : '$e';
+      return null;
+    } finally {
+      aiBusy = false;
+      notifyListeners();
+    }
+  }
+
+  // ---- 导出 Story ----
+
+  bool exporting = false;
+  int exportDone = 0;
+  int exportTotal = 0;
+  ExportResult? lastExport;
+
+  /// 导出成一个可离线打开的 Story 网页包。
+  /// **只导出被选中的照片的派生版本，原图一张都不复制。**
+  Future<ExportResult?> exportStory({
+    required TripRoute trip,
+    required Map<int, String?> heroByStopSeq,
+    required String title,
+    String? subtitle,
+    required TripRoute tripForNotes,
+  }) async {
+    final cat = _catalog;
+    final root = _root;
+    if (cat == null || root == null || exporting) return null;
+
+    final selected = cat
+        .query(tagKind: 'pick', tagValue: pickAlbum)
+        .map((e) => e.id)
+        .toSet();
+    if (selected.isEmpty) {
+      status = '还没有选中任何照片，先在「生成旅行回顾」里挑一些';
+      notifyListeners();
+      return null;
+    }
+
+    exporting = true;
+    exportDone = 0;
+    exportTotal = selected.length;
+    status = '正在导出 Story...';
+    lastError = null;
+    notifyListeners();
+
+    try {
+      // 站点标题优先用用户写的，其次是反查到的地名
+      final names = <int, String>{};
+      final notesMap = <int, String>{};
+      for (final stop in tripForNotes.stays) {
+        final n = noteOf(stop);
+        final place = placeOf(stop);
+        final t = (n?.title.trim().isNotEmpty ?? false)
+            ? n!.title.trim()
+            : place?.primary;
+        if (t != null && t.isNotEmpty) names[stop.seq] = t;
+        if ((n?.note.trim().isNotEmpty ?? false)) {
+          notesMap[stop.seq] = n!.note.trim();
+        }
+      }
+
+      // 先把路线补齐，绝不导出一张没有线的地图
+      status = '正在准备路线...';
+      notifyListeners();
+      final legs = await legsForStory(trip);
+
+      final exporter = StoryExporter(libraryRoot: root, catalog: cat);
+      final res = await exporter.export(
+        stopNames: names,
+        stopNotes: notesMap,
+        trip: trip,
+        selectedIds: selected,
+        heroByStopSeq: heroByStopSeq,
+        legs: legs,
+        title: title,
+        subtitle: subtitle,
+        onProgress: (d, t, label) {
+          exportDone = d;
+          exportTotal = t;
+          status = '正在导出 $d/$t  $label';
+          notifyListeners();
+        },
+      );
+      lastExport = res;
+      final mb = (res.totalBytes / 1024 / 1024).toStringAsFixed(1);
+      status = '导出完成: ${res.photoCount} 张，共 $mb MB'
+          '${lastRouteSummary == null ? '' : '，路线 $lastRouteSummary'}'
+          '${res.warnings.isEmpty ? '' : '（${res.warnings.length} 个警告）'}';
+      return res;
+    } catch (e) {
+      lastError = '$e';
+      status = '导出失败';
+      return null;
+    } finally {
+      exporting = false;
+      notifyListeners();
+    }
+  }
+
+  // ---- 发布到网站 ----
+
+  bool publishing = false;
+  int publishDone = 0;
+  int publishTotal = 0;
+  PublishResult? lastPublish;
+
+  /// 额度不够时置为 true，UI 据此引导用户去网页付款，
+  /// 而不是把 402 当成一个普通错误弹掉。
+  bool needsPayment = false;
+
+  PublishConfig get publishConfig => PublishConfig(
+        siteUrl: settings.siteUrl,
+        token: settings.publishToken,
+      );
+
+  Future<void> savePublishSettings({
+    required String siteUrl,
+    required String token,
+  }) async {
+    settings.siteUrl = siteUrl.trim();
+    settings.publishToken = token.trim();
+    await settings.save();
+    notifyListeners();
+  }
+
+  /// 把最近一次导出的目录发布出去。
+  ///
+  /// **必须先导出。** 发布上传的就是导出目录里那些已经剥掉 EXIF 的 WebP，
+  /// 不会另找一条路去碰原图。
+  Future<PublishResult?> publishStory({String visibility = 'public'}) async {
+    final export = lastExport;
+    if (export == null) {
+      status = '先导出一次 Story，再发布';
+      notifyListeners();
+      return null;
+    }
+    if (publishing) return null;
+
+    publishing = true;
+    publishDone = 0;
+    publishTotal = 0;
+    needsPayment = false;
+    lastError = null;
+    status = '正在发布...';
+    notifyListeners();
+
+    try {
+      final res = await Publisher(publishConfig).publish(
+        export.dir,
+        visibility: visibility,
+        onProgress: (d, t, label) {
+          publishDone = d;
+          publishTotal = t;
+          status = '正在发布 $d/$t  $label';
+          notifyListeners();
+        },
+      );
+      lastPublish = res;
+      status = '发布成功: ${res.publicUrl}';
+      return res;
+    } on PublishException catch (e) {
+      needsPayment = e.needsPayment;
+      lastError = e.message;
+      status = e.needsPayment ? '还没有可用的发布额度' : '发布失败';
+      return null;
+    } catch (e) {
+      lastError = '$e';
+      status = '发布失败';
+      return null;
+    } finally {
+      publishing = false;
+      notifyListeners();
+    }
+  }
+
+  // ---- 工作进度（草稿）----
+
+  List<Project> projects = [];
+  String? currentProjectName;
+  String clusterPreset = 'road';
+
+  ProjectStore? get _store =>
+      _root == null ? null : ProjectStore(_root!);
+
+  Future<void> loadProjects() async {
+    projects = await (_store?.load() ?? Future.value(<Project>[]));
+    notifyListeners();
+  }
+
+  /// 把当前的时间范围、专辑、视图、聚类粒度存成一份命名草稿。
+  /// 同名则覆盖。存在照片库里，换台电脑打开也在。
+  Future<void> saveProject(String name, {String note = ''}) async {
+    final store = _store;
+    if (store == null) return;
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+
+    final proj = Project(
+      name: trimmed,
+      rangeStart: rangeStart,
+      rangeEnd: rangeEnd,
+      pickAlbum: pickAlbum,
+      clusterPreset: clusterPreset,
+      view: view,
+      note: note,
+    );
+    projects.removeWhere((e) => e.name == trimmed);
+    projects.insert(0, proj);
+    await store.save(projects);
+    currentProjectName = trimmed;
+    status = '已保存工作进度「$trimmed」';
+    _persist();
+    notifyListeners();
+  }
+
+  Future<void> openProject(Project proj) async {
+    rangeStart = proj.rangeStart;
+    rangeEnd = proj.rangeEnd;
+    pickAlbum = proj.pickAlbum;
+    clusterPreset = proj.clusterPreset;
+    view = proj.view;
+    currentProjectName = proj.name;
+    status = '已打开工作进度「${proj.name}」';
+    _invalidate();
+    _persist();
+    notifyListeners();
+  }
+
+  Future<void> deleteProject(Project proj) async {
+    final store = _store;
+    if (store == null) return;
+    projects.removeWhere((e) => e.name == proj.name);
+    await store.save(projects);
+    if (currentProjectName == proj.name) currentProjectName = null;
+    notifyListeners();
+  }
+
+  void setClusterPreset(String v) {
+    if (clusterPreset == v) return;
+    clusterPreset = v;
+    _persist();
+    notifyListeners();
+  }
+
+  // ---- 跨启动保存工作状态 ----
+
+  AppSettings settings = AppSettings();
+  int view = 0;
+
+  void setView(int v) {
+    if (view == v) return;
+    view = v;
+    _persist();
+    notifyListeners();
+  }
+
+  void _persist() {
+    if (_restoring) return; // 恢复过程中不要回写，否则会覆盖掉待恢复的值
+    settings
+      ..lastLibraryPath = _root?.path
+      ..rangeStart = rangeStart
+      ..rangeEnd = rangeEnd
+      ..view = view
+      ..pickAlbum = pickAlbum
+      ..clusterPreset = clusterPreset
+      ..currentProject = currentProjectName;
+    settings.save();
+  }
+
+  /// 启动时恢复上次的工作状态: 上次打开的库、时间范围、当前视图。
+  bool _restoring = false;
+
+  Future<void> restore() async {
+    settings = await AppSettings.load();
+    pickAlbum = settings.pickAlbum;
+    view = settings.view;
+    clusterPreset = settings.clusterPreset;
+    currentProjectName = settings.currentProject;
+    // 必须先把值取出来 —— openLibrary 内部会调 _persist()，
+    // 那会用当前（还是空的）范围覆盖掉 settings，之前就是这样把自己覆盖没的
+    final path = settings.lastLibraryPath;
+    final savedStart = settings.rangeStart;
+    final savedEnd = settings.rangeEnd;
+    if (path == null || !await Directory(path).exists()) return;
+
+    _restoring = true;
+    try {
+      await openLibrary(path, restoring: true);
+      rangeStart = savedStart;
+      rangeEnd = savedEnd;
+      await loadProjects();
+    } finally {
+      _restoring = false;
+    }
+    _persist();
+    _invalidate();
+    notifyListeners();
+  }
+
+  Future<void> openLibrary(String path, {bool restoring = false}) async {
     await _guard('正在读取照片库...', () async {
       final dir = Directory(path);
       await Directory(p.join(dir.path, LibraryLayout.photosDir))
@@ -198,10 +797,20 @@ class LibraryController extends ChangeNotifier {
       _root = dir;
       _catalog = Catalog(dir);
       _thumbs = ThumbnailCache(dir);
+      _notes = NoteStore(dir);
+      _geo = Geocoder(dir);
+      await _notes!.load();
+      await _geo!.load();
       final res = await _catalog!.rebuild();
       issues = res.issues;
       status = '已打开 ${res.photoCount} 张照片';
     });
+    if (!restoring) {
+      rangeStart = null;
+      rangeEnd = null;
+    }
+    _persist();
+    loadProjects();
     startWarming();
   }
 
@@ -212,10 +821,11 @@ class LibraryController extends ChangeNotifier {
     if (cat == null || th == null) return;
     _warmer?.cancel();
     final items = <MapEntry<String, File>>[];
-    for (final day in byDay) {
-      for (final r in day.value) {
-        items.add(MapEntry(r.id, fileOf(r)));
-      }
+    // 用全库而不是当前筛选范围 —— 信号是照片的固有属性，与在看哪一段无关
+    final all = cat.photos.toList()
+      ..sort((a, b) => b.takenAt.compareTo(a.takenAt));
+    for (final r in all) {
+      items.add(MapEntry(r.id, fileOf(r)));
     }
     if (items.isEmpty) return;
     warmDone = 0;
@@ -226,6 +836,20 @@ class LibraryController extends ChangeNotifier {
         warmDone = done;
         warmTotal = total;
         notifyListeners();
+      },
+      // 顺手把自动精选要用的信号补上（已导入的库靠这条回填）
+      onThumbReady: (photoId, thumb) async {
+        final rec = cat.byId(photoId);
+        if (rec == null || rec.phash != null) return;
+        final sig = await NativeBridge.analyze(thumb.path);
+        if (sig == null) return;
+        await cat.setSignals(
+          photoId,
+          sharpness: sig.sharpness,
+          brightness: sig.brightness,
+          phash: sig.phash,
+          faceCount: sig.faceCount,
+        );
       },
     );
     // 不 await —— 预热在后台跑，前台该干嘛干嘛
