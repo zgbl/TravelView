@@ -5,7 +5,7 @@ import 'package:tv_core/tv_core.dart';
 import '../state/library_controller.dart';
 import 'map_page.dart';
 import 'phone_import_page.dart';
-import '../widgets/photo_tile.dart';
+import '../widgets/photo_grid.dart';
 import '../widgets/stat_bar.dart';
 
 class HomePage extends StatefulWidget {
@@ -137,14 +137,7 @@ class _HomePageState extends State<HomePage> {
         ),
         if (c.busy) LinearProgressIndicator(value: c.progress),
         Expanded(
-          child: days.isEmpty
-              ? _noPhotos(context)
-              : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(24, 18, 24, 32),
-                  itemCount: days.length,
-                  itemBuilder: (context, i) =>
-                      _DaySection(c: c, entry: days[i]),
-                ),
+          child: days.isEmpty ? _noPhotos(context) : PhotoGrid(c: c),
         ),
         _StatusBar(c: c),
       ],
@@ -363,49 +356,6 @@ class _IssueSummary extends StatelessWidget {
                   ),
                 ),
               )),
-        ],
-      ),
-    );
-  }
-}
-
-class _DaySection extends StatelessWidget {
-  final LibraryController c;
-  final MapEntry<String, List<PhotoRecord>> entry;
-
-  const _DaySection({required this.c, required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 28),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(entry.key,
-                  style: const TextStyle(
-                      fontSize: 14, fontWeight: FontWeight.w600)),
-              const SizedBox(width: 10),
-              Text('${entry.value.length} 张',
-                  style: TextStyle(
-                      fontSize: 12, color: scheme.onSurfaceVariant)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: entry.value
-                .map((r) => PhotoTile(
-                      record: r,
-                      file: c.fileOf(r),
-                      thumbs: c.thumbs!,
-                    ))
-                .toList(),
-          ),
         ],
       ),
     );

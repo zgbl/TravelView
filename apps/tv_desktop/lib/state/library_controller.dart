@@ -32,8 +32,14 @@ class LibraryController extends ChangeNotifier {
   int get totalBytes =>
       _catalog?.photos.fold<int>(0, (a, r) => a + r.bytes) ?? 0;
 
+  List<MapEntry<String, List<PhotoRecord>>>? _byDayCache;
+
   /// 按日期倒序分组，最近的在最前面。
+  /// **必须缓存**: 每次 build 都对几千张照片重新分组会明显拖慢界面。
+  /// 库内容变化时调 _invalidate() 失效。
   List<MapEntry<String, List<PhotoRecord>>> get byDay {
+    final cached = _byDayCache;
+    if (cached != null) return cached;
     final map = <String, List<PhotoRecord>>{};
     for (final r in _catalog?.photos ?? const <PhotoRecord>[]) {
       map.putIfAbsent(LibraryLayout.dateStamp(r.takenAt), () => []).add(r);
@@ -43,8 +49,11 @@ class LibraryController extends ChangeNotifier {
     for (final e in entries) {
       e.value.sort((a, b) => a.takenAt.compareTo(b.takenAt));
     }
+    _byDayCache = entries;
     return entries;
   }
+
+  void _invalidate() => _byDayCache = null;
 
   File fileOf(PhotoRecord r) {
     final rel = _catalog!.relPathOf(r.id)!;
@@ -240,6 +249,7 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> _guard(String label, Future<void> Function() body) async {
+    _invalidate();
     busy = true;
     progress = null;
     lastError = null;
@@ -251,6 +261,7 @@ class LibraryController extends ChangeNotifier {
       lastError = '$e';
       status = '出错了';
     } finally {
+      _invalidate();
       busy = false;
       progress = null;
       notifyListeners();

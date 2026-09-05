@@ -16,6 +16,12 @@ import AVFoundation
 /// 拿不到相册结构，也拿不到被 iCloud「优化存储」抽走的原图（那需要装在手机上的 App）。
 class PhoneBridge: NSObject {
 
+  /// 图像解码专用队列。并发数由 Dart 侧限流，这里只保证不碰主线程。
+  static let work = DispatchQueue(
+    label: "com.travelview.imagework",
+    qos: .userInitiated,
+    attributes: .concurrent)
+
   private let channel: FlutterMethodChannel
   private let browser = ICDeviceBrowser()
   private var cameras: [String: ICCameraDevice] = [:]
@@ -96,7 +102,12 @@ class PhoneBridge: NSObject {
       guard let path = args["path"] as? String else {
         result(err("BAD_ARGS", "缺少 path")); return
       }
-      result(PhoneBridge.readMetadata(path: path))
+      // 解码/读元数据一律不能占用主线程 —— MethodChannel 的 handler
+      // 默认就跑在主线程上，几千张 HEIC 会把整个 UI 卡死。
+      PhoneBridge.work.async {
+        let m = PhoneBridge.readMetadata(path: path)
+        DispatchQueue.main.async { result(m) }
+      }
 
     case "makeThumbnail":
       guard let src = args["path"] as? String,
@@ -104,7 +115,10 @@ class PhoneBridge: NSObject {
         result(err("BAD_ARGS", "缺少 path/destPath")); return
       }
       let maxPx = args["maxPixels"] as? Int ?? 480
-      result(PhoneBridge.makeThumbnail(src: src, dst: dst, maxPixels: maxPx))
+      PhoneBridge.work.async {
+        let ok = PhoneBridge.makeThumbnail(src: src, dst: dst, maxPixels: maxPx)
+        DispatchQueue.main.async { result(ok) }
+      }
 
     default:
       result(FlutterMethodNotImplemented)

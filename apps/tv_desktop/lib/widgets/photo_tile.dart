@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -13,6 +14,12 @@ class ThumbnailCache {
   final Directory libraryRoot;
   final _memo = <String, Future<File?>>{};
 
+  /// 同时最多几个解码任务。放开会把平台通道塞满、拖慢滚动；
+  /// 太小则首屏出图慢。4 是在 M1 上滚动流畅与出图速度之间的折中。
+  static const _maxConcurrent = 4;
+  int _running = 0;
+  final _queue = <_PendingThumb>[];
+
   ThumbnailCache(this.libraryRoot);
 
   File pathFor(String photoId) => File(
@@ -22,14 +29,41 @@ class ThumbnailCache {
     return _memo.putIfAbsent(photoId, () async {
       final dst = pathFor(photoId);
       if (await dst.exists()) return dst;
-      final ok = await NativeBridge.makeThumbnail(
-        source.path,
-        dst.path,
-        maxPixels: maxPixels,
-      );
-      return ok && await dst.exists() ? dst : null;
+      await _acquire();
+      try {
+        final ok = await NativeBridge.makeThumbnail(
+          source.path,
+          dst.path,
+          maxPixels: maxPixels,
+        );
+        return ok && await dst.exists() ? dst : null;
+      } finally {
+        _release();
+      }
     });
   }
+
+  Future<void> _acquire() {
+    if (_running < _maxConcurrent) {
+      _running++;
+      return Future.value();
+    }
+    final p = _PendingThumb();
+    _queue.add(p);
+    return p.completer.future;
+  }
+
+  void _release() {
+    if (_queue.isNotEmpty) {
+      _queue.removeAt(0).completer.complete();
+    } else {
+      _running--;
+    }
+  }
+}
+
+class _PendingThumb {
+  final completer = Completer<void>();
 }
 
 const _directlyDecodable = {'.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp'};
