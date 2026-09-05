@@ -211,7 +211,7 @@ class PhoneBridge: NSObject {
       "name": file.name ?? "",
       "error": error?.localizedDescription as Any,
     ])
-    if let cam = file.device as? ICCameraDevice {
+    if let cam = file.device {
       downloadNext(cam)
     }
   }
@@ -335,7 +335,7 @@ extension PhoneBridge: ICCameraDeviceDelegate {
 
   /// ICCameraDeviceDelegate 的**必需**方法 —— 内容目录读完才是真的可以列文件了。
   /// 注意这个和上面那个同名但不同协议，之前就是漏了这个导致不满足协议。
-  func deviceDidBecomeReadyWithCompleteContentCatalog(_ device: ICCameraDevice) {
+  func deviceDidBecomeReady(withCompleteContentCatalog device: ICCameraDevice) {
     channel.invokeMethod("onDevicesChanged", arguments: deviceList())
   }
 
