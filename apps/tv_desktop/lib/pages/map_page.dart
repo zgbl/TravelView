@@ -205,6 +205,8 @@ class _MapPageState extends State<MapPage> {
         ),
       ),
       children: [
+        // 开发期用 OSM 官方瓦片。它明确只允许轻量/开发用途，
+        // 上线前必须换成自托管（见 Design/map-tiles.md）。
         TileLayer(
           urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
           userAgentPackageName: 'com.travelview.desktop',
@@ -212,6 +214,10 @@ class _MapPageState extends State<MapPage> {
         ),
         PolylineLayer(polylines: _polylines(r)),
         MarkerLayer(markers: _markers(r)),
+        // ODbL 许可强制要求署名，不是可选项
+        const SimpleAttributionWidget(
+          source: Text('© OpenStreetMap contributors'),
+        ),
       ],
     );
   }
