@@ -172,14 +172,20 @@ class NativeBridge {
     }
   }
 
+  /// [background] 为真时走低优先级队列，系统会在前台忙时自动让路。
   static Future<bool> makeThumbnail(
-      String path, String destPath, {int maxPixels = 480}) async {
+    String path,
+    String destPath, {
+    int maxPixels = 480,
+    bool background = false,
+  }) async {
     if (!supported) return false;
     try {
       return await _channel.invokeMethod<bool>('makeThumbnail', {
             'path': path,
             'destPath': destPath,
             'maxPixels': maxPixels,
+            'background': background,
           }) ??
           false;
     } catch (_) {

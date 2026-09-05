@@ -22,6 +22,13 @@ class PhoneBridge: NSObject {
     qos: .userInitiated,
     attributes: .concurrent)
 
+  /// 后台预热专用。qos 更低，系统会在前台忙时自动给它让路 ——
+  /// 这是"后面慢一点可以等"能真正成立的关键。
+  static let bgWork = DispatchQueue(
+    label: "com.travelview.imagework.bg",
+    qos: .utility,
+    attributes: .concurrent)
+
   private let channel: FlutterMethodChannel
   private let browser = ICDeviceBrowser()
   private var cameras: [String: ICCameraDevice] = [:]
@@ -115,7 +122,9 @@ class PhoneBridge: NSObject {
         result(err("BAD_ARGS", "缺少 path/destPath")); return
       }
       let maxPx = args["maxPixels"] as? Int ?? 480
-      PhoneBridge.work.async {
+      let background = args["background"] as? Bool ?? false
+      let queue = background ? PhoneBridge.bgWork : PhoneBridge.work
+      queue.async {
         let ok = PhoneBridge.makeThumbnail(src: src, dst: dst, maxPixels: maxPx)
         DispatchQueue.main.async { result(ok) }
       }

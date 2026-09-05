@@ -377,14 +377,33 @@ class _StatusBar extends StatelessWidget {
         color: scheme.surfaceContainerLow,
         border: Border(top: BorderSide(color: scheme.outlineVariant)),
       ),
-      alignment: Alignment.centerLeft,
-      child: Text(
-        error ?? c.status,
-        style: TextStyle(
-          fontSize: 12,
-          color: error != null ? scheme.error : scheme.onSurfaceVariant,
-        ),
-        overflow: TextOverflow.ellipsis,
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              error ?? c.status,
+              style: TextStyle(
+                fontSize: 12,
+                color: error != null ? scheme.error : scheme.onSurfaceVariant,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          if (c.warming) ...[
+            SizedBox(
+              width: 90,
+              child: LinearProgressIndicator(
+                value: c.warmTotal == 0 ? null : c.warmDone / c.warmTotal,
+                minHeight: 4,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '生成缩略图 ${c.warmDone}/${c.warmTotal}',
+              style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+            ),
+          ],
+        ],
       ),
     );
   }

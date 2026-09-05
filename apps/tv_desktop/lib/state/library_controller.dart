@@ -21,6 +21,13 @@ class LibraryController extends ChangeNotifier {
   ThumbnailCache? _thumbs;
   ThumbnailCache? get thumbs => _thumbs;
 
+  ThumbnailWarmer? _warmer;
+  int warmDone = 0;
+  int warmTotal = 0;
+
+  /// 后台预热进度。注意它**不占用** busy —— 预热期间所有操作照常可用。
+  bool get warming => warmTotal > 0 && warmDone < warmTotal;
+
   Directory? get root => _root;
   Catalog? get catalog => _catalog;
   bool get hasLibrary => _catalog != null;
@@ -65,6 +72,7 @@ class LibraryController extends ChangeNotifier {
       final dir = Directory(path);
       await Directory(p.join(dir.path, LibraryLayout.photosDir))
           .create(recursive: true);
+      _warmer?.cancel();
       _root = dir;
       _catalog = Catalog(dir);
       _thumbs = ThumbnailCache(dir);
@@ -72,6 +80,40 @@ class LibraryController extends ChangeNotifier {
       issues = res.issues;
       status = '已打开 ${res.photoCount} 张照片';
     });
+    startWarming();
+  }
+
+  /// 后台把缩略图全部生成好，让浏览时不再有等待。
+  /// 按界面显示顺序（最近的日期在前）预热，等待感最小。
+  void startWarming() {
+    final cat = _catalog, th = _thumbs;
+    if (cat == null || th == null) return;
+    _warmer?.cancel();
+    final items = <MapEntry<String, File>>[];
+    for (final day in byDay) {
+      for (final r in day.value) {
+        items.add(MapEntry(r.id, fileOf(r)));
+      }
+    }
+    if (items.isEmpty) return;
+    warmDone = 0;
+    warmTotal = items.length;
+    _warmer = ThumbnailWarmer(
+      cache: th,
+      onProgress: (done, total) {
+        warmDone = done;
+        warmTotal = total;
+        notifyListeners();
+      },
+    );
+    // 不 await —— 预热在后台跑，前台该干嘛干嘛
+    _warmer!.run(items);
+  }
+
+  @override
+  void dispose() {
+    _warmer?.cancel();
+    super.dispose();
   }
 
   /// 从一个文件夹导入。`tags` 用于给这批照片统一打标（例如"来自 iPhone 的这次旅行"）。
@@ -116,6 +158,8 @@ class LibraryController extends ChangeNotifier {
       }
       await _catalog!.writeJsonl();
       status = '导入完成: 新增 $imported 张，重复跳过 $dup 张';
+      _invalidate();
+      startWarming();
     });
   }
 
@@ -213,6 +257,8 @@ class LibraryController extends ChangeNotifier {
             ? '从手机导入完成: 新增 $imported 张，已有 $dup 张，'
                 '$skipped 张不在所选日期范围内已跳过'
             : '从手机导入完成: 新增 $imported 张，已有 $dup 张';
+        _invalidate();
+        startWarming();
       } finally {
         NativeBridge.setDownloadProgressHandler(null);
         // 只清理 Mac 上的中转副本
