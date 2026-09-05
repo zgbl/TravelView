@@ -1,5 +1,8 @@
 import 'dart:io';
 
+// PointerScrollEvent / PointerPanZoom* 都在 gestures 里，
+// material 只 re-export 了 gestures 的一小部分（DragStartBehavior 之类）
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
@@ -53,16 +56,31 @@ class _PhotoViewerState extends State<PhotoViewer> {
   final _transform = TransformationController();
   bool showInfo = true;
 
+  /// 刚刚改过选取状态的时刻，用来闪一下提示，让"到底选上没有"一目了然
+  DateTime? _pickFlash;
+
   /// 滚动翻页的累积量。
-  /// Magic Mouse 在鼠标背上横扫、以及触控板双指横扫，
-  /// macOS 都报成横向滚动（dx）；Windows 滚轮是纵向（dy）。
-  /// 两者都支持，取绝对值更大的那个轴。
+  ///
+  /// 平台习惯不同，不能一视同仁:
+  ///   - macOS: Magic Mouse 鼠标背**左右**滑 / 触控板双指左右滑 -> 翻页；
+  ///     上下滑不翻页（上下是"看这一张"的动作，翻页是横向的）
+  ///   - Windows: 滚轮只有上下，那就用上下翻页
   double _scrollAccum = 0;
   DateTime _lastFlip = DateTime.fromMillisecondsSinceEpoch(0);
   static const _flipThreshold = 45.0;
   static const _flipCooldown = Duration(milliseconds: 180);
 
-  PhotoRecord get current => widget.photos[index];
+  /// **必须从 catalog 取最新的记录**。
+  /// widget.photos 是打开查看器那一刻的快照，打完标签后它不会变，
+  /// 用它判断选中状态会永远显示"未选取"。
+  PhotoRecord get current {
+    final snap = widget.photos[index];
+    return widget.c.catalog?.byId(_liveId(snap.id)) ?? snap;
+  }
+
+  /// 旋转会改变内容哈希从而换新 id，这里记录 旧id -> 新id 的映射
+  final _idRemap = <String, String>{};
+  String _liveId(String id) => _idRemap[id] ?? id;
 
   @override
   void dispose() {
@@ -82,10 +100,11 @@ class _PhotoViewerState extends State<PhotoViewer> {
 
   bool get _zoomed => _transform.value.getMaxScaleOnAxis() > 1.05;
 
-  /// 放大状态下滚动应该是平移图片，不是翻页 —— 否则看局部时会乱跳。
+  /// 放大状态下滚动是平移图片，不翻页 —— 否则看局部时会乱跳。
   void _onScrollDelta(double dx, double dy) {
     if (_zoomed) return;
-    final delta = dx.abs() >= dy.abs() ? dx : dy;
+    // macOS 只认横向，Windows/Linux 只认纵向 —— 各自符合本平台的手感
+    final delta = Platform.isMacOS ? dx : dy;
     if (delta == 0) return;
 
     final now = DateTime.now();
@@ -100,34 +119,56 @@ class _PhotoViewerState extends State<PhotoViewer> {
     _go(forward ? 1 : -1);
   }
 
-  /// 选取/取消选取。不选取只是不进这个专辑，照片一直在库里。
-  Future<void> _togglePick({bool advance = false}) async {
-    await widget.c.togglePick(current);
-    if (!mounted) return;
-    setState(() {});
-    if (advance) _go(1);
+  void _toggleZoom() {
+    setState(() {
+      _transform.value =
+          _zoomed ? Matrix4.identity() : (Matrix4.identity()..scale(2.5));
+    });
   }
 
-  Future<void> _setPick(bool on, {bool advance = false}) async {
+  void _zoomBy(double factor) {
+    final cur = _transform.value.getMaxScaleOnAxis();
+    final next = (cur * factor).clamp(1.0, 6.0);
+    setState(() => _transform.value = Matrix4.identity()..scale(next));
+  }
+
+  /// 旋转 90 度，直接写回原文件（无损，不改拍摄时间）
+  Future<void> _rotate(bool clockwise) async {
+    final snap = widget.photos[index];
+    final live = current;
+    final newId = await widget.c.rotate(live, clockwise: clockwise);
+    if (!mounted) return;
+    if (newId != null) _idRemap[snap.id] = newId;
+    setState(() {});
+  }
+
+  /// 选取/取消选取。**不翻页** —— 停在原地才能看清有没有选上。
+  /// 不选取只是不进这个专辑，照片一直在库里。
+  Future<void> _togglePick() async {
+    await widget.c.togglePick(current);
+    if (!mounted) return;
+    setState(() => _pickFlash = DateTime.now());
+  }
+
+  Future<void> _setPick(bool on) async {
     await widget.c.setPicked(current, on);
     if (!mounted) return;
-    setState(() {});
-    if (advance) _go(1);
+    setState(() => _pickFlash = DateTime.now());
   }
 
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
     if (e is! KeyDownEvent) return KeyEventResult.ignored;
     switch (e.logicalKey) {
-      // 挑图的主力操作: 选中并前进 / 排除并前进，单手就能连续过图
+      // 选取与翻页彻底分开: 按了空格只改选取状态，停在原地让你看清结果，
+      // 也方便反悔再按一次。翻页用方向键或滑动。
       case LogicalKeyboardKey.space:
-      case LogicalKeyboardKey.keyP:
-        _setPick(true, advance: true);
-      case LogicalKeyboardKey.keyX:
-      case LogicalKeyboardKey.backspace:
-        _setPick(false, advance: true);
       case LogicalKeyboardKey.enter:
       case LogicalKeyboardKey.numpadEnter:
+      case LogicalKeyboardKey.keyP:
         _togglePick();
+      case LogicalKeyboardKey.keyX:
+      case LogicalKeyboardKey.backspace:
+        _setPick(false);
       case LogicalKeyboardKey.arrowRight:
       case LogicalKeyboardKey.arrowDown:
         _go(1);
@@ -140,6 +181,12 @@ class _PhotoViewerState extends State<PhotoViewer> {
         setState(() => index = widget.photos.length - 1);
       case LogicalKeyboardKey.escape:
         Navigator.of(context).pop();
+      case LogicalKeyboardKey.bracketRight:
+        _rotate(true);
+      case LogicalKeyboardKey.bracketLeft:
+        _rotate(false);
+      case LogicalKeyboardKey.keyZ:
+        _toggleZoom();
       case LogicalKeyboardKey.keyI:
         setState(() => showInfo = !showInfo);
       default:
@@ -160,9 +207,13 @@ class _PhotoViewerState extends State<PhotoViewer> {
             Positioned.fill(
               child: Listener(
                 onPointerSignal: (e) {
-                  if (e is PointerScrollEvent) {
-                    _onScrollDelta(e.scrollDelta.dx, e.scrollDelta.dy);
+                  if (e is! PointerScrollEvent) return;
+                  final keys = HardwareKeyboard.instance;
+                  if (keys.isMetaPressed || keys.isControlPressed) {
+                    _zoomBy(e.scrollDelta.dy > 0 ? 0.9 : 1.1);
+                    return;
                   }
+                  _onScrollDelta(e.scrollDelta.dx, e.scrollDelta.dy);
                 },
                 // 触控板的双指滑动在 macOS 上走 pan/zoom 事件
                 onPointerPanZoomStart: (_) => _scrollAccum = 0,
@@ -176,6 +227,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
             if (index > 0) _navButton(left: true),
             if (index < widget.photos.length - 1) _navButton(left: false),
             if (showInfo) _infoPanel(),
+            _pickToast(),
             _bottomBar(),
           ],
         ),
@@ -209,11 +261,18 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 style: const TextStyle(color: Colors.white70)),
           );
         }
-        final image = InteractiveViewer(
-          transformationController: _transform,
-          minScale: 1,
-          maxScale: 6,
-          child: Center(child: Image.file(f, fit: BoxFit.contain)),
+        // scaleEnabled: false —— 否则 InteractiveViewer 会把滚轮吃掉做缩放，
+        // 和翻页打架。缩放改成: 双击切换，或按住 Cmd/Ctrl 时用滚轮。
+        final image = GestureDetector(
+          onDoubleTap: _toggleZoom,
+          child: InteractiveViewer(
+            transformationController: _transform,
+            minScale: 1,
+            maxScale: 6,
+            scaleEnabled: false,
+            panEnabled: true,
+            child: Center(child: Image.file(f, fit: BoxFit.contain)),
+          ),
         );
         if (!isVideo) return image;
         return Stack(
@@ -251,7 +310,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 14, 14, 14),
         color: Colors.black.withValues(alpha: 0.45),
-        child: Row(
+        // ExcludeFocus: 否则按钮拿到焦点后，空格会去"点按钮"而不是选取照片
+        child: ExcludeFocus(
+          child: Row(
           children: [
             Text(
               '${index + 1} / ${widget.photos.length}',
@@ -267,6 +328,16 @@ class _PhotoViewerState extends State<PhotoViewer> {
             ),
             _pickButton(),
             const SizedBox(width: 10),
+            IconButton(
+              tooltip: '向左旋转 (  [  )',
+              onPressed: () => _rotate(false),
+              icon: const Icon(Icons.rotate_left, color: Colors.white70),
+            ),
+            IconButton(
+              tooltip: '向右旋转 (  ]  )',
+              onPressed: () => _rotate(true),
+              icon: const Icon(Icons.rotate_right, color: Colors.white70),
+            ),
             IconButton(
               tooltip: '在访达中显示',
               onPressed: () => _revealInFinder(widget.c.fileOf(current)),
@@ -289,6 +360,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
               icon: const Icon(Icons.close, color: Colors.white70),
             ),
           ],
+          ),
         ),
       ),
     );
@@ -319,7 +391,55 @@ class _PhotoViewerState extends State<PhotoViewer> {
     return IgnorePointer(
       child: Container(
         decoration: BoxDecoration(
-          border: Border.all(color: const Color(0xFF4FBFA8), width: 3),
+          border: Border.all(color: const Color(0xFF4FBFA8), width: 4),
+        ),
+      ),
+    );
+  }
+
+  /// 刚按下选取键时，在画面中央闪一个大提示。
+  /// 因为按键不再自动翻页，必须让"选上了/取消了"这件事非常明确。
+  Widget _pickToast() {
+    final at = _pickFlash;
+    if (at == null) return const SizedBox.shrink();
+    if (DateTime.now().difference(at) > const Duration(milliseconds: 1100)) {
+      return const SizedBox.shrink();
+    }
+    final picked = widget.c.isPicked(current);
+    return IgnorePointer(
+      child: Center(
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey(at),
+          tween: Tween(begin: 1, end: 0),
+          duration: const Duration(milliseconds: 1100),
+          curve: Curves.easeIn,
+          onEnd: () {
+            if (mounted) setState(() => _pickFlash = null);
+          },
+          builder: (context, v, child) =>
+              Opacity(opacity: v.clamp(0, 1), child: child),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 26, vertical: 18),
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.72),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  picked ? Icons.check_circle : Icons.remove_circle_outline,
+                  size: 40,
+                  color: picked ? const Color(0xFF4FBFA8) : Colors.white70,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  picked ? '已加入「${widget.c.pickAlbum}」' : '已移出',
+                  style: const TextStyle(color: Colors.white, fontSize: 14),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -333,7 +453,8 @@ class _PhotoViewerState extends State<PhotoViewer> {
       child: Container(
         padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
         color: Colors.black.withValues(alpha: 0.45),
-        child: Row(
+        child: ExcludeFocus(
+          child: Row(
           children: [
             Icon(Icons.check_circle,
                 size: 15, color: const Color(0xFF4FBFA8)),
@@ -343,12 +464,14 @@ class _PhotoViewerState extends State<PhotoViewer> {
               style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
             const Spacer(),
-            const Text(
-              '空格 选取并下一张   X 移出并下一张   Enter 只切换   '
-              '左右键/滚动 翻页   I 信息   Esc 关闭',
-              style: TextStyle(color: Colors.white54, fontSize: 11),
+            Text(
+              '空格 选取/取消   X 移出   '
+              '[ ] 旋转   Z 缩放   '
+              '${Platform.isMacOS ? "左右滑动" : "滚轮"} 翻页   Esc 关闭',
+              style: const TextStyle(color: Colors.white54, fontSize: 11),
             ),
           ],
+          ),
         ),
       ),
     );

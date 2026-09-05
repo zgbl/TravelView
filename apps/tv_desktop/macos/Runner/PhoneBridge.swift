@@ -129,6 +129,16 @@ class PhoneBridge: NSObject {
         DispatchQueue.main.async { result(ok) }
       }
 
+    case "rotate":
+      guard let path = args["path"] as? String else {
+        result(err("BAD_ARGS", "缺少 path")); return
+      }
+      let cw = args["clockwise"] as? Bool ?? true
+      PhoneBridge.work.async {
+        let ok = PhoneBridge.rotate(path: path, clockwise: cw)
+        DispatchQueue.main.async { result(ok) }
+      }
+
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -355,6 +365,68 @@ extension PhoneBridge {
       return false
     }
     return writeJPEG(cg, to: dstURL)
+  }
+
+  /// EXIF 方向值的旋转表。1..8 覆盖了正常与镜像两条链。
+  /// 顺时针 90 度: 1->6->3->8->1（正常）, 2->7->4->5->2（镜像）
+  private static let cwTable: [UInt32: UInt32] =
+    [1: 6, 2: 7, 3: 8, 4: 5, 5: 2, 6: 3, 7: 4, 8: 1]
+  private static let ccwTable: [UInt32: UInt32] =
+    [1: 8, 8: 3, 3: 6, 6: 1, 2: 5, 5: 4, 4: 7, 7: 2]
+
+  /// 旋转照片 90 度并写回原文件。
+  ///
+  /// 关键: **不重新编码像素**。只改 EXIF 的方向标记，
+  /// 用 CGImageDestinationAddImageFromSource 把原始压缩数据原样拷过去 ——
+  /// 所以画质零损失、速度极快，HEIC 和 JPEG 都适用。
+  ///
+  /// 拍摄时间不受影响: EXIF 属性整体复制，只覆盖方向；
+  /// 文件修改时间在写完后恢复成原值。
+  static func rotate(path: String, clockwise: Bool) -> [String: Any] {
+    let url = URL(fileURLWithPath: path)
+    let fm = FileManager.default
+
+    guard let src = CGImageSourceCreateWithURL(url as CFURL, nil),
+          let uti = CGImageSourceGetType(src) else {
+      return ["ok": false, "error": "无法读取这个文件"]
+    }
+    // 视频不能这样旋转
+    if (uti as String).hasPrefix("public.movie")
+        || (uti as String).contains("quicktime") {
+      return ["ok": false, "error": "视频暂不支持旋转"]
+    }
+
+    var props = (CGImageSourceCopyPropertiesAtIndex(src, 0, nil)
+      as? [CFString: Any]) ?? [:]
+    let cur = (props[kCGImagePropertyOrientation] as? UInt32) ?? 1
+    let next = (clockwise ? cwTable[cur] : ccwTable[cur]) ?? 1
+    props[kCGImagePropertyOrientation] = next
+
+    let mtime = (try? fm.attributesOfItem(atPath: path))?[.modificationDate] as? Date
+
+    let tmp = url.deletingLastPathComponent()
+      .appendingPathComponent(".tv_rot_" + url.lastPathComponent)
+    guard let dest = CGImageDestinationCreateWithURL(
+      tmp as CFURL, uti, 1, nil) else {
+      return ["ok": false, "error": "无法写入临时文件"]
+    }
+    CGImageDestinationAddImageFromSource(dest, src, 0, props as CFDictionary)
+    guard CGImageDestinationFinalize(dest) else {
+      try? fm.removeItem(at: tmp)
+      return ["ok": false, "error": "写入失败"]
+    }
+
+    do {
+      _ = try fm.replaceItemAt(url, withItemAt: tmp)
+    } catch {
+      try? fm.removeItem(at: tmp)
+      return ["ok": false, "error": "替换原文件失败: \(error.localizedDescription)"]
+    }
+    // 恢复文件修改时间 —— 库里按拍摄时间排序依赖它
+    if let m = mtime {
+      try? fm.setAttributes([.modificationDate: m], ofItemAtPath: path)
+    }
+    return ["ok": true, "orientation": Int(next)]
   }
 
   static func writeJPEG(_ image: CGImage, to dstURL: URL) -> Bool {

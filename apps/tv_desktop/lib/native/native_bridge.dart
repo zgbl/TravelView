@@ -193,6 +193,24 @@ class NativeBridge {
     }
   }
 
+  /// 旋转照片 90 度并写回原文件。
+  /// 不重新编码像素，只改 EXIF 方向标记 —— 画质零损失，拍摄时间不变。
+  /// 返回 null 表示成功，否则是错误说明。
+  static Future<String?> rotate(String path, {bool clockwise = true}) async {
+    if (!supported) return '当前平台还不支持旋转';
+    try {
+      final m = await _channel.invokeMethod<Map>('rotate', {
+        'path': path,
+        'clockwise': clockwise,
+      });
+      if (m == null) return '旋转失败';
+      if (m['ok'] == true) return null;
+      return m['error'] as String? ?? '旋转失败';
+    } catch (e) {
+      return '$e';
+    }
+  }
+
   /// EXIF 的时间格式是 "2025:09:12 14:30:22"，不是 ISO8601。
   static DateTime? _parseExifDate(String? s) {
     if (s == null || s.length < 19) return null;

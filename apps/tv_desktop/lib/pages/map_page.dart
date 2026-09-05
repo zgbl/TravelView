@@ -23,24 +23,35 @@ class _MapPageState extends State<MapPage> {
   ClusterOptions options = ClusterOptions.roadTrip;
   TripRoute? route;
   StayPoint? selected;
-  DateTimeRange? range;
   bool computing = false;
+  String _lastSignature = '';
 
   @override
   void initState() {
     super.initState();
+    widget.c.addListener(_onLibraryChanged);
     _recompute();
   }
 
+  @override
+  void dispose() {
+    widget.c.removeListener(_onLibraryChanged);
+    super.dispose();
+  }
+
+  /// 全局时间范围一变，地图立刻重算 —— 这是"随时换一段行程来看"的关键
+  String get _signature =>
+      '${widget.c.rangeStart}|${widget.c.rangeEnd}|${widget.c.photoCount}';
+
+  void _onLibraryChanged() {
+    if (_signature != _lastSignature) _recompute();
+  }
+
   Future<void> _recompute() async {
+    _lastSignature = _signature;
     setState(() => computing = true);
-    final all = widget.c.catalog?.photos ?? const <PhotoRecord>[];
-    final filtered = range == null
-        ? all
-        : all.where((p) =>
-            p.takenAt.isAfter(range!.start) &&
-            p.takenAt.isBefore(range!.end.add(const Duration(days: 1))));
-    final r = buildRoute(filtered, options: options);
+    // 用全局范围筛过的照片，和照片视图看到的是同一批
+    final r = buildRoute(widget.c.visiblePhotos, options: options);
     setState(() {
       route = r;
       selected = null;
@@ -64,19 +75,6 @@ class _MapPageState extends State<MapPage> {
         padding: const EdgeInsets.all(56),
       ),
     );
-  }
-
-  Future<void> _pickRange() async {
-    final r = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(2000),
-      lastDate: DateTime.now().add(const Duration(days: 1)),
-      initialDateRange: range,
-    );
-    if (r != null) {
-      setState(() => range = r);
-      await _recompute();
-    }
   }
 
   @override
@@ -107,7 +105,8 @@ class _MapPageState extends State<MapPage> {
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Text(
-          '这个范围里没有带 GPS 的照片。\n换个日期范围，或者先导入有位置信息的照片。',
+          '这个时间范围里没有带 GPS 的照片。\n'
+          '用上方的日期范围换一段，或者先导入有位置信息的照片。',
           textAlign: TextAlign.center,
           style: TextStyle(color: scheme.onSurfaceVariant, height: 1.7),
         ),
@@ -125,21 +124,6 @@ class _MapPageState extends State<MapPage> {
       ),
       child: Row(
         children: [
-          OutlinedButton.icon(
-            onPressed: _pickRange,
-            icon: const Icon(Icons.date_range, size: 16),
-            label: Text(_rangeLabel()),
-          ),
-          if (range != null)
-            IconButton(
-              tooltip: '清除',
-              onPressed: () {
-                setState(() => range = null);
-                _recompute();
-              },
-              icon: const Icon(Icons.close, size: 16),
-            ),
-          const SizedBox(width: 20),
           SegmentedButton<String>(
             segments: const [
               ButtonSegment(value: 'road', label: Text('长途自驾')),
@@ -159,12 +143,6 @@ class _MapPageState extends State<MapPage> {
         ],
       ),
     );
-  }
-
-  String _rangeLabel() {
-    if (range == null) return '全部照片';
-    return '${LibraryLayout.dateStamp(range!.start)} ~ '
-        '${LibraryLayout.dateStamp(range!.end)}';
   }
 
   Widget _summary(BuildContext context, TripRoute r) {

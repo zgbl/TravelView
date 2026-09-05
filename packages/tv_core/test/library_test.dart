@@ -230,6 +230,36 @@ void main() {
     expect(c.byId(r.record.id)!.tags, contains(const Tag('trip', 'usa-2025')));
   });
 
+  test('refreshAfterEdit: 内容变了换新 id，但标签和拍摄时间都保住', () async {
+    final c = await freshCatalog();
+    final f = makeFakePhoto(src, 'rot.jpg', seed: 91);
+    final r = await Importer(c).importFile(f,
+        takenAt: at(2025, 9, 22, 10, 30, 0),
+        lat: 36.1,
+        lon: -112.1,
+        tags: [const Tag('trip', 'usa-2025'), const Tag('pick', '精选')]);
+    final oldId = r.record.id;
+
+    // 模拟就地修改文件内容（旋转会改 EXIF 方向标记）
+    final onDisk = File(p.joinAll([lib.path, ...p.posix.split(r.relPath)]));
+    onDisk.writeAsBytesSync([...onDisk.readAsBytesSync(), 1, 2, 3]);
+
+    final updated = await c.refreshAfterEdit(oldId);
+    expect(updated, isNotNull);
+    expect(updated!.id, isNot(oldId), reason: '内容变了 id 必须跟着变');
+    expect(updated.takenAt, at(2025, 9, 22, 10, 30, 0));
+    expect(updated.lat, 36.1);
+    expect(updated.tags, containsAll(
+        [const Tag('trip', 'usa-2025'), const Tag('pick', '精选')]));
+    expect(c.byId(oldId), isNull, reason: '旧 id 不该还在索引里');
+
+    // 重建后依然一致 —— 说明真的写进了 sidecar
+    final reloaded = Catalog(lib);
+    await reloaded.rebuild();
+    expect(reloaded.byId(updated.id), isNotNull);
+    expect(reloaded.byId(updated.id)!.tags, contains(const Tag('pick', '精选')));
+  });
+
   test('JSONL 镜像可读且每行一条', () async {
     final c = await freshCatalog();
     final imp = Importer(c);

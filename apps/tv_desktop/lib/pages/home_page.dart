@@ -6,6 +6,7 @@ import '../state/library_controller.dart';
 import 'map_page.dart';
 import 'phone_import_page.dart';
 import '../widgets/photo_grid.dart';
+import '../widgets/range_bar.dart';
 import '../widgets/stat_bar.dart';
 
 class HomePage extends StatefulWidget {
@@ -70,7 +71,18 @@ class _HomePageState extends State<HomePage> {
           Expanded(
             child: !c.hasLibrary
                 ? _emptyState(context)
-                : (view == 1 ? MapPage(key: ValueKey(c.photoCount), c: c) : _libraryView(context)),
+                : Column(
+                    children: [
+                      _header(context),
+                      if (c.busy) LinearProgressIndicator(value: c.progress),
+                      Expanded(
+                        child: view == 1
+                            ? MapPage(c: c)
+                            : _photoView(context),
+                      ),
+                      _StatusBar(c: c),
+                    ],
+                  ),
           ),
         ],
       ),
@@ -109,39 +121,34 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _libraryView(BuildContext context) {
+  Widget _header(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final days = c.byDay;
-
-    return Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
-          decoration: BoxDecoration(
-            border: Border(
-                bottom: BorderSide(color: scheme.outlineVariant)),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 18, 24, 14),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            c.root?.path ?? '',
+            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            overflow: TextOverflow.ellipsis,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                c.root?.path ?? '',
-                style: TextStyle(
-                    fontSize: 12, color: scheme.onSurfaceVariant),
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 14),
-              StatBar(c: c),
-            ],
-          ),
-        ),
-        if (c.busy) LinearProgressIndicator(value: c.progress),
-        Expanded(
-          child: days.isEmpty ? _noPhotos(context) : PhotoGrid(c: c),
-        ),
-        _StatusBar(c: c),
-      ],
+          const SizedBox(height: 12),
+          StatBar(c: c),
+          const SizedBox(height: 14),
+          // 时间范围两个视图共用 —— 换一段时间，照片和地图同时跟着变
+          RangeBar(c: c),
+        ],
+      ),
     );
+  }
+
+  Widget _photoView(BuildContext context) {
+    final days = c.byDay;
+    return days.isEmpty ? _noPhotos(context) : PhotoGrid(c: c);
   }
 
   Widget _noPhotos(BuildContext context) {
@@ -153,7 +160,8 @@ class _HomePageState extends State<HomePage> {
           Text('这个库还是空的',
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('从一个文件夹导入照片开始',
+          Text(
+              c.hasRange ? '这个时间范围里没有照片，换一段试试' : '从一个文件夹导入照片开始',
               style: TextStyle(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           Row(

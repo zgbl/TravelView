@@ -5,7 +5,8 @@
 - 备份 = 往库里写
 - 游记 = 从库里读
 
-设计文档见 `Design/`，先读 `architecture.md`。
+- 使用说明：`docs/user-manual.md`（**改快捷键或鼠标行为必须同步更新它**）
+- 设计文档：`Design/`，先读 `architecture.md`
 
 ## 目录结构
 

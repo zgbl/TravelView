@@ -21,6 +21,54 @@ class LibraryController extends ChangeNotifier {
   ThumbnailCache? _thumbs;
   ThumbnailCache? get thumbs => _thumbs;
 
+  /// 全局时间范围筛选。
+  ///
+  /// **筛选是"看"的方式，不是"存"的方式** —— 照片库永远只有一个、装全部照片，
+  /// 想做哪段行程的报告就把范围调到哪段，照片视图和行程地图同时跟着变。
+  /// 绝不需要为了做某次旅行的报告，把照片再导一份到新文件夹。
+  DateTime? rangeStart;
+  DateTime? rangeEnd;
+
+  bool get hasRange => rangeStart != null || rangeEnd != null;
+
+  void setRange(DateTime? from, DateTime? to) {
+    rangeStart = from == null ? null : DateTime(from.year, from.month, from.day);
+    rangeEnd = to == null
+        ? null
+        : DateTime(to.year, to.month, to.day).add(const Duration(days: 1));
+    _invalidate();
+    notifyListeners();
+  }
+
+  void clearRange() => setRange(null, null);
+
+  bool inRange(PhotoRecord r) {
+    if (rangeStart != null && r.takenAt.isBefore(rangeStart!)) return false;
+    if (rangeEnd != null && !r.takenAt.isBefore(rangeEnd!)) return false;
+    return true;
+  }
+
+  /// 当前范围内的照片。所有视图都用它，保证照片和地图看到的是同一批。
+  List<PhotoRecord> get visiblePhotos {
+    final all = _catalog?.photos ?? const <PhotoRecord>[];
+    if (!hasRange) return all.toList();
+    return all.where(inRange).toList();
+  }
+
+  int get visibleCount => visiblePhotos.length;
+
+  /// 库里照片的时间跨度，用来给日期选择器一个合理的初始范围
+  (DateTime, DateTime)? get libraryTimeSpan {
+    final all = _catalog?.photos;
+    if (all == null || all.isEmpty) return null;
+    var min = all.first.takenAt, max = all.first.takenAt;
+    for (final r in all) {
+      if (r.takenAt.isBefore(min)) min = r.takenAt;
+      if (r.takenAt.isAfter(max)) max = r.takenAt;
+    }
+    return (min, max);
+  }
+
   /// 当前正在挑选的专辑名。选取只是打一个 tag，
   /// **不选取不等于删除** —— 照片一直在库里，只是没进这个专辑。
   String pickAlbum = '精选';
@@ -52,7 +100,7 @@ class LibraryController extends ChangeNotifier {
     final cached = _byDayCache;
     if (cached != null) return cached;
     final map = <String, List<PhotoRecord>>{};
-    for (final r in _catalog?.photos ?? const <PhotoRecord>[]) {
+    for (final r in visiblePhotos) {
       map.putIfAbsent(LibraryLayout.dateStamp(r.takenAt), () => []).add(r);
     }
     final entries = map.entries.toList()
@@ -89,9 +137,49 @@ class LibraryController extends ChangeNotifier {
   Future<void> setPicked(PhotoRecord r, bool on) async {
     final cat = _catalog;
     if (cat == null) return;
-    if (isPicked(r) == on) return;
+    final live = cat.byId(r.id) ?? r;
+    if (isPicked(live) == on) return;
     await cat.setTag(r.id, _pickTag, on: on);
+    // byDay 缓存里存的是旧的记录对象，不失效的话界面看不到选中状态
+    _invalidate();
     notifyListeners();
+  }
+
+  /// 旋转照片 90 度，直接写回原文件。
+  ///
+  /// 只改 EXIF 方向标记，不重新编码，所以画质无损、拍摄时间不变。
+  /// 但内容变了意味着**内容哈希变了**，id 会更新 —— 标签会完整保留。
+  /// 返回新的 id（失败时返回 null）。
+  Future<String?> rotate(PhotoRecord r, {bool clockwise = true}) async {
+    final cat = _catalog;
+    final th = _thumbs;
+    if (cat == null || th == null) return null;
+    final file = fileOf(r);
+
+    final err = await NativeBridge.rotate(file.path, clockwise: clockwise);
+    if (err != null) {
+      lastError = err;
+      notifyListeners();
+      return null;
+    }
+
+    // 旋转后宽高互换，重新读一次元数据
+    final meta = await NativeBridge.readMetadata(file.path);
+    final updated = await cat.refreshAfterEdit(
+      r.id,
+      width: meta.width,
+      height: meta.height,
+    );
+    if (updated == null) return null;
+
+    // 旧的派生图作废
+    for (final variant in ['thumbs', 'previews']) {
+      final f = th.pathFor(r.id, variant: variant);
+      if (await f.exists()) await f.delete();
+    }
+    _invalidate();
+    notifyListeners();
+    return updated.id;
   }
 
   void setPickAlbum(String name) {

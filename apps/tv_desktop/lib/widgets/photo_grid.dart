@@ -94,7 +94,7 @@ class PhotoGrid extends StatelessWidget {
               file: c.fileOf(r),
               thumbs: c.thumbs!,
               size: tileSize,
-              picked: c.isPicked(r),
+              picked: c.isPicked(c.catalog?.byId(r.id) ?? r),
               onTap: () {
                 final all = _flatPhotos();
                 final i = all.indexWhere((e) => e.id == r.id);

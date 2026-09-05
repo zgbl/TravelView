@@ -181,6 +181,58 @@ class Catalog {
     return updated;
   }
 
+  /// 文件内容被就地改过之后（比如旋转），重新认领它。
+  ///
+  /// 内容变了 = 哈希变了 = **id 变了**，这是内容寻址的必然结果。
+  /// 所以要把 sidecar 里那条记录换成新 id，同时**保留全部标签和元数据** ——
+  /// 旋转一下不该丢掉"这张属于哪次旅行、有没有被选取"。
+  ///
+  /// 返回新的记录；内容没变则原样返回。
+  Future<PhotoRecord?> refreshAfterEdit(
+    String photoId, {
+    int? width,
+    int? height,
+  }) async {
+    final rec = _byId[photoId];
+    final rel = _pathById[photoId];
+    if (rec == null || rel == null) return null;
+
+    final file = File(p.joinAll([root.path, ...p.posix.split(rel)]));
+    if (!await file.exists()) return null;
+
+    final newId = await Fingerprint.contentId(file);
+    final bytes = await file.length();
+    if (newId == photoId && bytes == rec.bytes) return rec;
+
+    final updated = PhotoRecord(
+      id: newId,
+      takenAt: rec.takenAt,
+      bytes: bytes,
+      origFilename: rec.origFilename,
+      lat: rec.lat,
+      lon: rec.lon,
+      width: width ?? rec.width,
+      height: height ?? rec.height,
+      mime: rec.mime,
+      device: rec.device,
+      liveVideoId: rec.liveVideoId,
+      editOf: rec.editOf,
+      isScreenshot: rec.isScreenshot,
+      tags: rec.tags.toList(),
+    );
+
+    final dayDir = file.parent;
+    final sc = await Sidecar.load(dayDir);
+    sc.replace(p.basename(file.path), updated);
+    await sc.save(dayDir);
+
+    _byId.remove(photoId);
+    _pathById.remove(photoId);
+    _byId[newId] = updated;
+    _pathById[newId] = rel;
+    return updated;
+  }
+
   // ---- 查询: 所有"分类"都是对 tag 的查询，零文件副本 ----
 
   List<PhotoRecord> query({
