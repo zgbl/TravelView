@@ -19,6 +19,61 @@ header-includes: |
 
 ---
 
+## 0.5 部署 / CI/CD —— 这一台已经跑起来了（最重要，先看这节）
+
+### 已经配好「GitHub 推送 → 自动部署」（每 3 分钟检查一次）
+
+- 调度: /etc/cron.d/travelview-autodeploy -> */3 * * * * root /usr/local/bin/travelview-autodeploy.sh
+- 机制: 每 3 分钟 git fetch origin main; 只有当要部署的 web/ 代码有改动才触发 release.sh
+  (零停机: 先构建到带时间戳新目录, 成功才切 current 软链并 systemctl restart travelview-web)。
+  桌面端 / 纯文档改动不触发, 免得白重建。
+- 用 flock 防重入; 日志在 /var/log/travelview-autodeploy.log。
+- 平时你只要 push 到 GitHub, <=3 分钟后服务器自动上线; 构建失败不会动线上(仍跑旧版),
+  并把失败记进日志、发报警邮件(见下)。
+
+### 想马上上线, 不等那 3 分钟 —— 一条命令
+
+```bash
+sudo bash /usr/local/bin/travelview-autodeploy.sh
+```
+它会立刻 fetch -> 比对 -> 拉取 -> 构建 -> 切版本 -> 重启。没新改动就瞬间退出。
+
+### 想自己一步步来 (= 手动 git pull + 构建 + 重启)
+
+```bash
+cd /opt/travelview/src
+sudo git fetch origin main
+sudo git reset --hard origin/main          # 或: sudo git pull --ff-only origin main
+sudo bash web/deploy/release.sh            # 内部自动: npm install + next build + 切 current + 重启
+```
+
+> release.sh 结尾会自己 systemctl restart travelview-web, 不用再手动重启。
+> 只有当你改了 /etc/travelview/env(运行配置, 没动代码)时才需要单独:
+> sudo systemctl restart travelview-web
+
+### 怎么确认这次部署上没上 / 出问题先看
+
+```bash
+sudo ls -l /opt/travelview/web/current        # current 指向哪个版本
+sudo tail -50 /var/log/travelview-autodeploy.log
+sudo journalctl -u travelview-web -n 50        # 服务日志
+```
+
+### 回滚到上一个版本
+
+```bash
+sudo ls -1t /opt/travelview/web/releases
+sudo ln -sfn /opt/travelview/web/releases/<上一个时间戳> /opt/travelview/web/current
+sudo systemctl restart travelview-web
+```
+
+### 失败自动发邮件报警
+
+部署失败会调 /usr/local/bin/send-alert.sh 发到 carson_tu@hotmail.com。
+工具与脚本已装好, 只差在 /etc/travelview/smtp.env(含 smtp.pass)里填 SMTP 发件账号即可生效。
+
+---
+
 ## 0. 这台服务器上的分工
 
 | | TensuGo | TravelView |

@@ -66,7 +66,7 @@ export default async function Account() {
         {/* 付费入口任何时候都在。公测期把它藏起来，等于把"现在就愿意付钱的人"
             挡在门外，而这恰恰是最值钱的早期信号。 */}
         <Link
-          href="/account/billing"
+          href={href(L, '/account/billing')}
           className={`mt-5 inline-block rounded-full px-5 py-2 text-sm font-medium
             ${subscribed
               ? 'border border-white/20 text-paper'

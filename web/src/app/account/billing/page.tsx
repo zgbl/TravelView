@@ -2,6 +2,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { one, query } from '@/lib/db';
+import { getLocale } from '@/lib/i18n.server';
+import { href } from '@/lib/i18n';
 import { betaState } from '@/lib/access';
 import { CREDIT_PLANS, SUBSCRIPTION_PLANS, stripeStatus } from '@/lib/stripe';
 import CheckoutButtons from '@/components/CheckoutButtons';
@@ -33,17 +35,36 @@ export default async function Billing() {
              stripe_customer_id
         from users where id = $1`, [user.id]);
 
-  const payments = await query<{
+  type Payment = {
     kind: string;
     credits_granted: number;
     amount_cents: number | null;
     currency: string | null;
     status: string;
     created_at: string;
-  }>(`select kind, credits_granted, amount_cents, currency, status, created_at
-        from payments where user_id = $1
-       order by created_at desc limit 10`, [user.id]);
+  };
+  // credits_granted 是 006 迁移加的列。迁移还没跑就整页 500 太蠢了 ——
+  // 付款记录是这一页最不重要的部分，查不到就当没有，别拖垮"能不能付钱"这件事。
+  let payments: Payment[] = [];
+  try {
+    payments = await query<Payment>(
+      `select kind, coalesce(credits_granted, 0) as credits_granted,
+              amount_cents, currency, status, created_at
+         from payments where user_id = $1
+        order by created_at desc limit 10`, [user.id]);
+  } catch {
+    try {
+      const rows = await query<Omit<Payment, 'credits_granted'>>(
+        `select kind, amount_cents, currency, status, created_at
+           from payments where user_id = $1
+          order by created_at desc limit 10`, [user.id]);
+      payments = rows.map((r) => ({ ...r, credits_granted: 0 }));
+    } catch {
+      payments = [];
+    }
+  }
 
+  const L = await getLocale();
   const beta = await betaState();
   const stripe = stripeStatus();
   const subscribed = row?.subscription_status === 'active';
@@ -64,7 +85,7 @@ export default async function Billing() {
     <main className="mx-auto max-w-3xl px-6 py-16">
       <div className="mb-10 flex items-center justify-between">
         <h1 className="text-3xl font-semibold tracking-tight">订阅与额度</h1>
-        <Link href="/account" className="text-sm text-muted hover:text-paper">
+        <Link href={href(L, '/account')} className="text-sm text-muted hover:text-paper">
           返回账户
         </Link>
       </div>

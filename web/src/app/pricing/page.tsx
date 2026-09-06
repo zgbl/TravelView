@@ -77,7 +77,7 @@ export default async function Pricing() {
 
       <p className="mt-6 text-sm text-muted">
         已经注册了？
-        <Link href="/account/billing" className="ml-1 text-accentBright underline">
+        <Link href={href(L, '/account/billing')} className="ml-1 text-accentBright underline">
           去「订阅与额度」查看当前权益并付款
         </Link>
       </p>

@@ -64,15 +64,30 @@ export async function POST(req: Request) {
           [userId, granted],
         );
       }
-      await one(
-        `insert into payments
-           (user_id, stripe_session_id, stripe_payment_intent, kind,
-            amount_cents, currency, status, credits_granted)
-         values ($1,$2,$3,$4,$5,$6,$7,$8)
-         on conflict (stripe_session_id) do nothing`,
-        [userId, s.id, String(s.payment_intent ?? ''), plan ?? 'credits_2',
-         s.amount_total, s.currency, 'paid', granted],
-      );
+      const row = [userId, s.id, String(s.payment_intent ?? ''),
+        plan ?? 'credits_2', s.amount_total, s.currency, 'paid'];
+      try {
+        await one(
+          `insert into payments
+             (user_id, stripe_session_id, stripe_payment_intent, kind,
+              amount_cents, currency, status, credits_granted)
+           values ($1,$2,$3,$4,$5,$6,$7,$8)
+           on conflict (stripe_session_id) do nothing`,
+          [...row, granted],
+        );
+      } catch {
+        // 006 迁移还没跑（没有 credits_granted 列）时退回旧写法。
+        // 额度已经发出去了，这里只是记账，绝不能因为少一列就整个 500 —
+        // webhook 返 500 会让 Stripe 反复重试同一笔
+        await one(
+          `insert into payments
+             (user_id, stripe_session_id, stripe_payment_intent, kind,
+              amount_cents, currency, status)
+           values ($1,$2,$3,$4,$5,$6,$7)
+           on conflict (stripe_session_id) do nothing`,
+          row,
+        );
+      }
     }
   }
 
