@@ -12,7 +12,6 @@ const required = {
   AUTH_SECRET: 'Auth.js 会话加密密钥（openssl rand -base64 32）',
   STRIPE_SECRET_KEY: 'Stripe 密钥',
   STRIPE_WEBHOOK_SECRET: 'Stripe webhook 签名密钥',
-  STRIPE_PRICE_ONETIME: '单篇发布的价格 ID',
   NEXT_PUBLIC_MEDIA_BASE: '图片对外地址（本地磁盘就是 https://站点/media）',
   NEXT_PUBLIC_SITE_URL: '站点地址',
 };
@@ -29,6 +28,19 @@ const has = (k) => {
 };
 
 const missing = [];
+// 五档价格里至少要有一档能卖，否则定价页上一个能点的按钮都没有
+const PRICE_KEYS = {
+  STRIPE_PRICE_PRO_YEARLY: 'Pro 年付 $50 的 price ID',
+  STRIPE_PRICE_PRO_MONTHLY: 'Pro 月付 $8 的 price ID',
+  STRIPE_PRICE_CREDITS_5: '$5 = 1 篇额度的 price ID',
+  STRIPE_PRICE_CREDITS_10: '$10 = 3 篇额度的 price ID',
+  STRIPE_PRICE_CREDITS_25: '$25 = 10 篇额度的 price ID',
+};
+if (!Object.keys(PRICE_KEYS).some(has) &&
+    !has('STRIPE_PRICE_ONETIME') && !has('STRIPE_PRICE_SUBSCRIPTION')) {
+  missing.push(['STRIPE_PRICE_*', '一条价格 ID 都没配: ' +
+    Object.entries(PRICE_KEYS).map(([k, v]) => `${k}(${v})`).join('、')]);
+}
 for (const [k, why] of Object.entries(required)) {
   if (!has(k)) missing.push([k, why]);
 }

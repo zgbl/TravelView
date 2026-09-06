@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { one } from '@/lib/db';
-import { PLANS, stripe, stripeStatus, type PlanKey } from '@/lib/stripe';
+import { resolvePlan, stripe, stripeStatus } from '@/lib/stripe';
 
 /** 创建 Stripe Checkout 会话。支付成功由 webhook 落权益，这里只负责跳转。 */
 export async function POST(req: Request) {
@@ -15,8 +15,8 @@ export async function POST(req: Request) {
       { status: 503 });
   }
 
-  const { plan } = (await req.json().catch(() => ({}))) as { plan?: PlanKey };
-  const chosen = plan && PLANS[plan];
+  const { plan } = (await req.json().catch(() => ({}))) as { plan?: string };
+  const chosen = resolvePlan(plan);
   if (!chosen?.priceId) {
     return NextResponse.json({ error: '这个套餐还没配置' }, { status: 400 });
   }

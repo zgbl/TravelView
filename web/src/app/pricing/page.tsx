@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import CheckoutButtons from '@/components/CheckoutButtons';
+import { CREDIT_PLANS, SUBSCRIPTION_PLANS } from '@/lib/stripe';
 import { betaState } from '@/lib/access';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
@@ -32,30 +33,47 @@ export default async function Pricing() {
       </p>
 
       <div className="mt-12 grid gap-6 md:grid-cols-2">
-        <div className="rounded-2xl border border-white/12 p-8">
-          <h2 className="text-xl font-semibold">发布一篇</h2>
-          <p className="mt-2 text-sm text-muted">
-            一次付费，一个永久有效的公开链接。
-          </p>
-          <ul className="mt-6 space-y-2 text-sm text-muted">
-            <li>永久公开地址，可随时更新内容</li>
-            <li>社交平台分享预览图</li>
-            <li>随时可以删除</li>
-          </ul>
-        </div>
         <div className="rounded-2xl border border-accentBright/40 bg-accentBright/5 p-8">
-          <h2 className="text-xl font-semibold">一年不限篇数</h2>
-          <p className="mt-2 text-sm text-muted">
-            经常旅行的话更划算。
+          <h2 className="text-xl font-semibold">Pro · 不限篇数</h2>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">
+            $50<span className="text-base font-normal text-muted"> / 年</span>
           </p>
+          <p className="mt-1 text-sm text-muted">或 $8 / 月，随时取消</p>
           <ul className="mt-6 space-y-2 text-sm text-muted">
             <li>一年内发布任意多篇</li>
-            <li>同样永久有效</li>
+            <li>永久有效的公开地址，随时可更新</li>
+            <li>社交平台分享预览图</li>
+            <li>退订后已发布的内容不受影响</li>
+          </ul>
+        </div>
+        <div className="rounded-2xl border border-white/12 p-8">
+          <h2 className="text-xl font-semibold">额度包 · 按篇买</h2>
+          <p className="mt-2 text-3xl font-semibold tracking-tight">
+            $5<span className="text-base font-normal text-muted"> 起</span>
+          </p>
+          <p className="mt-1 text-sm text-muted">不想订阅就买额度，买了不过期</p>
+          <ul className="mt-6 space-y-2 text-sm text-muted">
+            <li>$5 = 1 篇</li>
+            <li>$10 = 3 篇（$3.33 一篇）</li>
+            <li>$25 = 10 篇（$2.5 一篇）</li>
+            <li>额度不过期，和订阅可以并存</li>
           </ul>
         </div>
       </div>
 
-      <CheckoutButtons />
+      <CheckoutButtons
+        plans={[
+          ...SUBSCRIPTION_PLANS.map((p) => ({
+            key: p.key, name: p.name, priceLabel: p.priceLabel,
+            blurb: p.blurb, available: !!p.priceId,
+            primary: p.key === 'pro_yearly',
+          })),
+          ...CREDIT_PLANS.map((p) => ({
+            key: p.key, name: p.name, priceLabel: p.priceLabel,
+            blurb: p.blurb, available: !!p.priceId,
+          })),
+        ]}
+      />
 
       <p className="mt-10 text-xs text-muted">
         无论哪一档，原图都不会上传。服务器上只有你挑中的那些照片的压缩版本。

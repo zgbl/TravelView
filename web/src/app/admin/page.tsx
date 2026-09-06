@@ -142,8 +142,11 @@ export default async function Admin() {
         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
           <Check ok={stripe.secretKey} k="STRIPE_SECRET_KEY" />
           <Check ok={stripe.webhookSecret} k="STRIPE_WEBHOOK_SECRET" />
-          <Check ok={stripe.priceOnetime} k="STRIPE_PRICE_ONETIME" />
-          <Check ok={stripe.priceSubscription} k="STRIPE_PRICE_SUBSCRIPTION（可选）" />
+          <Check ok={stripe.priceProYearly} k="STRIPE_PRICE_PRO_YEARLY（$50/年）" />
+          <Check ok={stripe.priceProMonthly} k="STRIPE_PRICE_PRO_MONTHLY（$8/月）" />
+          <Check ok={stripe.priceCredits1} k="STRIPE_PRICE_CREDITS_5（$5 = 1 篇）" />
+          <Check ok={stripe.priceCredits3} k="STRIPE_PRICE_CREDITS_10（$10 = 3 篇）" />
+          <Check ok={stripe.priceCredits10} k="STRIPE_PRICE_CREDITS_25（$25 = 10 篇）" />
         </div>
         <p className="mt-4 text-xs leading-relaxed text-muted">
           密钥写在服务器的 <code>/etc/travelview/env</code>，改完

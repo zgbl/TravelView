@@ -3,13 +3,27 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-export default function CheckoutButtons() {
+export type PlanButton = {
+  key: string;
+  name: string;
+  priceLabel: string;
+  blurb: string;
+  available: boolean;
+  primary?: boolean;
+};
+
+/**
+ * 档位不写死在这里 —— 由服务端从 PLANS 传进来，
+ * 否则加一档价格要改两个文件，迟早对不上。
+ */
+export default function CheckoutButtons({ plans }: { plans: PlanButton[] }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  async function go(plan: 'onetime' | 'subscription') {
+  async function go(plan: string) {
     setBusy(plan);
+    setNote(null);
     const res = await fetch('/api/checkout', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -30,26 +44,29 @@ export default function CheckoutButtons() {
   }
 
   return (
-    <div className="mt-8 grid gap-6 md:grid-cols-2">
-      <button
-        onClick={() => go('onetime')}
-        disabled={busy !== null}
-        className="rounded-xl border border-white/15 py-3 font-medium
-          disabled:opacity-50"
-      >
-        {busy === 'onetime' ? '正在跳转...' : '购买单篇发布'}
-      </button>
-      <button
-        onClick={() => go('subscription')}
-        disabled={busy !== null}
-        className="rounded-xl bg-accentBright py-3 font-medium text-ink
-          disabled:opacity-50"
-      >
-        {busy === 'subscription' ? '正在跳转...' : '订阅一年'}
-      </button>
-      {note && (
-        <p className="md:col-span-2 text-center text-sm text-muted">{note}</p>
-      )}
+    <div className="mt-8">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {plans.filter((p) => p.available).map((p) => (
+          <button
+            key={p.key}
+            onClick={() => go(p.key)}
+            disabled={busy !== null}
+            className={`rounded-xl px-4 py-3 text-left font-medium
+              disabled:opacity-50 ${p.primary
+                ? 'bg-accentBright text-ink'
+                : 'border border-white/15'}`}
+          >
+            <span className="block text-sm">
+              {busy === p.key ? '正在跳转...' : p.name}
+            </span>
+            <span className={`block text-xs ${p.primary
+              ? 'text-ink/70' : 'text-muted'}`}>
+              {p.priceLabel} · {p.blurb}
+            </span>
+          </button>
+        ))}
+      </div>
+      {note && <p className="mt-4 text-center text-sm text-muted">{note}</p>}
     </div>
   );
 }

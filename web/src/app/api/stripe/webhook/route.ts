@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { stripe } from '@/lib/stripe';
+import { creditsForPlan, resolvePlan, stripe } from '@/lib/stripe';
 import { one } from '@/lib/db';
 
 // 必须跑在 Node 运行时: 验签要原始请求体，Edge 上拿不到
@@ -45,16 +45,22 @@ export async function POST(req: Request) {
     const userId = s.metadata?.userId;
     const plan = s.metadata?.plan;
     if (userId) {
-      if (plan === 'subscription') {
+      // 订阅: 先给一个保底到期时间，真正的到期日以随后的
+      // customer.subscription.* 事件里的 current_period_end 为准
+      if (resolvePlan(plan)?.mode === 'subscription') {
+        const span = plan === 'pro_monthly' ? '1 month' : '1 year';
         await one(
           `update users set subscription_status = 'active',
-             subscription_until = now() + interval '1 year' where id = $1`,
-          [userId],
+             subscription_until = now() + $2::interval where id = $1`,
+          [userId, span],
         );
       } else {
+        // 一次给几篇由档位决定（$5=1 / $10=3 / $25=10）。
+        // 认不出的 plan 保底给 1 篇 —— 用户真付了钱，宁可多给也不能不给
+        const credits = creditsForPlan(plan) || 1;
         await one(
-          'update users set story_credits = story_credits + 1 where id = $1',
-          [userId],
+          'update users set story_credits = story_credits + $2 where id = $1',
+          [userId, credits],
         );
       }
       await one(
@@ -63,7 +69,7 @@ export async function POST(req: Request) {
             amount_cents, currency, status)
          values ($1,$2,$3,$4,$5,$6,$7)
          on conflict (stripe_session_id) do nothing`,
-        [userId, s.id, String(s.payment_intent ?? ''), plan ?? 'onetime',
+        [userId, s.id, String(s.payment_intent ?? ''), plan ?? 'credits_1',
          s.amount_total, s.currency, 'paid'],
       );
     }
