@@ -6,7 +6,7 @@ import { one } from '@/lib/db';
 const Body = z.object({
   email: z.string().email(),
   password: z.string().min(8, '密码至少 8 位'),
-  name: z.string().optional(),
+  name: z.string().trim().max(40).optional(),
 });
 
 export async function POST(req: Request) {
@@ -28,7 +28,7 @@ export async function POST(req: Request) {
   const hash = await bcrypt.hash(password, 10);
   const user = await one<{ id: string }>(
     'insert into users (email, password_hash, name) values ($1,$2,$3) returning id',
-    [lower, hash, name ?? null],
+    [lower, hash, name?.trim() || null],
   );
 
   // 第一个注册的人就是站长。条件写在 SQL 里（要求全表只有这一行），

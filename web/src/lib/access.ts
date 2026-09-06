@@ -30,8 +30,15 @@ let cache: { at: number; users: number } | null = null;
 
 export async function countUsers(): Promise<number> {
   if (cache && Date.now() - cache.at < 30_000) return cache.users;
-  const row = await one<{ n: string }>('select count(*)::text as n from users');
-  const users = Number(row?.n ?? 0);
+  let users = 0;
+  try {
+    const row = await one<{ n: string }>(
+      'select count(*)::text as n from users');
+    users = Number(row?.n ?? 0);
+  } catch {
+    // 数不出来就当还在公测期 —— 宁可多给权限，也不要让页面挂掉
+    users = 0;
+  }
   cache = { at: Date.now(), users };
   return users;
 }

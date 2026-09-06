@@ -19,7 +19,14 @@ export async function requireAdmin() {
     .split(',').map((e) => e.trim().toLowerCase()).filter(Boolean);
   if (envAdmins.includes(user.email.toLowerCase())) return user;
 
-  const row = await one<{ is_admin: boolean }>(
-    'select is_admin from users where id = $1', [user.id]);
-  return row?.is_admin ? user : null;
+  // 数据库迁移还没跑的机器上没有 is_admin 这一列。
+  // **这时候该当成"不是管理员"，而不是让整个页面 500** ——
+  // 一个后台入口不该把用户的账户页拖垮。
+  try {
+    const row = await one<{ is_admin: boolean }>(
+      'select is_admin from users where id = $1', [user.id]);
+    return row?.is_admin ? user : null;
+  } catch {
+    return null;
+  }
 }

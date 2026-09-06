@@ -10,6 +10,7 @@ export default function AuthForm(
 ) {
   const router = useRouter();
   const [email, setEmail] = useState('');
+  const [name, setName] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -23,7 +24,7 @@ export default function AuthForm(
         const res = await fetch('/api/signup', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, password }),
+          body: JSON.stringify({ email, password, name }),
         });
         if (!res.ok) {
             setError((await res.json()).error ?? t(locale, 'auth.err.network'));
@@ -50,6 +51,15 @@ export default function AuthForm(
 
   return (
     <form onSubmit={submit} className="w-full max-w-sm space-y-4">
+      {mode === 'signup' && (
+        <input
+          type="text" value={name} maxLength={40}
+          placeholder={t(locale, 'auth.name')}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3
+            outline-none focus:border-accentBright"
+        />
+      )}
       <input
         type="email" required value={email} placeholder={t(locale, 'auth.email')}
         autoComplete="email" autoFocus

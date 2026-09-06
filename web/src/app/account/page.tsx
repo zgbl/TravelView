@@ -7,16 +7,18 @@ import { requireAdmin } from '@/lib/admin';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
 import TokenManager from '@/components/TokenManager';
+import NameEditor from '@/components/NameEditor';
 
 export default async function Account() {
   const user = await requireUser();
   if (!user) redirect('/login');
 
   const row = await one<{
+    name: string | null;
     story_credits: number;
     subscription_status: string | null;
     subscription_until: string | null;
-  }>(`select story_credits, subscription_status, subscription_until
+  }>(`select name, story_credits, subscription_status, subscription_until
         from users where id = $1`, [user.id]);
 
   const subscribed = row?.subscription_status === 'active';
@@ -71,6 +73,8 @@ export default async function Account() {
           </Link>
         )}
       </div>
+
+      <NameEditor initial={row?.name ?? ''} locale={L} />
 
       <TokenManager />
 

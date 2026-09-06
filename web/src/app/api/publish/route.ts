@@ -68,8 +68,13 @@ export async function POST(req: Request) {
     story_credits: number;
     subscription_status: string | null;
     subscription_until: string | null;
-  }>(`select story_credits, subscription_status, subscription_until
+    banned_at: string | null;
+  }>(`select story_credits, subscription_status, subscription_until, banned_at
         from users where id = $1`, [owner.user_id]);
+
+  if (user?.banned_at) {
+    return NextResponse.json({ error: '这个账号已被停用' }, { status: 403 });
+  }
 
   const beta = await betaState();
   const ent = entitlementOf(user ?? null, beta);

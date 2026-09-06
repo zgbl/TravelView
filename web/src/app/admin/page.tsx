@@ -88,9 +88,14 @@ export default async function Admin() {
     <main className="mx-auto max-w-5xl px-6 py-14">
       <div className="mb-10 flex items-center justify-between">
         <h1 className="text-3xl font-semibold tracking-tight">后台</h1>
-        <Link href="/stories" className="text-sm text-muted hover:text-paper">
-          我的故事
-        </Link>
+        <div className="flex gap-4 text-sm">
+          <Link href="/admin/users" className="text-muted hover:text-paper">
+            用户管理
+          </Link>
+          <Link href="/stories" className="text-muted hover:text-paper">
+            我的故事
+          </Link>
+        </div>
       </div>
 
       {/* 唯一真正要盯的数字: 离开始收费还差多少人 */}

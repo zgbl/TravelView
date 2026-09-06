@@ -26,7 +26,10 @@ create table if not exists users (
   subscription_until  timestamptz,
 
   -- 第一个注册的人自动成为管理员（见 api/signup）
-  is_admin boolean not null default false
+  is_admin boolean not null default false,
+
+  -- 封禁只挡新的发布，不动已发布的内容
+  banned_at timestamptz
 );
 
 -- 桌面端用它上传，避免在 App 里存用户密码
