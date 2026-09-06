@@ -1,13 +1,28 @@
 import Link from 'next/link';
 import AuthForm from '@/components/AuthForm';
+import { getLocale, href, t } from '@/lib/i18n';
 
-export default function Login() {
+export default async function Login() {
+  const L = await getLocale();
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-6">
-      <h1 className="mb-8 text-2xl font-semibold">登录 TravelView</h1>
-      <AuthForm mode="login" />
+    <main className="mx-auto flex min-h-screen max-w-md flex-col
+      justify-center px-6 py-16">
+      <Link href={href(L, '/')} className="mb-10 text-sm text-muted">&larr; TravelView</Link>
+
+      <h1 className="text-3xl font-semibold tracking-tight">{t(L, 'auth.login.title')}</h1>
+      <p className="mt-3 text-sm text-muted">
+        {t(L, 'auth.login.intro')}
+      </p>
+
+      <div className="mt-8">
+        <AuthForm mode="login" locale={L} />
+      </div>
+
       <p className="mt-6 text-sm text-muted">
-        还没有账号？<Link href="/signup" className="text-accentBright">注册</Link>
+        {t(L, 'auth.havent')}
+        <Link href={href(L, '/signup')} className="text-accentBright">
+          {t(L, 'auth.submit.signup')}
+        </Link>
       </p>
     </main>
   );

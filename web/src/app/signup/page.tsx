@@ -1,17 +1,43 @@
 import Link from 'next/link';
 import AuthForm from '@/components/AuthForm';
+import { betaState } from '@/lib/access';
+import { getLocale, href, t } from '@/lib/i18n';
 
-export default function Signup() {
+export const dynamic = 'force-dynamic';
+
+export default async function Signup() {
+  const beta = await betaState();
+  const L = await getLocale();
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-6">
-      <h1 className="mb-3 text-2xl font-semibold">创建账号</h1>
-      <p className="mb-8 max-w-sm text-center text-sm text-muted">
-        注册只是为了发布和管理你的旅行故事。
-        照片的识别、挑选、路线还原全都在你自己的电脑上完成。
+    <main className="mx-auto flex min-h-screen max-w-md flex-col
+      justify-center px-6 py-16">
+      <Link href={href(L, '/')} className="mb-10 text-sm text-muted">&larr; TravelView</Link>
+
+      <h1 className="text-3xl font-semibold tracking-tight">{t(L, 'auth.signup.title')}</h1>
+      <p className="mt-3 text-sm leading-relaxed text-muted">
+        {t(L, 'auth.signup.intro')}
+        <strong className="text-paper">{t(L, 'auth.signup.intro.strong')}</strong>
+        {L === 'zh' ? '。' : '.'}
       </p>
-      <AuthForm mode="signup" />
+
+      {beta.free && (
+        <div className="mt-6 rounded-xl border border-accentBright/30
+          bg-accentBright/5 px-4 py-3 text-sm">
+          <strong className="text-accentBright">{t(L, 'beta.free.title')}</strong>
+          <span className="ml-1 text-muted">{t(L, 'beta.free.signup')}</span>
+        </div>
+      )}
+
+      <div className="mt-8">
+        <AuthForm mode="signup" locale={L} />
+      </div>
+
       <p className="mt-6 text-sm text-muted">
-        已经有账号？<Link href="/login" className="text-accentBright">登录</Link>
+        {t(L, 'auth.have')}
+        <Link href={href(L, '/login')} className="text-accentBright">
+          {t(L, 'nav.login')}
+        </Link>
       </p>
     </main>
   );

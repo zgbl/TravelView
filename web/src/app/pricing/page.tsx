@@ -1,18 +1,33 @@
 import Link from 'next/link';
 import CheckoutButtons from '@/components/CheckoutButtons';
+import { betaState } from '@/lib/access';
+import { getLocale, href, t } from '@/lib/i18n';
+
+export const dynamic = 'force-dynamic';
 
 /**
  * 定价页刻意只有两档。
  * 第一版要验证的是"有没有人愿意为发布付钱"，不是"哪种套餐卖得好"。
  */
-export default function Pricing() {
+export default async function Pricing() {
+  const beta = await betaState();
+  const L = await getLocale();
   return (
     <main className="mx-auto max-w-4xl px-6 py-24">
-      <Link href="/" className="text-sm text-muted">&larr; 返回</Link>
-      <h1 className="mt-6 text-4xl font-semibold tracking-tight">价格</h1>
+      <Link href={href(L, '/')} className="text-sm text-muted">&larr; {t(L, 'nav.back')}</Link>
+      <h1 className="mt-6 text-4xl font-semibold tracking-tight">{t(L, 'pricing.title')}</h1>
+      {beta.free && (
+        <div className="mt-6 rounded-xl border border-accentBright/30
+          bg-accentBright/5 px-5 py-4 text-sm">
+          <strong className="text-accentBright">
+            {t(L, 'beta.free.pricing.title')}
+          </strong>
+          <span className="ml-1 text-muted">{t(L, 'beta.free.pricing.body')}</span>
+        </div>
+      )}
       <p className="mt-3 max-w-xl text-muted">
-        App 免费使用：导入照片、还原路线、自动精选、本地预览，都不需要付费，
-        也不需要注册。<strong className="text-paper">只有发布成公开链接时才收费。</strong>
+        {t(L, 'pricing.intro')}
+        <strong className="text-paper">{t(L, 'pricing.intro.strong')}</strong>
       </p>
 
       <div className="mt-12 grid gap-6 md:grid-cols-2">

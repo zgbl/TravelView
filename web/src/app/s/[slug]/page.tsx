@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import StoryRenderer from '@/components/StoryRenderer';
+import { getLocale } from '@/lib/i18n';
 import { one, query } from '@/lib/db';
 import { mediaUrl, type Story } from '@/lib/story';
 
@@ -65,7 +66,7 @@ export default async function PublicStory(
   // 不记录任何访客身份，只加个数
   query('select bump_story_view($1)', [slug]).catch(() => {});
 
-  return <StoryRenderer story={row.manifest} />;
+  return <StoryRenderer locale={await getLocale()} story={row.manifest} />;
 }
 
 export const dynamic = 'force-dynamic';

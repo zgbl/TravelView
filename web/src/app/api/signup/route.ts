@@ -30,5 +30,13 @@ export async function POST(req: Request) {
     'insert into users (email, password_hash, name) values ($1,$2,$3) returning id',
     [lower, hash, name ?? null],
   );
+
+  // 第一个注册的人就是站长。条件写在 SQL 里（要求全表只有这一行），
+  // 万一同时来两个注册请求，也只有真正的第一个会拿到管理员。
+  await one(
+    `update users set is_admin = true
+      where id = $1 and (select count(*) from users) = 1`,
+    [user!.id],
+  );
   return NextResponse.json({ id: user!.id });
 }

@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import { one, query } from '@/lib/db';
 import { presignUpload } from '@/lib/r2';
+import { betaState, entitlementOf } from '@/lib/access';
 
 /**
  * 桌面端发布接口。
@@ -70,9 +71,9 @@ export async function POST(req: Request) {
   }>(`select story_credits, subscription_status, subscription_until
         from users where id = $1`, [owner.user_id]);
 
-  const subscribed = user?.subscription_status === 'active' &&
-    (!user.subscription_until || new Date(user.subscription_until) > new Date());
-  if (!subscribed && (user?.story_credits ?? 0) < 1) {
+  const beta = await betaState();
+  const ent = entitlementOf(user ?? null, beta);
+  if (!ent.allowed) {
     return NextResponse.json(
       { error: 'NEED_PAYMENT', message: '还没有可用的发布额度' },
       { status: 402 });
@@ -92,7 +93,7 @@ export async function POST(req: Request) {
      manifest.stats.days, manifest.stats.stops, manifest.stats.photos,
      Math.round(manifest.stats.distanceMeters), visibility]);
 
-  if (!subscribed) {
+  if (ent.consumesCredit) {
     await one(
       'update users set story_credits = story_credits - 1 where id = $1',
       [owner.user_id]);

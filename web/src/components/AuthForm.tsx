@@ -3,8 +3,11 @@
 import { useState } from 'react';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
+import { href, t, type Locale } from '@/lib/i18n';
 
-export default function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
+export default function AuthForm(
+  { mode, locale = 'zh' }: { mode: 'login' | 'signup'; locale?: Locale },
+) {
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -23,7 +26,7 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
           body: JSON.stringify({ email, password }),
         });
         if (!res.ok) {
-          setError((await res.json()).error ?? '注册失败');
+            setError((await res.json()).error ?? t(locale, 'auth.err.network'));
           return;
         }
       }
@@ -31,11 +34,15 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
         email, password, redirect: false,
       });
       if (r?.error) {
-        setError('邮箱或密码不对');
+        setError(t(locale, mode === 'signup'
+          ? 'auth.err.signedup' : 'auth.err.credentials'));
         return;
       }
-      router.push('/stories');
+      // 注册完直接去账户页拿发布令牌 —— 那才是他下一步真正要做的事
+      router.push(href(locale, mode === 'signup' ? '/account' : '/stories'));
       router.refresh();
+    } catch {
+      setError(t(locale, 'auth.err.network'));
     } finally {
       setBusy(false);
     }
@@ -44,14 +51,17 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
   return (
     <form onSubmit={submit} className="w-full max-w-sm space-y-4">
       <input
-        type="email" required value={email} placeholder="邮箱"
+        type="email" required value={email} placeholder={t(locale, 'auth.email')}
+        autoComplete="email" autoFocus
         onChange={(e) => setEmail(e.target.value)}
         className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3
           outline-none focus:border-accentBright"
       />
       <input
         type="password" required minLength={8} value={password}
-        placeholder={mode === 'signup' ? '密码（至少 8 位）' : '密码'}
+        autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+        placeholder={t(locale,
+          mode === 'signup' ? 'auth.password.new' : 'auth.password')}
         onChange={(e) => setPassword(e.target.value)}
         className="w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3
           outline-none focus:border-accentBright"
@@ -62,7 +72,8 @@ export default function AuthForm({ mode }: { mode: 'login' | 'signup' }) {
         className="w-full rounded-xl bg-accentBright py-3 font-medium text-ink
           disabled:opacity-50"
       >
-        {mode === 'signup' ? '创建账号' : '登录'}
+        {busy ? t(locale, 'auth.busy')
+          : t(locale, mode === 'signup' ? 'auth.submit.signup' : 'auth.submit.login')}
       </button>
     </form>
   );

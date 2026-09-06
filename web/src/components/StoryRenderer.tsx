@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { mediaUrl, miles, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
+import { t, type Locale } from '@/lib/i18n';
 
 /**
  * Story 渲染器 —— 网站上最重要的一个组件。
@@ -17,9 +18,11 @@ import StoryOverviewMap from './StoryOverviewMap';
 export default function StoryRenderer({
   story,
   compact = false,
+  locale = 'zh',
 }: {
   story: Story;
   compact?: boolean;
+  locale?: Locale;
 }) {
   const [progress, setProgress] = useState(0);
   const [activeStop, setActiveStop] = useState<string | null>(null);
@@ -89,11 +92,13 @@ export default function StoryRenderer({
       {/* ② Route: 整趟旅行的全貌，分享出去第一眼想看的就是它 */}
       <section className="px-[6vw] pb-[4vh] pt-[8vh]">
         <h2 className="text-[clamp(22px,3vw,32px)] font-semibold tracking-tight">
-          行程全览
+          {t(locale, 'story.overview')}
         </h2>
         <p className="mb-6 text-sm text-muted">
-          {story.stats.stops} 站 &middot; {miles(story.stats.distanceMeters)} 英里
-          &middot; 点地图上的站可以跳到对应的照片
+          {t(locale, 'story.overview.sub', {
+            stops: story.stats.stops,
+            miles: miles(story.stats.distanceMeters),
+          })}
         </p>
         <StoryOverviewMap story={story} />
       </section>
@@ -121,7 +126,8 @@ export default function StoryRenderer({
                       {s.name ?? `第 ${s.seq + 1} 站`}
                     </h3>
                     <p className="mb-3 text-sm text-muted">
-                      {hhmm(s.arrive)} - {hhmm(s.leave)} &middot; 选了 {s.photos.length} 张
+                      {hhmm(s.arrive)} - {hhmm(s.leave)} &middot;{' '}
+                      {t(locale, 'story.selected', { n: s.photos.length })}
                     </p>
                     {s.note && (
                       <p className="mb-4 max-w-[62ch] whitespace-pre-line

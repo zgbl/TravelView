@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import StoryRenderer from '@/components/StoryRenderer';
 import { demoStory } from '@/lib/demo-story';
+import { getLocale, href, t } from '@/lib/i18n';
+import LangSwitch from '@/components/LangSwitch';
 
 /**
  * 落地页。
@@ -9,29 +11,31 @@ import { demoStory } from '@/lib/demo-story';
  * 不用截图、不用视频、不用一堆功能列表: 产品本身就是最好的说明。
  * 访客滚一屏就明白这个东西是什么，比任何文案都快。
  */
-export default function Home() {
+export default async function Home() {
+  const L = await getLocale();
   return (
     <main>
       <header className="fixed inset-x-0 top-0 z-50 flex items-center justify-between
         bg-gradient-to-b from-black/70 to-transparent px-6 py-4">
         <div className="text-sm font-semibold tracking-wide">TravelView</div>
         <nav className="flex items-center gap-5 text-sm">
-          <Link href="/pricing" className="text-white/80 hover:text-white">
-            价格
+          <LangSwitch locale={L} />
+          <Link href={href(L, '/pricing')} className="text-white/80 hover:text-white">
+            {t(L, 'nav.pricing')}
           </Link>
-          <Link href="/login" className="text-white/80 hover:text-white">
-            登录
+          <Link href={href(L, '/login')} className="text-white/80 hover:text-white">
+            {t(L, 'nav.login')}
           </Link>
           <Link
-            href="/signup"
+            href={href(L, '/signup')}
             className="rounded-full bg-accentBright px-4 py-1.5 font-medium text-ink"
           >
-            开始使用
+            {t(L, 'nav.start')}
           </Link>
         </nav>
       </header>
 
-      <StoryRenderer story={demoStory} compact />
+      <StoryRenderer story={demoStory} compact locale={L} />
 
       <section className="border-t border-white/10 px-[6vw] py-24 text-center">
         <h2 className="mx-auto max-w-3xl text-[clamp(28px,4.5vw,48px)]
@@ -60,7 +64,7 @@ export default function Home() {
 
         <div className="mt-16 flex flex-wrap items-center justify-center gap-4">
           <Link
-            href="/signup"
+            href={href(L, '/signup')}
             className="rounded-full bg-accentBright px-7 py-3 font-medium text-ink"
           >
             创建账号

@@ -114,8 +114,23 @@ class _PublishDialogState extends State<PublishDialog> {
                 ),
               ),
               const SizedBox(height: 6),
-              Text('在网站 /account 页面生成，粘贴到这里。令牌只存在本机。',
-                  style: TextStyle(fontSize: 11, color: scheme.outline)),
+              Row(children: [
+                Expanded(
+                  child: Text('在网站的账户页生成，粘贴到这里。令牌只存在本机。',
+                      style:
+                          TextStyle(fontSize: 11, color: scheme.outline)),
+                ),
+                TextButton(
+                  onPressed: () => _open(
+                      '${site.text.trim().replaceAll(RegExp(r"/+$"), "")}'
+                      '/signup'),
+                  style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      minimumSize: Size.zero),
+                  child: const Text('还没有账号？免费注册',
+                      style: TextStyle(fontSize: 11)),
+                ),
+              ]),
               const SizedBox(height: 16),
               SegmentedButton<String>(
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),

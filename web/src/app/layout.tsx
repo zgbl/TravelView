@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getLocale } from '@/lib/i18n';
 import './globals.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
@@ -12,13 +13,14 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const locale = await getLocale();
   return (
-    <html lang="zh">
+    <html lang={locale}>
       <body className="bg-ink font-sans text-paper antialiased">{children}</body>
     </html>
   );
