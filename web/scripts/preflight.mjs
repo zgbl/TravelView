@@ -65,16 +65,40 @@ if (local) {
 
 const warn = [];
 const site = process.env.NEXT_PUBLIC_SITE_URL ?? '';
-if (site.includes('localhost')) {
+
+// Stripe 的模式只看密钥前缀。测试和正式之间切换**只改环境变量**，
+// 所以这里按当前模式检查该环境下必须成立的条件。
+const key = (process.env.STRIPE_SECRET_KEY ?? '').trim();
+const mode = /^(sk|rk)_live_/.test(key) ? 'live'
+  : /^(sk|rk)_test_/.test(key) ? 'test' : 'unset';
+console.log(`Stripe 模式: ${mode === 'live' ? 'Live（正式）'
+  : mode === 'test' ? 'Test（测试）' : '未配置密钥'}`);
+
+if (mode === 'live') {
+  // 正式模式下这几条不是"建议"，是"错了就会真的赔钱或丢单"
+  if (site.includes('localhost')) {
+    missing.push(['NEXT_PUBLIC_SITE_URL',
+      '正式模式下不能是 localhost —— 付完款的用户会被跳回本机']);
+  } else if (!site.startsWith('https://')) {
+    missing.push(['NEXT_PUBLIC_SITE_URL', '正式模式下必须是 https']);
+  }
+  if (!(process.env.STRIPE_WEBHOOK_SECRET ?? '').startsWith('whsec_')) {
+    missing.push(['STRIPE_WEBHOOK_SECRET',
+      '正式模式下必须是线上端点的 whsec_...，不能留本地 CLI 转发的那个']);
+  }
+  warn.push('当前是 Stripe 正式模式: 确认 5 条 price ID 也换成了 live 的 —— ' +
+    'price 字符串本身看不出 test/live，登录 /admin 看「价格核对」那一栏');
+} else if (mode === 'test') {
+  warn.push('当前是 Stripe 测试模式: 付款不扣真钱，但额度会真的发到这个数据库里');
+}
+
+if (site.includes('localhost') && mode !== 'live') {
   warn.push('NEXT_PUBLIC_SITE_URL 还是 localhost —— ' +
     'OG 卡片和发布回链会指到本机，别人打不开');
 }
 if ((process.env.NEXT_PUBLIC_MAP_TILES ?? '').includes('tile.openstreetmap.org')) {
   warn.push('地图瓦片还指着 OSM 公共服务器 —— ' +
     '正式流量会违反它的使用政策，见 Design/map-tiles.md');
-}
-if ((process.env.STRIPE_SECRET_KEY ?? '').startsWith('sk_test_')) {
-  warn.push('Stripe 还是测试密钥，收不到真钱');
 }
 if (local && (process.env.MEDIA_ROOT ?? '').includes('/web')) {
   warn.push('MEDIA_ROOT 看着在代码目录里 —— 下次部署会被整个覆盖掉');

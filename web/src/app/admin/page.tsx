@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/admin';
 import { betaState } from '@/lib/access';
-import { stripeStatus } from '@/lib/stripe';
+import { stripeStatus, verifyPrices } from '@/lib/stripe';
 import { query, one } from '@/lib/db';
 import DailyBars from '@/components/DailyBars';
 
@@ -41,6 +41,7 @@ export default async function Admin() {
 
   const beta = await betaState();
   const stripe = stripeStatus();
+  const prices = await verifyPrices();
 
   const [totals] = await query<{
     users: string; stories: string; photos: string;
@@ -132,21 +133,61 @@ export default async function Admin() {
       <section className="mt-6 rounded-2xl border border-white/12 p-6">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-medium">支付（Stripe）</h2>
-          <span className={`text-xs ${stripe.ready
-            ? 'text-accentBright' : 'text-muted'}`}>
-            {stripe.ready
-              ? (stripe.livemode ? '已接通（正式模式）' : '已接通（测试模式）')
-              : '还没接通'}
+          <span className={`rounded-full px-3 py-1 text-xs font-medium ${
+            stripe.mode === 'live'
+              ? 'bg-accentBright/15 text-accentBright'
+              : stripe.mode === 'test'
+                ? 'bg-amber-400/15 text-amber-400'
+                : 'bg-white/10 text-muted'}`}>
+            {stripe.mode === 'live' ? 'Live Mode · 正式模式'
+              : stripe.mode === 'test' ? 'Test Mode · 测试模式'
+              : '未配置密钥'}
           </span>
         </div>
+        <p className="mt-2 text-xs text-muted">
+          模式由 <code>STRIPE_SECRET_KEY</code> 的前缀决定
+          （<code>sk_test_</code> / <code>sk_live_</code>），
+          代码里没有任何写死的密钥、价格或域名 ——
+          换环境只改 <code>/etc/travelview/env</code> 再重启。
+        </p>
+
+        {stripe.mode === 'test' && (
+          <p className="mt-3 rounded-xl border border-amber-400/30
+            bg-amber-400/5 px-4 py-3 text-xs text-amber-400">
+            测试模式下的付款不会真的扣钱，但权益是真的发到同一个数据库里的。
+            正式上线前记得把测试期间产生的额度和订阅清掉：
+            <code className="mx-1">db/migrations/007_livemode.sql</code>
+            给付款记录加了 livemode 标记，测试单据可以按它筛出来。
+          </p>
+        )}
+        {stripe.mode === 'live' && !stripe.siteUrlSane && (
+          <p className="mt-3 rounded-xl border border-red-400/40
+            bg-red-400/5 px-4 py-3 text-xs text-red-400">
+            正式模式，但 NEXT_PUBLIC_SITE_URL 是「{stripe.siteUrl || '空'}」——
+            付完款的用户会被跳回这个地址。上线前必须改成真实域名。
+          </p>
+        )}
+
         <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
           <Check ok={stripe.secretKey} k="STRIPE_SECRET_KEY" />
           <Check ok={stripe.webhookSecret} k="STRIPE_WEBHOOK_SECRET" />
-          <Check ok={stripe.priceProYearly} k="STRIPE_PRICE_PRO_YEARLY（$50/年）" />
-          <Check ok={stripe.priceProMonthly} k="STRIPE_PRICE_PRO_MONTHLY（$8/月）" />
-          <Check ok={stripe.priceCredits5usd} k="STRIPE_PRICE_CREDITS_5（$5 = 2 篇）" />
-          <Check ok={stripe.priceCredits10usd} k="STRIPE_PRICE_CREDITS_10（$10 = 5 篇）" />
-          <Check ok={stripe.priceCredits25usd} k="STRIPE_PRICE_CREDITS_25（$25 = 15 篇）" />
+          <Check ok={stripe.siteUrlSane} k="NEXT_PUBLIC_SITE_URL" />
+        </div>
+
+        {/* 光看"配没配"不够: 换 live 密钥时最容易漏掉 price ID，
+            而 price 字符串本身看不出 test 还是 live。这里真的去 Stripe 查一遍。 */}
+        <h3 className="mt-6 text-xs font-medium text-muted">
+          价格核对（用当前这把密钥实时查 Stripe）
+        </h3>
+        <div className="mt-2 space-y-1 text-sm">
+          {prices.map((p) => (
+            <div key={p.key} className="flex items-baseline justify-between gap-3">
+              <span className={p.ok ? 'text-accentBright' : 'text-red-400'}>
+                {p.ok ? '✓' : '✗'} <code className="text-xs">{p.key}</code>
+              </span>
+              <span className="text-right text-xs text-muted">{p.note}</span>
+            </div>
+          ))}
         </div>
         <p className="mt-4 text-xs leading-relaxed text-muted">
           密钥写在服务器的 <code>/etc/travelview/env</code>，改完

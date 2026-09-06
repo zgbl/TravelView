@@ -13,6 +13,7 @@
   - `publish-pipeline.md` 派生图格式与发布管线
   - `map-tiles.md` 地图底图选型
   - `dev-setup.md` / `build-and-package.md` 环境与打包
+- 支付多环境切换：`docs/stripe-environments.md`（测试 / 正式怎么切，上线检查清单）
 
 ## 目录结构
 

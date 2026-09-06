@@ -82,6 +82,7 @@ create table if not exists payments (
   stripe_payment_intent text,
   kind               text not null,          -- plan key: pro_yearly | pro_monthly | credits_2 | ...
   credits_granted    int not null default 0,  -- 这笔给了几篇（额度包的换算以后会变，必须记当时的）
+  livemode           boolean not null default false,  -- Stripe 正式模式产生的？测试单据靠它筛出来
   amount_cents       int,
   currency           text,
   status             text not null,
@@ -91,6 +92,7 @@ create table if not exists payments (
 -- 浏览计数。刻意**不记录任何访客身份** —— 不存 IP、不下 cookie、不做指纹。
 -- 只按天数数字，够回答"有没有人看"，也不给自己招隐私麻烦。
 create index if not exists payments_user_idx on payments(user_id, created_at desc);
+create index if not exists payments_livemode_idx on payments(livemode, created_at desc);
 
 create table if not exists view_daily (
   day    date not null,

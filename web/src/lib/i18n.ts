@@ -123,6 +123,10 @@ export const dict: Dict = {
     zh: '额度不过期，和订阅可以并存',
     en: 'Credits never expire and work alongside a subscription',
   },
+  'billing.paid': {
+    zh: '付款成功，权益已经加到你的账户上了。',
+    en: 'Payment received — your account has been updated.',
+  },
   'billing.title': { zh: '订阅与额度', en: 'Plan & credits' },
   'billing.back': { zh: '返回账户', en: 'Back to account' },
   'billing.manage': { zh: '管理订阅', en: 'Manage plan' },
@@ -175,8 +179,8 @@ export const dict: Dict = {
   },
   'billing.history': { zh: '付款记录', en: 'Payment history' },
   'billing.history.note': {
-    zh: '正式发票和退款在「管理订阅」里的 Stripe 门户处理。',
-    en: 'Official invoices and refunds are handled in the Stripe portal under “Manage plan”.',
+    zh: '退款和付款方式在「管理订阅」里处理。',
+    en: 'Refunds and payment methods are handled under “Manage plan”.',
   },
   'billing.granted': { zh: '+{n} 篇', en: '+{n} stories' },
   'billing.privacy': {

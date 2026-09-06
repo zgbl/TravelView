@@ -91,29 +91,121 @@ export const SUBSCRIPTION_PLANS = [PLANS.pro_yearly, PLANS.pro_monthly];
 export const CREDIT_PLANS = [PLANS.credits_2, PLANS.credits_5, PLANS.credits_15];
 
 /**
+ * 站点地址。Checkout 的回跳、客户门户的 return_url 全都从这里取。
+ *
+ * **不允许写死域名**: 本地是 localhost:3000、测试机是另一个域名、
+ * 线上是正式域名，写死任何一个都意味着另外两个环境的付款流程是坏的。
+ * 缺这个变量时直接抛错，比让用户跳到 "undefined/account/billing" 强。
+ */
+export function siteUrl() {
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim()
+    .replace(/\/+$/, '');
+  if (!site) throw new Error('NEXT_PUBLIC_SITE_URL 没配');
+  return site;
+}
+
+export type StripeMode = 'live' | 'test' | 'unset';
+
+/** 当前跑在哪个 Stripe 模式下 —— 只看密钥前缀，不需要联网 */
+export function stripeMode(): StripeMode {
+  const k = (process.env.STRIPE_SECRET_KEY ?? '').trim();
+  if (k.startsWith('sk_live_') || k.startsWith('rk_live_')) return 'live';
+  if (k.startsWith('sk_test_') || k.startsWith('rk_test_')) return 'test';
+  return 'unset';
+}
+
+/**
  * Stripe 到底配没配好。
  *
  * 密钥是环境变量，不是数据库里的设置 —— **不做"在后台网页里填密钥"那种功能**:
  * 一个能读写支付密钥的网页表单，本身就是最值钱的攻击目标，
  * 而且密钥写进数据库后备份、日志、截图到处都是它。
  * 后台只**显示**配没配好，填还是去 /etc/travelview/env。
+ *
+ * 切换测试/正式**只改环境变量**: 5 条 price ID + secret key + webhook secret，
+ * 代码一行不动。所以这里只做"有没有配"和"是哪个模式"的判断，
+ * 不掺任何跟环境绑定的常量。
  */
 export function stripeStatus() {
   const secret = env('STRIPE_SECRET_KEY') ?? '';
+  const mode = stripeMode();
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? '').trim();
   const checks = {
     secretKey: !!secret,
-    livemode: secret.startsWith('sk_live_'),
+    mode,
+    livemode: mode === 'live',
     webhookSecret: !!env('STRIPE_WEBHOOK_SECRET'),
     priceProYearly: !!PLANS.pro_yearly.priceId,
     priceProMonthly: !!PLANS.pro_monthly.priceId,
     priceCredits5usd: !!PLANS.credits_2.priceId,
     priceCredits10usd: !!PLANS.credits_5.priceId,
     priceCredits25usd: !!PLANS.credits_15.priceId,
+    siteUrl: site,
+    // 正式模式下这两条必须成立，否则回跳会把付过款的用户扔到本机
+    siteUrlSane: !!site && !site.includes('localhost'),
   };
   return {
     ...checks,
     // 收一次钱最少需要这三样
     ready: checks.secretKey && checks.webhookSecret &&
       (checks.priceCredits5usd || checks.priceProYearly || checks.priceProMonthly),
+    // 正式模式还要求域名是真的
+    liveReady: mode === 'live' && checks.webhookSecret && checks.siteUrlSane,
   };
+}
+
+/**
+ * 拿当前这把密钥去 Stripe 核对每条 price 是否真的存在。
+ *
+ * 这一步能挡住换环境时最常见、也最难查的一类事故:
+ * **密钥换成了 live，price ID 还是 test 的那几条。**
+ * price ID 字符串本身不带 test/live 标记，光看配置文件永远看不出来，
+ * 只有等第一个真实用户点下付款按钮才会 500 —— 那时候钱和口碑都已经损失了。
+ *
+ * 只在后台页面调用，缓存 60 秒，别让每次刷新都打五个 Stripe 请求。
+ */
+type PriceCheck = { key: string; priceId?: string; ok: boolean; note: string };
+let priceCache: { at: number; mode: StripeMode; rows: PriceCheck[] } | null = null;
+
+export async function verifyPrices(): Promise<PriceCheck[]> {
+  const mode = stripeMode();
+  if (priceCache && priceCache.mode === mode &&
+      Date.now() - priceCache.at < 60_000) {
+    return priceCache.rows;
+  }
+  const rows: PriceCheck[] = [];
+  for (const p of [...SUBSCRIPTION_PLANS, ...CREDIT_PLANS]) {
+    if (!p.priceId) {
+      rows.push({ key: p.key, ok: false, note: '没配' });
+      continue;
+    }
+    try {
+      const price = await stripe.prices.retrieve(p.priceId);
+      const amount = price.unit_amount != null
+        ? `$${(price.unit_amount / 100).toFixed(2)}` : '?';
+      const cadence = price.recurring?.interval
+        ? `/${price.recurring.interval}` : ' 一次性';
+      const wantSub = p.mode === 'subscription';
+      const isSub = !!price.recurring;
+      rows.push({
+        key: p.key,
+        priceId: p.priceId,
+        ok: price.active && isSub === wantSub,
+        note: !price.active ? `${amount}${cadence}（已停用）`
+          : isSub !== wantSub
+            ? `${amount}${cadence}（类型对不上: 代码里当成${wantSub ? '订阅' : '一次性'}）`
+            : `${amount}${cadence}`,
+      });
+    } catch (e: any) {
+      // 最常见的就是这一条: 拿 live 密钥查 test 的 price
+      rows.push({
+        key: p.key, priceId: p.priceId, ok: false,
+        note: e?.code === 'resource_missing'
+          ? `这把${mode === 'live' ? '正式' : '测试'}密钥下不存在这条 price`
+          : (e?.message ?? '查不到'),
+      });
+    }
+  }
+  priceCache = { at: Date.now(), mode, rows };
+  return rows;
 }

@@ -4,6 +4,7 @@ import { requireUser } from '@/lib/auth';
 import { one, query } from '@/lib/db';
 import { betaState } from '@/lib/access';
 import { CREDIT_PLANS, SUBSCRIPTION_PLANS, stripeStatus } from '@/lib/stripe';
+import { reconcileCheckout } from '@/lib/reconcile';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
 import CheckoutButtons from '@/components/CheckoutButtons';
@@ -24,11 +25,21 @@ export const dynamic = 'force-dynamic';
  *
  * 所有文案走 t() —— 这个站是中英双语的，写死中文等于把英文用户挡在付款之前。
  */
-export default async function Billing() {
+export default async function Billing({
+  searchParams,
+}: {
+  searchParams: Promise<{ checkout?: string }>;
+}) {
   const user = await requireUser();
   if (!user) redirect('/login?next=/account/billing');
 
   const L = await getLocale();
+
+  // 刚从 Stripe 付完款跳回来: 先跟 Stripe 对一次账再读库，
+  // 否则用户看到的是发放前的旧数字。发放是幂等的，刷新多少次都只加一次。
+  const { checkout } = await searchParams;
+  const justPaid = !!checkout;
+  if (checkout) await reconcileCheckout(checkout, user.id);
 
   const row = await one<{
     story_credits: number;
@@ -42,6 +53,7 @@ export default async function Billing() {
   type Payment = {
     kind: string;
     credits_granted: number;
+    livemode: boolean;
     amount_cents: number | null;
     currency: string | null;
     status: string;
@@ -53,16 +65,17 @@ export default async function Billing() {
   try {
     payments = await query<Payment>(
       `select kind, coalesce(credits_granted, 0) as credits_granted,
+              coalesce(livemode, false) as livemode,
               amount_cents, currency, status, created_at
          from payments where user_id = $1
         order by created_at desc limit 10`, [user.id]);
   } catch {
     try {
-      const rows = await query<Omit<Payment, 'credits_granted'>>(
+      const rows = await query<Omit<Payment, 'credits_granted' | 'livemode'>>(
         `select kind, amount_cents, currency, status, created_at
            from payments where user_id = $1
           order by created_at desc limit 10`, [user.id]);
-      payments = rows.map((r) => ({ ...r, credits_granted: 0 }));
+      payments = rows.map((r) => ({ ...r, credits_granted: 0, livemode: true }));
     } catch {
       payments = [];
     }
@@ -104,6 +117,13 @@ export default async function Billing() {
       </div>
 
       {/* 当前权益 —— 第一眼要能回答"我现在能不能发布" */}
+      {justPaid && (
+        <p className="mb-6 rounded-xl border border-accentBright/40
+          bg-accentBright/10 px-5 py-4 text-sm text-accentBright">
+          {t(L, 'billing.paid')}
+        </p>
+      )}
+
       <section className="rounded-2xl border border-white/12 p-6">
         <div className="text-sm text-muted">{user.email}</div>
         <div className="mt-3 text-lg">
@@ -122,6 +142,13 @@ export default async function Billing() {
             </span>
           )}
         </div>
+        {subscribed && credits > 0 && (
+          <div className="mt-1 text-sm text-muted">
+            {t(L, 'billing.credits')}
+            <strong className="text-paper">{credits}</strong>
+            {t(L, 'billing.credits.unit')}
+          </div>
+        )}
         {row?.subscription_status === 'past_due' && (
           <p className="mt-2 text-sm text-amber-400">{t(L, 'billing.pastdue')}</p>
         )}
@@ -216,7 +243,13 @@ export default async function Billing() {
                       ? `$${(p.amount_cents / 100).toFixed(2)}`
                       : '—'}
                   </td>
-                  <td className="py-2 text-right text-muted">{p.status}</td>
+                  <td className="py-2 text-right text-muted">
+                    {p.status}
+                    {!p.livemode && (
+                      <span className="ml-2 rounded bg-amber-400/15 px-1.5
+                        py-0.5 text-[10px] text-amber-400">TEST</span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>

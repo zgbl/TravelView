@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { one } from '@/lib/db';
-import { resolvePlan, stripe, stripeStatus } from '@/lib/stripe';
+import { resolvePlan, siteUrl, stripe, stripeStatus } from '@/lib/stripe';
 
 /** 创建 Stripe Checkout 会话。支付成功由 webhook 落权益，这里只负责跳转。 */
 export async function POST(req: Request) {
@@ -37,13 +37,16 @@ export async function POST(req: Request) {
       [customerId, user.id]);
   }
 
-  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  const site = siteUrl();
   const session = await stripe.checkout.sessions.create({
     mode: chosen.mode,
     customer: customerId,
     line_items: [{ price: chosen.priceId, quantity: 1 }],
-    success_url: `${site}/account?paid=1`,
-    cancel_url: `${site}/pricing`,
+    // 带上 session_id: 回来时自己跟 Stripe 对一次账，
+    // 不必干等 webhook（沙盒里 webhook 常常根本没配）
+    success_url:
+      `${site}/account/billing?checkout={CHECKOUT_SESSION_ID}`,
+    cancel_url: `${site}/account/billing`,
     client_reference_id: user.id,
     // 订阅要能自助取消，否则退款和投诉都会变成你的人工客服工作
     ...(chosen.mode === 'subscription'

@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { one } from '@/lib/db';
-import { stripe, stripeStatus } from '@/lib/stripe';
+import { siteUrl, stripe, stripeStatus } from '@/lib/stripe';
 
 /**
  * Stripe 客户门户: 用户自己看发票、换卡、取消订阅。
@@ -24,7 +24,7 @@ export async function POST() {
 
   const portal = await stripe.billingPortal.sessions.create({
     customer: row.stripe_customer_id,
-    return_url: `${process.env.NEXT_PUBLIC_SITE_URL}/account`,
+    return_url: `${siteUrl()}/account/billing`,
   });
   return NextResponse.json({ url: portal.url });
 }

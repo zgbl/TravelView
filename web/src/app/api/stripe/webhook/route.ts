@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { creditsForPlan, resolvePlan, stripe } from '@/lib/stripe';
+import { stripe } from '@/lib/stripe';
+import { grantForCheckout } from '@/lib/grant';
 import { one } from '@/lib/db';
 
 // 必须跑在 Node 运行时: 验签要原始请求体，Edge 上拿不到
@@ -27,67 +28,23 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: `签名校验失败: ${e}` }, { status: 400 });
   }
 
-  // 幂等: Stripe 会重发（超时、5xx、它自己的重试）。
-  // 没有这道闸，一次付款可能加两次额度。
-  try {
-    const fresh = await one<{ id: string }>(
-      `insert into stripe_events (id, type) values ($1, $2)
-       on conflict (id) do nothing returning id`,
-      [event.id, event.type]);
-    if (!fresh) return NextResponse.json({ received: true, duplicate: true });
-  } catch {
-    // 幂等表还没建（迁移没跑）时不阻断发放 —— 宁可重复也不能吞掉付款，
-    // 重复了还能人工退，吞了用户是真花了钱没拿到东西
-  }
-
   if (event.type === 'checkout.session.completed') {
     const s = event.data.object;
     const userId = s.metadata?.userId;
-    const plan = s.metadata?.plan;
     if (userId) {
-      // 订阅: 先给一个保底到期时间，真正的到期日以随后的
-      // customer.subscription.* 事件里的 current_period_end 为准
-      let granted = 0;
-      if (resolvePlan(plan)?.mode === 'subscription') {
-        const span = plan === 'pro_monthly' ? '1 month' : '1 year';
-        await one(
-          `update users set subscription_status = 'active',
-             subscription_until = now() + $2::interval where id = $1`,
-          [userId, span],
-        );
-      } else {
-        // 一次给几篇由档位决定（$5=2 / $10=5 / $25=15）。
-        // 认不出的 plan 保底给 1 篇 —— 用户真付了钱，宁可多给也不能不给
-        granted = creditsForPlan(plan) || 1;
-        await one(
-          'update users set story_credits = story_credits + $2 where id = $1',
-          [userId, granted],
-        );
-      }
-      const row = [userId, s.id, String(s.payment_intent ?? ''),
-        plan ?? 'credits_2', s.amount_total, s.currency, 'paid'];
-      try {
-        await one(
-          `insert into payments
-             (user_id, stripe_session_id, stripe_payment_intent, kind,
-              amount_cents, currency, status, credits_granted)
-           values ($1,$2,$3,$4,$5,$6,$7,$8)
-           on conflict (stripe_session_id) do nothing`,
-          [...row, granted],
-        );
-      } catch {
-        // 006 迁移还没跑（没有 credits_granted 列）时退回旧写法。
-        // 额度已经发出去了，这里只是记账，绝不能因为少一列就整个 500 —
-        // webhook 返 500 会让 Stripe 反复重试同一笔
-        await one(
-          `insert into payments
-             (user_id, stripe_session_id, stripe_payment_intent, kind,
-              amount_cents, currency, status)
-           values ($1,$2,$3,$4,$5,$6,$7)
-           on conflict (stripe_session_id) do nothing`,
-          row,
-        );
-      }
+      // 幂等和发放逻辑都在 grantForCheckout 里 ——
+      // 和"支付成功跳回来"那条路共用同一份，两处不会算出不同的额度
+      await grantForCheckout({
+        userId,
+        eventId: event.id,
+        eventType: event.type,
+        plan: s.metadata?.plan,
+        sessionId: s.id,
+        paymentIntent: typeof s.payment_intent === 'string'
+          ? s.payment_intent : null,
+        amountCents: s.amount_total,
+        currency: s.currency,
+      });
     }
   }
 
