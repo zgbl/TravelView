@@ -13,6 +13,11 @@ create table if not exists users (
   email           text not null unique,
   password_hash   text,
   name            text,
+
+  -- 公开主页: /u/<handle>。存小写，唯一索引在 lower(handle) 上
+  handle          text,
+  bio             text,
+  profile_public  boolean not null default true,
   created_at      timestamptz not null default now(),
 
   -- Stripe
@@ -31,6 +36,23 @@ create table if not exists users (
   -- 封禁只挡新的发布，不动已发布的内容
   banned_at timestamptz
 );
+
+create unique index if not exists users_handle_key on users(lower(handle));
+
+-- 桌面端设备码登录: App 显示短码 -> 用户在网页确认 -> App 轮询换长期令牌。
+-- 桌面端因此永远不接触用户密码。
+create table if not exists device_codes (
+  code        text primary key,
+  device_code text not null unique,
+  label       text,
+  user_id     uuid references users(id) on delete cascade,
+  approved_at timestamptz,
+  token       text,
+  created_at  timestamptz not null default now(),
+  expires_at  timestamptz not null
+);
+
+create index if not exists device_codes_expiry_idx on device_codes(expires_at);
 
 -- 桌面端用它上传，避免在 App 里存用户密码
 create table if not exists publish_tokens (
@@ -52,6 +74,10 @@ create table if not exists stories (
   title       text not null,
   subtitle    text,
   cover_path  text,
+
+  -- 图片在存储里的前缀: u/<user uuid>/<年>/<月>/<slug>（老数据是 s/<slug>）。
+  -- 记在行里而不是靠代码算 —— 算法会变，已经落盘的路径不会跟着变。
+  media_prefix text,
 
   -- 完整 manifest（含压缩后的 route geometry）。几十 KB，直接放库里最省事。
   manifest    jsonb not null,

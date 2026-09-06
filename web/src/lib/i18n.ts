@@ -136,6 +136,52 @@ export const dict: Dict = {
     zh: '还没有付款记录。在这里付的每一笔都会列在这一栏，不用去 Stripe 查。',
     en: "No payments yet. Everything you pay for here will be listed in this table — you won't have to look it up in Stripe.",
   },
+  // ── 桌面端连接 ──
+  'link.title': { zh: '连接桌面端', en: 'Connect your desktop app' },
+  'link.intro': {
+    zh: '打开桌面端的「连接账号」，把它显示的那串码敲在这里。',
+    en: 'Open “Connect account” in the desktop app and type the code it shows here.',
+  },
+  'link.placeholder': { zh: '例如 KDR8-Q2M7', en: 'e.g. KDR8-Q2M7' },
+  'link.submit': { zh: '确认这台设备', en: 'Approve this device' },
+  'link.busy': { zh: '正在确认...', en: 'Approving...' },
+  'link.done': {
+    zh: '连上了。回到桌面端，它几秒内就会自己登录。',
+    en: 'Connected. Go back to the desktop app — it will sign in within a few seconds.',
+  },
+  'link.note': {
+    zh: '这串码 15 分钟内有效，只能用一次。发布令牌由服务器直接发给那台机器，不经过你的剪贴板。随时可以在账户页吊销。',
+    en: 'The code is valid for 15 minutes and can be used once. The publish token goes straight to that machine — it never passes through your clipboard. You can revoke it any time from your account.',
+  },
+
+  // ── 公开主页 ──
+  'profile.stories': { zh: '{n} 篇故事', en: '{n} stories' },
+  'profile.empty': {
+    zh: '还没有公开的故事。',
+    en: 'No public stories yet.',
+  },
+  'profile.own.cta': {
+    zh: '这是你的公开主页。把这个地址分享出去，别人看到的就是这一页。',
+    en: 'This is your public page. Share this link — this is what people will see.',
+  },
+  'profile.made': {
+    zh: '用 TravelView 制作', en: 'Made with TravelView',
+  },
+  'profile.handle': { zh: '主页地址', en: 'Public page' },
+  'profile.handle.save': { zh: '设置', en: 'Save' },
+  'profile.handle.saved': { zh: '已设置', en: 'Saved' },
+  'profile.handle.open': { zh: '打开我的主页', en: 'Open my page' },
+  'link.entry': { zh: '连接桌面端', en: 'Connect desktop app' },
+  'profile.handle.hint': {
+    zh: '3-20 位，只能用小写字母、数字和下划线。设置后你的主页就是 /u/你的名字。',
+    en: '3-20 characters, lowercase letters, numbers and underscore. Your page will be /u/yourname.',
+  },
+  'profile.handle.taken': { zh: '这个名字被占了', en: 'That name is taken' },
+  'profile.handle.bad': {
+    zh: '只能用 3-20 位小写字母、数字和下划线',
+    en: 'Use 3-20 lowercase letters, numbers or underscore',
+  },
+
   'billing.title': { zh: '订阅与额度', en: 'Plan & credits' },
   'billing.back': { zh: '返回账户', en: 'Back to account' },
   'billing.manage': { zh: '管理订阅', en: 'Manage plan' },

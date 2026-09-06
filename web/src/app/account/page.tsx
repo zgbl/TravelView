@@ -8,6 +8,8 @@ import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
 import TokenManager from '@/components/TokenManager';
 import NameEditor from '@/components/NameEditor';
+import HandleEditor from '@/components/HandleEditor';
+import { siteUrl } from '@/lib/stripe';
 
 export default async function Account() {
   const user = await requireUser();
@@ -15,10 +17,11 @@ export default async function Account() {
 
   const row = await one<{
     name: string | null;
+    handle: string | null;
     story_credits: number;
     subscription_status: string | null;
     subscription_until: string | null;
-  }>(`select name, story_credits, subscription_status, subscription_until
+  }>(`select name, handle, story_credits, subscription_status, subscription_until
         from users where id = $1`, [user.id]);
 
   const subscribed = row?.subscription_status === 'active';
@@ -36,6 +39,9 @@ export default async function Account() {
               {t(L, 'nav.admin')}
             </Link>
           )}
+          <Link href={href(L, '/link')} className="text-muted hover:text-paper">
+            {t(L, 'link.entry')}
+          </Link>
           <Link href={href(L, '/stories')} className="text-muted hover:text-paper">
             {t(L, 'nav.stories')}
           </Link>
@@ -80,6 +86,20 @@ export default async function Account() {
       </div>
 
       <NameEditor initial={row?.name ?? ''} locale={L} />
+
+      <HandleEditor
+        initial={row?.handle ?? ''}
+        site={siteUrl().replace(/^https?:\/\//, '')}
+        labels={{
+          title: t(L, 'profile.handle'),
+          hint: t(L, 'profile.handle.hint'),
+          save: t(L, 'profile.handle.save'),
+          saved: t(L, 'profile.handle.saved'),
+          taken: t(L, 'profile.handle.taken'),
+          bad: t(L, 'profile.handle.bad'),
+          open: t(L, 'profile.handle.open'),
+        }}
+      />
 
       <TokenManager />
 

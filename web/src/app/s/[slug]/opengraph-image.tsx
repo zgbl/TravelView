@@ -15,12 +15,15 @@ export const contentType = 'image/png';
 export default async function Image(
   { params }: { params: { slug: string } },
 ) {
-  const row = await one<{ title: string; subtitle: string | null; manifest: Story }>(
-    'select title, subtitle, manifest from stories where slug = $1',
+  const row = await one<{ title: string; subtitle: string | null;
+    manifest: Story; slug: string; media_prefix: string | null }>(
+    'select title, subtitle, manifest, slug, media_prefix from stories where slug = $1',
     [params.slug],
   );
 
   const title = row?.title ?? 'TravelView';
+  // 老数据没有 media_prefix，退回它当年用的 s/<slug>
+  const prefix = row ? (row.media_prefix ?? `s/${row.slug}`) : null;
   const stats = row?.manifest?.stats;
   const cover = row?.manifest?.cover
     ? row.manifest.photos.find((p) => p.id === row.manifest.cover)
@@ -39,7 +42,7 @@ export default async function Image(
         {cover && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={mediaUrl(cover.web.path)}
+            src={mediaUrl(cover.web.path, prefix)}
             alt=""
             style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',

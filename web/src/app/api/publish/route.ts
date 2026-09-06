@@ -2,7 +2,9 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { z } from 'zod';
 import { one, query } from '@/lib/db';
-import { presignUpload } from '@/lib/r2';
+import { deleteStoryMedia, presignUpload } from '@/lib/r2';
+import { mediaPrefixFor } from '@/lib/storage';
+import { siteUrl } from '@/lib/stripe';
 import { betaState, entitlementOf } from '@/lib/access';
 
 /**
@@ -37,17 +39,29 @@ const Body = z.object({
     bytes: z.number().optional(),
   })).max(400),
   visibility: z.enum(['public', 'unlisted']).default('public'),
+  /**
+   * 传了就是**原地更新那一篇**: URL 不变、不再扣额度。
+   * 桌面端记住上次发布返回的 storyId，用户改个错别字或补几张照片
+   * 不会变成第二篇，已经分享出去的链接也不会失效。
+   */
+  storyId: z.string().uuid().optional(),
 });
+
+/** 令牌换用户。桌面端只有令牌，没有会话。 */
+async function userIdForToken(token: string) {
+  const owner = await one<{ user_id: string }>(
+    `select user_id from publish_tokens
+      where token = $1 and revoked_at is null`, [token]);
+  return owner?.user_id ?? null;
+}
 
 export async function POST(req: Request) {
   const token = (req.headers.get('authorization') ?? '')
     .replace(/^Bearer\s+/i, '').trim();
   if (!token) return NextResponse.json({ error: '缺少发布令牌' }, { status: 401 });
 
-  const owner = await one<{ user_id: string }>(
-    `select user_id from publish_tokens
-      where token = $1 and revoked_at is null`, [token]);
-  if (!owner) return NextResponse.json({ error: '令牌无效' }, { status: 401 });
+  const userId = await userIdForToken(token);
+  if (!userId) return NextResponse.json({ error: '令牌无效' }, { status: 401 });
 
   const parsed = Body.safeParse(await req.json().catch(() => null));
   if (!parsed.success) {
@@ -55,7 +69,7 @@ export async function POST(req: Request) {
       { error: parsed.error.issues[0]?.message ?? '数据格式不对' },
       { status: 400 });
   }
-  const { manifest, files, visibility } = parsed.data;
+  const { manifest, files, visibility, storyId } = parsed.data;
 
   // 防呆: manifest 里出现原图后缀说明 App 那边出了问题，直接拒绝
   const asText = JSON.stringify(manifest);
@@ -70,7 +84,7 @@ export async function POST(req: Request) {
     subscription_until: string | null;
     banned_at: string | null;
   }>(`select story_credits, subscription_status, subscription_until, banned_at
-        from users where id = $1`, [owner.user_id]);
+        from users where id = $1`, [userId]);
 
   if (user?.banned_at) {
     return NextResponse.json({ error: '这个账号已被停用' }, { status: 403 });
@@ -84,16 +98,74 @@ export async function POST(req: Request) {
       { status: 402 });
   }
 
+  // ── 原地更新 ──
+  // 找不到就当作新建（用户可能删了那一篇，或者换了账号），
+  // 而不是报错把人卡住 —— 他手上的照片已经导出好了
+  let existing: { id: string; slug: string; media_prefix: string | null;
+    manifest: any } | null = null;
+  if (storyId) {
+    existing = await one(
+      `select id, slug, media_prefix, manifest from stories
+        where id = $1 and user_id = $2`, [storyId, userId]);
+  }
+
+  if (existing) {
+    // 这一次没有再出现的旧图要删掉，否则改一次图就在磁盘上留一份垃圾
+    const prefix = existing.media_prefix ?? `s/${existing.slug}`;
+    const keep = new Set(files.map((f) => f.path.replace(/^\/+/, '')));
+    const oldPaths: string[] = [
+      ...(existing.manifest?.photos ?? []).map((p: any) => p?.web?.path),
+      ...(existing.manifest?.photos ?? []).map((p: any) => p?.thumb),
+    ].filter(Boolean);
+    const orphans = oldPaths.filter((p) => !keep.has(p))
+      .map((p) => `${prefix}/${p}`);
+    if (orphans.length) {
+      await deleteStoryMedia('', orphans).catch(() => {});
+    }
+
+    await one(
+      `update stories set title = $2, subtitle = $3, cover_path = $4,
+              manifest = $5, start_date = $6, end_date = $7, day_count = $8,
+              stop_count = $9, photo_count = $10, distance_meters = $11,
+              visibility = $12, updated_at = now()
+        where id = $1`,
+      [existing.id, manifest.title, manifest.subtitle ?? null,
+       manifest.cover ?? null, manifest,
+       manifest.start.slice(0, 10), manifest.end.slice(0, 10),
+       manifest.stats.days, manifest.stats.stops, manifest.stats.photos,
+       Math.round(manifest.stats.distanceMeters), visibility]);
+
+    await one('update publish_tokens set last_used_at = now() where token = $1',
+      [token]);
+
+    const uploads = await Promise.all(files.map(async (f) => {
+      const key = `${prefix}/${f.path.replace(/^\/+/, '')}`;
+      return { path: f.path, key, url: await presignUpload(key, f.contentType) };
+    }));
+
+    return NextResponse.json({
+      slug: existing.slug,
+      storyId: existing.id,
+      updated: true,
+      publicUrl: `${siteUrl()}/s/${existing.slug}`,
+      mediaBase: `${process.env.NEXT_PUBLIC_MEDIA_BASE}/${prefix}`,
+      uploads,
+    });
+  }
+
+  // ── 新建 ──
   const slug = randomBytes(5).toString('hex'); // 不可猜测的公开地址
+  // 按用户和年月分目录: 单个用户几万张图时目录还翻得动，也方便整体迁移
+  const prefix = mediaPrefixFor(userId, slug);
   const story = await one<{ id: string }>(
     `insert into stories
-       (user_id, slug, title, subtitle, cover_path, manifest,
+       (user_id, slug, title, subtitle, cover_path, manifest, media_prefix,
         start_date, end_date, day_count, stop_count, photo_count,
         distance_meters, visibility, published_at)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
+     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
      returning id`,
-    [owner.user_id, slug, manifest.title, manifest.subtitle ?? null,
-     manifest.cover ?? null, manifest,
+    [userId, slug, manifest.title, manifest.subtitle ?? null,
+     manifest.cover ?? null, manifest, prefix,
      manifest.start.slice(0, 10), manifest.end.slice(0, 10),
      manifest.stats.days, manifest.stats.stops, manifest.stats.photos,
      Math.round(manifest.stats.distanceMeters), visibility]);
@@ -101,22 +173,22 @@ export async function POST(req: Request) {
   if (ent.consumesCredit) {
     await one(
       'update users set story_credits = story_credits - 1 where id = $1',
-      [owner.user_id]);
+      [userId]);
   }
   await one('update publish_tokens set last_used_at = now() where token = $1',
     [token]);
 
-  // 图片键统一放在 s/<slug>/ 下，删 Story 时按前缀清理
   const uploads = await Promise.all(files.map(async (f) => {
-    const key = `s/${slug}/${f.path.replace(/^\/+/, '')}`;
+    const key = `${prefix}/${f.path.replace(/^\/+/, '')}`;
     return { path: f.path, key, url: await presignUpload(key, f.contentType) };
   }));
 
   return NextResponse.json({
     slug,
     storyId: story!.id,
-    publicUrl: `${process.env.NEXT_PUBLIC_SITE_URL}/s/${slug}`,
-    mediaBase: `${process.env.NEXT_PUBLIC_MEDIA_BASE}/s/${slug}`,
+    updated: false,
+    publicUrl: `${siteUrl()}/s/${slug}`,
+    mediaBase: `${process.env.NEXT_PUBLIC_MEDIA_BASE}/${prefix}`,
     uploads,
   });
 }

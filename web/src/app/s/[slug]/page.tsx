@@ -8,6 +8,7 @@ import { mediaUrl, type Story } from '@/lib/story';
 
 type Row = {
   slug: string;
+  media_prefix: string | null;
   title: string;
   subtitle: string | null;
   cover_path: string | null;
@@ -17,7 +18,7 @@ type Row = {
 
 async function load(slug: string) {
   return one<Row>(
-    `select slug, title, subtitle, cover_path, manifest, visibility
+    `select slug, media_prefix, title, subtitle, cover_path, manifest, visibility
        from stories where slug = $1 and visibility <> 'private'`,
     [slug],
   );

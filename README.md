@@ -10,6 +10,7 @@
   - `architecture.md` 开放照片库的地基（先读这个）
   - `story-and-curation.md` 自动精选、Stop、道路路线
   - `story-output.md` Story 数据模型与输出架构
+  - `accounts-and-publishing.md` 设备码登录 / 公开主页 / 发布后原地更新
   - `publish-pipeline.md` 派生图格式与发布管线
   - `map-tiles.md` 地图底图选型
   - `dev-setup.md` / `build-and-package.md` 环境与打包

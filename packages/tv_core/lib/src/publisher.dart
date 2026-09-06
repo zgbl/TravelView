@@ -47,11 +47,20 @@ class PublishResult {
   final int fileCount;
   final int totalBytes;
 
+  /// 服务器给这篇 Story 的 id。**存下来** ——
+  /// 下次发布同一趟行程时带上它，就是原地更新而不是新建一篇。
+  final String storyId;
+
+  /// true = 更新了已有的那一篇（链接没变、没扣额度）
+  final bool updated;
+
   const PublishResult({
     required this.slug,
     required this.publicUrl,
     required this.fileCount,
     required this.totalBytes,
+    this.storyId = '',
+    this.updated = false,
   });
 }
 
@@ -73,13 +82,17 @@ class Publisher {
   });
 
   /// [exportDir] 就是 StoryExporter 产出的那个目录。
+  /// [storyId] 传了就是**原地更新那一篇**: 公开链接不变、不再扣额度。
+  /// 服务器找不到这个 id（用户删了那篇、或换了账号）时会当作新建，
+  /// 不会报错把人卡住 —— 照片都已经导出好了。
   Future<PublishResult> publish(
     Directory exportDir, {
     String visibility = 'public',
+    String? storyId,
     void Function(int done, int total, String label)? onProgress,
   }) async {
     if (!config.isConfigured) {
-      throw const PublishException('还没有填发布令牌，先去网站 /account 生成');
+      throw const PublishException('还没有连接账号，先在设置里点「连接账号」');
     }
 
     final manifestFile = File(p.join(exportDir.path, 'story.json'));
@@ -93,8 +106,9 @@ class Publisher {
       throw const PublishException('导出目录里没有可上传的图片');
     }
 
-    onProgress?.call(0, files.length + 1, '正在创建 Story');
-    final created = await _createStory(manifest, files, visibility);
+    onProgress?.call(0, files.length + 1,
+        storyId == null ? '正在创建 Story' : '正在更新 Story');
+    final created = await _createStory(manifest, files, visibility, storyId);
 
     final uploads = (created['uploads'] as List)
         .cast<Map<String, dynamic>>()
@@ -133,6 +147,8 @@ class Publisher {
       publicUrl: created['publicUrl'] as String,
       fileCount: files.length,
       totalBytes: bytes,
+      storyId: created['storyId'] as String? ?? '',
+      updated: created['updated'] == true,
     );
   }
 
@@ -163,7 +179,8 @@ class Publisher {
   Future<Map<String, dynamic>> _createStory(
       Object? manifest,
       List<({String path, File file, String contentType})> files,
-      String visibility) async {
+      String visibility,
+      String? storyId) async {
     final client = HttpClient()..connectionTimeout = timeout;
     try {
       final req = await client.postUrl(config.publishUri).timeout(timeout);
@@ -174,6 +191,7 @@ class Publisher {
       req.write(jsonEncode({
         'manifest': manifest,
         'visibility': visibility,
+        if (storyId != null && storyId.isNotEmpty) 'storyId': storyId,
         'files': [
           for (final f in files)
             {

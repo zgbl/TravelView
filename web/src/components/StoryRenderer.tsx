@@ -19,10 +19,13 @@ export default function StoryRenderer({
   story,
   compact = false,
   locale = 'zh',
+  prefix,
 }: {
   story: Story;
   compact?: boolean;
   locale?: Locale;
+  /** 图片在存储里的前缀（stories.media_prefix）。示例故事不传。 */
+  prefix?: string | null;
 }) {
   const [progress, setProgress] = useState(0);
   const [activeStop, setActiveStop] = useState<string | null>(null);
@@ -66,7 +69,7 @@ export default function StoryRenderer({
         {cover && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={mediaUrl(cover.web.path)}
+            src={mediaUrl(cover.web.path, prefix)}
             alt=""
             className="absolute inset-0 h-full w-full object-cover brightness-[.6]"
           />
@@ -138,7 +141,7 @@ export default function StoryRenderer({
                     {hero && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={mediaUrl(hero.web.path)}
+                        src={mediaUrl(hero.web.path, prefix)}
                         alt=""
                         loading="lazy"
                         onMouseEnter={() => setActivePhoto(hero.id)}
@@ -159,7 +162,7 @@ export default function StoryRenderer({
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               key={pid}
-                              src={mediaUrl(ph.web.path)}
+                              src={mediaUrl(ph.web.path, prefix)}
                               alt=""
                               loading="lazy"
                               onMouseEnter={() => setActivePhoto(ph.id)}

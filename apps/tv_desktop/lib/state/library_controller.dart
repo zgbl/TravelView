@@ -636,9 +636,12 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
 
     try {
+      // 这趟行程发过一次就原地更新那一篇: 链接不变、不再扣额度
+      final existingId = currentProject?.publishedStoryId ?? '';
       final res = await Publisher(publishConfig).publish(
         export.dir,
         visibility: visibility,
+        storyId: existingId.isEmpty ? null : existingId,
         onProgress: (d, t, label) {
           publishDone = d;
           publishTotal = t;
@@ -647,7 +650,10 @@ class LibraryController extends ChangeNotifier {
         },
       );
       lastPublish = res;
-      status = '发布成功: ${res.publicUrl}';
+      await _rememberPublished(res);
+      status = res.updated
+          ? '已更新: ${res.publicUrl}'
+          : '发布成功: ${res.publicUrl}';
       return res;
     } on PublishException catch (e) {
       needsPayment = e.needsPayment;
@@ -662,6 +668,93 @@ class LibraryController extends ChangeNotifier {
       publishing = false;
       notifyListeners();
     }
+  }
+
+  /// 把服务器返回的 story id 记在当前草稿上。
+  /// **记在草稿里而不是全局设置里** —— 一个照片库里有很多趟行程，
+  /// 每一趟在网站上是各自独立的一篇。
+  Future<void> _rememberPublished(PublishResult res) async {
+    final proj = currentProject;
+    if (proj == null || res.storyId.isEmpty) return;
+    proj.publishedStoryId = res.storyId;
+    proj.publishedUrl = res.publicUrl;
+    proj.updatedAt = DateTime.now();
+    await _store?.save(projects);
+  }
+
+  /// 断开和网站上那一篇的关联，下次发布会新建一篇（并扣一次额度）。
+  /// 用户在网站上把那篇删了、或者想另发一篇时用。
+  Future<void> forgetPublished() async {
+    final proj = currentProject;
+    if (proj == null) return;
+    proj.publishedStoryId = '';
+    proj.publishedUrl = '';
+    await _store?.save(projects);
+    notifyListeners();
+  }
+
+  // ---- 连接账号（设备码）----
+
+  DeviceLinkStart? linkStart;
+  bool linking = false;
+  String? linkError;
+  int linkSecondsLeft = 0;
+  bool _linkCancelled = false;
+
+  bool get isLinked => settings.publishToken.trim().isNotEmpty;
+
+  /// 开始连接: 拿一串短码给用户看，然后一直轮询等他在网页上确认。
+  Future<void> startDeviceLink() async {
+    if (linking) return;
+    linking = true;
+    linkError = null;
+    linkStart = null;
+    _linkCancelled = false;
+    notifyListeners();
+
+    try {
+      final linker = DeviceLinker(settings.siteUrl);
+      final start = await linker.start(label: Platform.localHostname);
+      linkStart = start;
+      linkSecondsLeft = start.expiresIn;
+      notifyListeners();
+
+      final token = await linker.awaitToken(
+        start,
+        onTick: (left) {
+          linkSecondsLeft = left;
+          notifyListeners();
+        },
+        cancelled: () => _linkCancelled,
+      );
+
+      settings.publishToken = token;
+      await settings.save();
+      linkStart = null;
+      status = '账号已连接';
+    } on DeviceLinkException catch (e) {
+      linkError = e.message;
+    } catch (e) {
+      linkError = '$e';
+    } finally {
+      linking = false;
+      notifyListeners();
+    }
+  }
+
+  void cancelDeviceLink() {
+    _linkCancelled = true;
+    linkStart = null;
+    linking = false;
+    notifyListeners();
+  }
+
+  /// 只是把本机存的令牌删掉。**不吊销服务器上的令牌** ——
+  /// 那要在网站的账户页做，这样"这台机器还能不能发布"始终由网站说了算。
+  Future<void> unlinkDevice() async {
+    settings.publishToken = '';
+    await settings.save();
+    notifyListeners();
   }
 
   // ---- 工作进度（草稿）----
@@ -686,6 +779,9 @@ class LibraryController extends ChangeNotifier {
     final trimmed = name.trim();
     if (trimmed.isEmpty) return;
 
+    // 同名草稿是**覆盖**，不是新建 —— 已经发布过的那一篇的 id 必须留住，
+    // 否则用户存一次盘，下次发布就变成了第二篇、还多扣一次额度
+    final old = _projectNamed(trimmed);
     final proj = Project(
       name: trimmed,
       rangeStart: rangeStart,
@@ -694,6 +790,8 @@ class LibraryController extends ChangeNotifier {
       clusterPreset: clusterPreset,
       view: view,
       note: note,
+      publishedStoryId: old?.publishedStoryId ?? '',
+      publishedUrl: old?.publishedUrl ?? '',
     );
     projects.removeWhere((e) => e.name == trimmed);
     projects.insert(0, proj);
@@ -703,6 +801,23 @@ class LibraryController extends ChangeNotifier {
     _persist();
     notifyListeners();
   }
+
+  /// 当前打开的那份草稿。发布状态挂在它身上。
+  Project? get currentProject => _projectNamed(currentProjectName);
+
+  Project? _projectNamed(String? name) {
+    if (name == null) return null;
+    for (final e in projects) {
+      if (e.name == name) return e;
+    }
+    return null;
+  }
+
+  /// 这趟行程在网站上已经有一篇了吗
+  bool get hasPublished =>
+      (currentProject?.publishedStoryId ?? '').isNotEmpty;
+
+  String get publishedUrl => currentProject?.publishedUrl ?? '';
 
   Future<void> openProject(Project proj) async {
     rangeStart = proj.rangeStart;

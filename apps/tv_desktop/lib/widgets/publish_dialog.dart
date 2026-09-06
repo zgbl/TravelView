@@ -8,7 +8,10 @@ import '../state/library_controller.dart';
 /// 发布到网站。
 ///
 /// 这里是整条商业链路的最后一段: 导出 -> 发布 -> 拿到永久公开链接 -> 分享。
-/// **令牌只存在这台机器上**，App 里不碰用户密码。
+///
+/// 账号连接走**设备码**: App 显示一串短码，用户在网页上敲进去确认，
+/// 令牌由服务器直接发到这台机器。App 从头到尾不碰用户密码，
+/// 令牌也不经过用户的剪贴板。
 class PublishDialog extends StatefulWidget {
   final LibraryController c;
   const PublishDialog({super.key, required this.c});
@@ -25,8 +28,6 @@ class PublishDialog extends StatefulWidget {
 
 class _PublishDialogState extends State<PublishDialog> {
   late final site = TextEditingController(text: widget.c.settings.siteUrl);
-  late final token =
-      TextEditingController(text: widget.c.settings.publishToken);
   String visibility = 'public';
 
   @override
@@ -43,7 +44,6 @@ class _PublishDialogState extends State<PublishDialog> {
   void dispose() {
     widget.c.removeListener(_tick);
     site.dispose();
-    token.dispose();
     super.dispose();
   }
 
@@ -57,9 +57,12 @@ class _PublishDialogState extends State<PublishDialog> {
 
   Future<void> _publish() async {
     await widget.c.savePublishSettings(
-        siteUrl: site.text, token: token.text);
+        siteUrl: site.text, token: widget.c.settings.publishToken);
     await widget.c.publishStory(visibility: visibility);
   }
+
+  String get _base =>
+      site.text.trim().replaceAll(RegExp(r'/+$'), '');
 
   @override
   Widget build(BuildContext context) {
@@ -90,47 +93,13 @@ class _PublishDialogState extends State<PublishDialog> {
                 controller: site,
                 decoration: const InputDecoration(
                   labelText: '网站地址',
-                  hintText: 'https://travelview.app',
+                  hintText: 'https://travelview.blackrice.top',
                   isDense: true,
                   border: OutlineInputBorder(),
                 ),
               ),
               const SizedBox(height: 12),
-              TextField(
-                controller: token,
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: '发布令牌',
-                  hintText: 'tv_...',
-                  isDense: true,
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: '去网站生成',
-                    icon: const Icon(Icons.open_in_new, size: 16),
-                    onPressed: () => _open(
-                        '${site.text.trim().replaceAll(RegExp(r"/+$"), "")}'
-                        '/account'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Row(children: [
-                Expanded(
-                  child: Text('在网站的账户页生成，粘贴到这里。令牌只存在本机。',
-                      style:
-                          TextStyle(fontSize: 11, color: scheme.outline)),
-                ),
-                TextButton(
-                  onPressed: () => _open(
-                      '${site.text.trim().replaceAll(RegExp(r"/+$"), "")}'
-                      '/signup'),
-                  style: TextButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 6),
-                      minimumSize: Size.zero),
-                  child: const Text('还没有账号？免费注册',
-                      style: TextStyle(fontSize: 11)),
-                ),
-              ]),
+              _account(scheme),
               const SizedBox(height: 16),
               SegmentedButton<String>(
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
@@ -147,6 +116,28 @@ class _PublishDialogState extends State<PublishDialog> {
                 onSelectionChanged: (v) =>
                     setState(() => visibility = v.first),
               ),
+              if (c.hasPublished && done == null) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  Icon(Icons.sync, size: 14, color: scheme.primary),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '这趟行程已经发布过。再次发布是更新那一篇: '
+                      '链接不变，也不会再扣一次额度。',
+                      style: TextStyle(fontSize: 11, color: scheme.outline),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: c.publishing ? null : c.forgetPublished,
+                    style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: Size.zero),
+                    child: const Text('改为新建一篇',
+                        style: TextStyle(fontSize: 11)),
+                  ),
+                ]),
+              ],
               if (c.publishing) ...[
                 const SizedBox(height: 18),
                 LinearProgressIndicator(
@@ -168,8 +159,11 @@ class _PublishDialogState extends State<PublishDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('已发布，这个链接永久有效',
-                          style: TextStyle(
+                      Text(
+                          done.updated
+                              ? '已更新，链接没有变'
+                              : '已发布，这个链接永久有效',
+                          style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 6),
                       SelectableText(done.publicUrl,
@@ -253,9 +247,128 @@ class _PublishDialogState extends State<PublishDialog> {
           child: Text(done == null ? '取消' : '完成'),
         ),
         FilledButton(
-          onPressed: (c.publishing || export == null) ? null : _publish,
-          child: Text(done == null ? '发布' : '重新发布'),
+          onPressed: (c.publishing || export == null || !c.isLinked)
+              ? null
+              : _publish,
+          child: Text(c.hasPublished || done != null ? '更新' : '发布'),
         ),
+      ],
+    );
+  }
+
+  /// 账号连接区。三种状态: 没连、正在等用户确认、已连。
+  Widget _account(ColorScheme scheme) {
+    final c = widget.c;
+    final start = c.linkStart;
+
+    if (start != null) {
+      // 正在等用户去网页确认
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: scheme.primaryContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('在网页上输入这串码',
+                style:
+                    TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 8),
+            SelectableText(
+              start.userCode,
+              style: const TextStyle(
+                  fontSize: 30, letterSpacing: 6, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            Row(children: [
+              FilledButton.tonalIcon(
+                onPressed: () => _open(start.verifyUrl),
+                icon: const Icon(Icons.open_in_new, size: 15),
+                label: const Text('打开确认页',
+                    style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              TextButton(
+                onPressed: c.cancelDeviceLink,
+                child: const Text('取消', style: TextStyle(fontSize: 12)),
+              ),
+              const Spacer(),
+              Text('${c.linkSecondsLeft}s',
+                  style: TextStyle(fontSize: 11, color: scheme.outline)),
+            ]),
+            const SizedBox(height: 4),
+            Text('确认后这里会自动登录，不用回来点任何按钮。',
+                style:
+                    TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
+          ],
+        ),
+      );
+    }
+
+    if (c.isLinked) {
+      return Row(children: [
+        Icon(Icons.check_circle, size: 16, color: scheme.primary),
+        const SizedBox(width: 6),
+        const Expanded(
+          child: Text('账号已连接', style: TextStyle(fontSize: 12)),
+        ),
+        TextButton(
+          onPressed: () => _open('$_base/account'),
+          style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: Size.zero),
+          child: const Text('账户页', style: TextStyle(fontSize: 11)),
+        ),
+        TextButton(
+          onPressed: c.publishing ? null : c.unlinkDevice,
+          style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: Size.zero),
+          child: const Text('断开', style: TextStyle(fontSize: 11)),
+        ),
+      ]);
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(children: [
+          FilledButton.icon(
+            // 先把地址栏里的站点存下来 —— 用户可能刚改过，
+            // 设备码要发到那台服务器上
+            onPressed: c.linking
+                ? null
+                : () async {
+                    await c.savePublishSettings(
+                        siteUrl: site.text,
+                        token: c.settings.publishToken);
+                    await c.startDeviceLink();
+                  },
+            icon: const Icon(Icons.link, size: 16),
+            label: Text(c.linking ? '正在连接...' : '连接账号',
+                style: const TextStyle(fontSize: 12)),
+          ),
+          const SizedBox(width: 8),
+          TextButton(
+            onPressed: () => _open('$_base/signup'),
+            style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 6),
+                minimumSize: Size.zero),
+            child: const Text('还没有账号？免费注册',
+                style: TextStyle(fontSize: 11)),
+          ),
+        ]),
+        const SizedBox(height: 6),
+        Text('会显示一串短码，在网页上敲进去确认即可。App 不需要你的密码。',
+            style: TextStyle(fontSize: 11, color: scheme.outline)),
+        if (c.linkError != null) ...[
+          const SizedBox(height: 6),
+          Text(c.linkError!,
+              style: TextStyle(fontSize: 11, color: scheme.error)),
+        ],
       ],
     );
   }

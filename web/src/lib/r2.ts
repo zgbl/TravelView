@@ -2,7 +2,7 @@ import { S3Client, DeleteObjectsCommand } from '@aws-sdk/client-s3';
 import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import {
-  isLocal, removeLocalStory, signUpload,
+  isLocal, removeLocalPrefix, safePrefix, signUpload,
 } from './storage';
 
 /**
@@ -56,12 +56,27 @@ export async function presignUpload(key: string, contentType: string) {
   return getSignedUrl(r2, cmd, { expiresIn: 60 * 30 });
 }
 
+/**
+ * 删掉一篇 Story 的图片。
+ *
+ * 本地驱动删整个目录（比逐个删可靠，也顺手清掉残留的孤儿文件）；
+ * 对象存储没有"目录"，只能按 key 逐个删。
+ * prefix 必须传进来而不是从 key 里猜 —— 两种路径形状并存，猜错就删错东西。
+ */
+export async function deleteStoryMedia(prefix: string, keys: string[]) {
+  if (isLocal) {
+    if (safePrefix(prefix)) await removeLocalPrefix(prefix);
+    return;
+  }
+  await deletePrefix(keys);
+}
+
 export async function deletePrefix(keys: string[]) {
   if (!keys.length) return;
   if (isLocal) {
-    // key 形如 s/<slug>/photos/x.webp，取出 slug 整目录删掉
-    const slugs = new Set(keys.map((k) => k.split('/')[1]).filter(Boolean));
-    for (const slug of slugs) await removeLocalStory(slug);
+    // 兼容老调用: key 形如 s/<slug>/photos/x.webp
+    const dirs = new Set(keys.map((k) => k.split('/').slice(0, -2).join('/')));
+    for (const d of dirs) await removeLocalPrefix(d);
     return;
   }
   // 一次最多 1000 个

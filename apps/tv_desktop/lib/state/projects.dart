@@ -18,6 +18,13 @@ class Project {
   String clusterPreset;
   int view;
   String note;
+
+  /// 上次发布到网站后服务器给的 Story id。
+  /// 有它就说明这份草稿在网上已经有一篇了，再次发布是**更新那一篇**，
+  /// 链接不变、也不会再扣一次额度。
+  String publishedStoryId;
+  String publishedUrl;
+
   DateTime updatedAt;
 
   Project({
@@ -28,6 +35,8 @@ class Project {
     this.clusterPreset = 'road',
     this.view = 0,
     this.note = '',
+    this.publishedStoryId = '',
+    this.publishedUrl = '',
     DateTime? updatedAt,
   }) : updatedAt = updatedAt ?? DateTime.now();
 
@@ -39,6 +48,8 @@ class Project {
         'clusterPreset': clusterPreset,
         'view': view,
         'note': note,
+        'publishedStoryId': publishedStoryId,
+        'publishedUrl': publishedUrl,
         'updatedAt': updatedAt.toIso8601String(),
       };
 
@@ -50,6 +61,8 @@ class Project {
         clusterPreset: j['clusterPreset'] as String? ?? 'road',
         view: (j['view'] as num?)?.toInt() ?? 0,
         note: j['note'] as String? ?? '',
+        publishedStoryId: j['publishedStoryId'] as String? ?? '',
+        publishedUrl: j['publishedUrl'] as String? ?? '',
         updatedAt: _dt(j['updatedAt']) ?? DateTime.now(),
       );
 

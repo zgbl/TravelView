@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { requireUser } from '@/lib/auth';
 import { one, query } from '@/lib/db';
-import { deletePrefix } from '@/lib/r2';
+import { deleteStoryMedia } from '@/lib/r2';
 import type { Story } from '@/lib/story';
 
 /** 删除自己的 Story，连同 R2 上的图片一起清掉 */
@@ -13,17 +13,20 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
   const { id } = await params;
 
-  const row = await one<{ slug: string; manifest: Story }>(
-    'select slug, manifest from stories where id = $1 and user_id = $2',
-    [id, user.id]);
+  const row = await one<{ slug: string; media_prefix: string | null;
+    manifest: Story }>(
+    `select slug, media_prefix, manifest from stories
+      where id = $1 and user_id = $2`, [id, user.id]);
   if (!row) return NextResponse.json({ error: '找不到' }, { status: 404 });
 
+  // 老数据没有 media_prefix，退回它当年用的 s/<slug>
+  const prefix = row.media_prefix ?? `s/${row.slug}`;
   const keys = [
-    ...row.manifest.photos.map((p) => `s/${row.slug}/${p.web.path}`),
+    ...row.manifest.photos.map((p) => `${prefix}/${p.web.path}`),
     ...row.manifest.photos.filter((p) => p.thumb)
-      .map((p) => `s/${row.slug}/${p.thumb}`),
+      .map((p) => `${prefix}/${p.thumb}`),
   ];
-  await deletePrefix(keys).catch(() => {});
+  await deleteStoryMedia(prefix, keys).catch(() => {});
   await query('delete from stories where id = $1', [id]);
   return NextResponse.json({ ok: true });
 }

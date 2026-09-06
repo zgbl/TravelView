@@ -55,7 +55,7 @@ class AppSettings {
     this.aiModel = 'gpt-4o-mini',
     this.aiLanguage = '中文',
     this.aiTone = '简洁克制',
-    this.siteUrl = 'https://travelview.app',
+    this.siteUrl = 'https://travelview.blackrice.top',
     this.publishToken = '',
   });
 

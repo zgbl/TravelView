@@ -51,18 +51,40 @@ export function verifyUpload(key: string, exp: string, sig: string) {
 }
 
 /**
- * key 必须长成 `s/<slug>/photos|thumbs/<name>.webp`。
+ * key 只允许两种形状:
+ *   老   s/<slug>/(photos|thumbs)/<name>.webp
+ *   新   u/<user uuid>/<年>/<月>/<slug>/(photos|thumbs)/<name>.webp
  *
  * 这是安全边界，不是格式洁癖: 放任 key 里出现 `..` 或绝对路径，
- * 一次上传就能写到磁盘上任何地方。
+ * 一次上传就能写到磁盘上任何地方。老形状必须继续认 ——
+ * 已经发布出去的 Story 还指着那些路径。
  */
+const LEGACY_KEY =
+  /^s\/[a-z0-9]{4,32}\/(photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.webp$/;
+const USER_KEY =
+  /^u\/[0-9a-f-]{36}\/\d{4}\/\d{2}\/[a-z0-9]{4,32}\/(photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.webp$/;
+
 export function safeKey(key: string): string | null {
-  if (!/^s\/[a-z0-9]{4,32}\/(photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.webp$/
-      .test(key)) {
-    return null;
-  }
   if (key.includes('..')) return null;
+  if (!LEGACY_KEY.test(key) && !USER_KEY.test(key)) return null;
   return key;
+}
+
+/** 新 Story 的图片前缀: 按用户和年月分目录，单用户几万张时目录还翻得动 */
+export function mediaPrefixFor(userId: string, slug: string, when = new Date()) {
+  const y = when.getUTCFullYear();
+  const m = String(when.getUTCMonth() + 1).padStart(2, '0');
+  return `u/${userId}/${y}/${m}/${slug}`;
+}
+
+/** 前缀是否是我们自己生成的那两种形状 —— 删目录前必须确认，别被越权删库 */
+export function safePrefix(prefix: string): string | null {
+  if (prefix.includes('..')) return null;
+  if (/^s\/[a-z0-9]{4,32}$/.test(prefix)) return prefix;
+  if (/^u\/[0-9a-f-]{36}\/\d{4}\/\d{2}\/[a-z0-9]{4,32}$/.test(prefix)) {
+    return prefix;
+  }
+  return null;
 }
 
 export function localPathFor(key: string) {
@@ -76,7 +98,8 @@ export async function writeLocal(key: string, data: Buffer) {
 }
 
 /** 删一整篇 Story 的图片。本地驱动直接删目录，比逐个删可靠。 */
-export async function removeLocalStory(slug: string) {
-  if (!/^[a-z0-9]{4,32}$/.test(slug)) return;
-  await rm(path.join(mediaRoot, 's', slug), { recursive: true, force: true });
+export async function removeLocalPrefix(prefix: string) {
+  const safe = safePrefix(prefix);
+  if (!safe) return;
+  await rm(path.join(mediaRoot, safe), { recursive: true, force: true });
 }

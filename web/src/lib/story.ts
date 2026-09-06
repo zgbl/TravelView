@@ -94,9 +94,18 @@ export function decodePolyline(str: string, precision = 6): [number, number][] {
   return out;
 }
 
-export function mediaUrl(path: string) {
-  const base = process.env.NEXT_PUBLIC_MEDIA_BASE ?? '';
-  return `${base.replace(/\/$/, '')}/${path.replace(/^\//, '')}`;
+/**
+ * 图片地址 = 媒体根 + Story 前缀 + manifest 里的相对路径。
+ *
+ * manifest 里存的是 `photos/x.webp` 这样的**相对路径**，不带前缀 ——
+ * 这样同一份 manifest 在本地预览、在导出包里、在服务器上都成立，
+ * 前缀由发布时决定并记在 stories.media_prefix 里。
+ */
+export function mediaUrl(path: string, prefix?: string | null) {
+  const base = (process.env.NEXT_PUBLIC_MEDIA_BASE ?? '').replace(/\/$/, '');
+  const rel = path.replace(/^\//, '');
+  const pre = (prefix ?? '').replace(/^\/|\/$/g, '');
+  return pre ? `${base}/${pre}/${rel}` : `${base}/${rel}`;
 }
 
 export function miles(meters: number) {
