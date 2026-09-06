@@ -63,15 +63,17 @@ export default async function Account() {
             </span>
           )}
         </div>
-        {!subscribed && !beta.free && (
-          <Link
-            href={href(L, '/pricing')}
-            className="mt-5 inline-block rounded-full bg-accentBright px-5 py-2
-              text-sm font-medium text-ink"
-          >
-            购买发布额度
-          </Link>
-        )}
+        {/* 付费入口任何时候都在。公测期把它藏起来，等于把"现在就愿意付钱的人"
+            挡在门外，而这恰恰是最值钱的早期信号。 */}
+        <Link
+          href="/account/billing"
+          className={`mt-5 inline-block rounded-full px-5 py-2 text-sm font-medium
+            ${subscribed
+              ? 'border border-white/20 text-paper'
+              : 'bg-accentBright text-ink'}`}
+        >
+          {subscribed ? '管理订阅' : '订阅与额度'}
+        </Link>
       </div>
 
       <NameEditor initial={row?.name ?? ''} locale={L} />

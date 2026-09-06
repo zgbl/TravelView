@@ -53,9 +53,9 @@ export default async function Pricing() {
           </p>
           <p className="mt-1 text-sm text-muted">不想订阅就买额度，买了不过期</p>
           <ul className="mt-6 space-y-2 text-sm text-muted">
-            <li>$5 = 1 篇</li>
-            <li>$10 = 3 篇（$3.33 一篇）</li>
-            <li>$25 = 10 篇（$2.5 一篇）</li>
+            <li>$5 = 2 篇（$2.5 一篇）</li>
+            <li>$10 = 5 篇（$2 一篇）</li>
+            <li>$25 = 15 篇（$1.67 一篇）</li>
             <li>额度不过期，和订阅可以并存</li>
           </ul>
         </div>
@@ -74,6 +74,13 @@ export default async function Pricing() {
           })),
         ]}
       />
+
+      <p className="mt-6 text-sm text-muted">
+        已经注册了？
+        <Link href="/account/billing" className="ml-1 text-accentBright underline">
+          去「订阅与额度」查看当前权益并付款
+        </Link>
+      </p>
 
       <p className="mt-10 text-xs text-muted">
         无论哪一档，原图都不会上传。服务器上只有你挑中的那些照片的压缩版本。

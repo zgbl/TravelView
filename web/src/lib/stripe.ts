@@ -35,32 +35,32 @@ export const PLANS = {
     blurb: '不限篇数，随时取消',
     credits: 0,
   },
-  credits_1: {
-    key: 'credits_1',
+  credits_2: {
+    key: 'credits_2',
     priceId: env('STRIPE_PRICE_CREDITS_5') ?? env('STRIPE_PRICE_ONETIME'),
     mode: 'payment' as const,
-    name: '1 篇额度',
+    name: '2 篇额度',
     priceLabel: '$5',
-    blurb: '先发一篇试试',
-    credits: 1,
+    blurb: '$2.5 一篇，先试试',
+    credits: 2,
   },
-  credits_3: {
-    key: 'credits_3',
+  credits_5: {
+    key: 'credits_5',
     priceId: env('STRIPE_PRICE_CREDITS_10'),
     mode: 'payment' as const,
-    name: '3 篇额度',
+    name: '5 篇额度',
     priceLabel: '$10',
-    blurb: '$3.33 一篇',
-    credits: 3,
+    blurb: '$2 一篇',
+    credits: 5,
   },
-  credits_10: {
-    key: 'credits_10',
+  credits_15: {
+    key: 'credits_15',
     priceId: env('STRIPE_PRICE_CREDITS_25'),
     mode: 'payment' as const,
-    name: '10 篇额度',
+    name: '15 篇额度',
     priceLabel: '$25',
-    blurb: '$2.5 一篇，最划算',
-    credits: 10,
+    blurb: '$1.67 一篇，最划算',
+    credits: 15,
   },
 } as const;
 
@@ -68,7 +68,10 @@ export type PlanKey = keyof typeof PLANS;
 
 /** 旧客户端/旧链接里的 plan 名，映射到现在的档位，别让已发出去的按钮失效 */
 const LEGACY: Record<string, PlanKey> = {
-  onetime: 'credits_1',
+  onetime: 'credits_2',
+  credits_1: 'credits_2',
+  credits_3: 'credits_5',
+  credits_10: 'credits_15',
   subscription: 'pro_yearly',
 };
 
@@ -85,7 +88,7 @@ export function creditsForPlan(plan?: string) {
 
 /** 展示顺序: 订阅在前（我们希望人选这个），额度包在后 */
 export const SUBSCRIPTION_PLANS = [PLANS.pro_yearly, PLANS.pro_monthly];
-export const CREDIT_PLANS = [PLANS.credits_1, PLANS.credits_3, PLANS.credits_10];
+export const CREDIT_PLANS = [PLANS.credits_2, PLANS.credits_5, PLANS.credits_15];
 
 /**
  * Stripe 到底配没配好。
@@ -103,14 +106,14 @@ export function stripeStatus() {
     webhookSecret: !!env('STRIPE_WEBHOOK_SECRET'),
     priceProYearly: !!PLANS.pro_yearly.priceId,
     priceProMonthly: !!PLANS.pro_monthly.priceId,
-    priceCredits1: !!PLANS.credits_1.priceId,
-    priceCredits3: !!PLANS.credits_3.priceId,
-    priceCredits10: !!PLANS.credits_10.priceId,
+    priceCredits5usd: !!PLANS.credits_2.priceId,
+    priceCredits10usd: !!PLANS.credits_5.priceId,
+    priceCredits25usd: !!PLANS.credits_15.priceId,
   };
   return {
     ...checks,
     // 收一次钱最少需要这三样
     ready: checks.secretKey && checks.webhookSecret &&
-      (checks.priceCredits1 || checks.priceProYearly || checks.priceProMonthly),
+      (checks.priceCredits5usd || checks.priceProYearly || checks.priceProMonthly),
   };
 }

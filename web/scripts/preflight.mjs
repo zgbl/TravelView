@@ -32,9 +32,9 @@ const missing = [];
 const PRICE_KEYS = {
   STRIPE_PRICE_PRO_YEARLY: 'Pro 年付 $50 的 price ID',
   STRIPE_PRICE_PRO_MONTHLY: 'Pro 月付 $8 的 price ID',
-  STRIPE_PRICE_CREDITS_5: '$5 = 1 篇额度的 price ID',
-  STRIPE_PRICE_CREDITS_10: '$10 = 3 篇额度的 price ID',
-  STRIPE_PRICE_CREDITS_25: '$25 = 10 篇额度的 price ID',
+  STRIPE_PRICE_CREDITS_5: '$5 = 2 篇额度的 price ID',
+  STRIPE_PRICE_CREDITS_10: '$10 = 5 篇额度的 price ID',
+  STRIPE_PRICE_CREDITS_25: '$25 = 15 篇额度的 price ID',
 };
 if (!Object.keys(PRICE_KEYS).some(has) &&
     !has('STRIPE_PRICE_ONETIME') && !has('STRIPE_PRICE_SUBSCRIPTION')) {

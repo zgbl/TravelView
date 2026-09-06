@@ -47,6 +47,7 @@ export async function POST(req: Request) {
     if (userId) {
       // 订阅: 先给一个保底到期时间，真正的到期日以随后的
       // customer.subscription.* 事件里的 current_period_end 为准
+      let granted = 0;
       if (resolvePlan(plan)?.mode === 'subscription') {
         const span = plan === 'pro_monthly' ? '1 month' : '1 year';
         await one(
@@ -55,22 +56,22 @@ export async function POST(req: Request) {
           [userId, span],
         );
       } else {
-        // 一次给几篇由档位决定（$5=1 / $10=3 / $25=10）。
+        // 一次给几篇由档位决定（$5=2 / $10=5 / $25=15）。
         // 认不出的 plan 保底给 1 篇 —— 用户真付了钱，宁可多给也不能不给
-        const credits = creditsForPlan(plan) || 1;
+        granted = creditsForPlan(plan) || 1;
         await one(
           'update users set story_credits = story_credits + $2 where id = $1',
-          [userId, credits],
+          [userId, granted],
         );
       }
       await one(
         `insert into payments
            (user_id, stripe_session_id, stripe_payment_intent, kind,
-            amount_cents, currency, status)
-         values ($1,$2,$3,$4,$5,$6,$7)
+            amount_cents, currency, status, credits_granted)
+         values ($1,$2,$3,$4,$5,$6,$7,$8)
          on conflict (stripe_session_id) do nothing`,
-        [userId, s.id, String(s.payment_intent ?? ''), plan ?? 'credits_1',
-         s.amount_total, s.currency, 'paid'],
+        [userId, s.id, String(s.payment_intent ?? ''), plan ?? 'credits_2',
+         s.amount_total, s.currency, 'paid', granted],
       );
     }
   }
