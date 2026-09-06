@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import StoryRenderer from '@/components/StoryRenderer';
 import { demoStory } from '@/lib/demo-story';
-import { getLocale, href, t } from '@/lib/i18n';
+import { getLocale } from '@/lib/i18n.server';
+import { href, t } from '@/lib/i18n';
 import LangSwitch from '@/components/LangSwitch';
 
 /**

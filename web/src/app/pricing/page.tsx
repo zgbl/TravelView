@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import CheckoutButtons from '@/components/CheckoutButtons';
 import { betaState } from '@/lib/access';
-import { getLocale, href, t } from '@/lib/i18n';
+import { getLocale } from '@/lib/i18n.server';
+import { href, t } from '@/lib/i18n';
 
 export const dynamic = 'force-dynamic';
 

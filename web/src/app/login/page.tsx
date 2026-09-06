@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import AuthForm from '@/components/AuthForm';
-import { getLocale, href, t } from '@/lib/i18n';
+import { getLocale } from '@/lib/i18n.server';
+import { href, t } from '@/lib/i18n';
 
 export default async function Login() {
   const L = await getLocale();

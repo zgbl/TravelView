@@ -4,7 +4,8 @@ import { requireUser } from '@/lib/auth';
 import { one } from '@/lib/db';
 import { betaState } from '@/lib/access';
 import { requireAdmin } from '@/lib/admin';
-import { getLocale, href, t } from '@/lib/i18n';
+import { getLocale } from '@/lib/i18n.server';
+import { href, t } from '@/lib/i18n';
 import TokenManager from '@/components/TokenManager';
 
 export default async function Account() {

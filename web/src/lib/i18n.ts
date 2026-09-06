@@ -1,12 +1,12 @@
-import { headers } from 'next/headers';
-
 export type Locale = 'zh' | 'en';
+export const locales: Locale[] = ['zh', 'en'];
 
-/** 页面里读当前语言。语言由 middleware 通过请求头传进来。 */
-export async function getLocale(): Promise<Locale> {
-  const h = await headers();
-  return h.get('x-locale') === 'en' ? 'en' : 'zh';
-}
+/**
+ * **这个文件必须是纯的** —— 客户端组件（AuthForm / LangSwitch）也要用 t()。
+ * 一旦在这里 import next/headers，整个构建就会挂在
+ * "You're importing a component that needs next/headers"。
+ * 读请求头的部分单独放在 i18n.server.ts。
+ */
 
 /** 生成带语言前缀的链接。**站内所有 Link 都要经过它**，否则一点就掉出语言。 */
 export function href(locale: Locale, path: string) {

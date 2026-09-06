@@ -1,7 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import StoryRenderer from '@/components/StoryRenderer';
-import { getLocale } from '@/lib/i18n';
+import { getLocale } from '@/lib/i18n.server';
 import { one, query } from '@/lib/db';
 import { mediaUrl, type Story } from '@/lib/story';
 

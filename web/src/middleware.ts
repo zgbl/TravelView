@@ -13,8 +13,8 @@ import { NextResponse, type NextRequest } from 'next/server';
  *
  * 没带前缀的老链接按浏览器语言 302 到对应版本 —— **已经分享出去的链接不能失效。**
  */
-export const locales = ['zh', 'en'] as const;
-export type Locale = (typeof locales)[number];
+import { locales, type Locale } from './lib/i18n';
+
 const DEFAULT: Locale = 'zh';
 
 export function middleware(req: NextRequest) {

@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { getLocale } from '@/lib/i18n';
+import { getLocale } from '@/lib/i18n.server';
 import './globals.css';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
