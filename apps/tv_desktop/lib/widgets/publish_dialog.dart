@@ -27,7 +27,6 @@ class PublishDialog extends StatefulWidget {
 }
 
 class _PublishDialogState extends State<PublishDialog> {
-  late final site = TextEditingController(text: widget.c.settings.siteUrl);
   String visibility = 'public';
 
   @override
@@ -43,7 +42,6 @@ class _PublishDialogState extends State<PublishDialog> {
   @override
   void dispose() {
     widget.c.removeListener(_tick);
-    site.dispose();
     super.dispose();
   }
 
@@ -56,13 +54,11 @@ class _PublishDialogState extends State<PublishDialog> {
   }
 
   Future<void> _publish() async {
-    await widget.c.savePublishSettings(
-        siteUrl: site.text, token: widget.c.settings.publishToken);
     await widget.c.publishStory(visibility: visibility);
   }
 
   String get _base =>
-      site.text.trim().replaceAll(RegExp(r'/+$'), '');
+      widget.c.settings.siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
 
   @override
   Widget build(BuildContext context) {
@@ -89,15 +85,6 @@ class _PublishDialogState extends State<PublishDialog> {
                     '（${(export.totalBytes / 1024 / 1024).toStringAsFixed(1)} MB）。'
                     '原图一张都不会离开这台电脑。'),
               const SizedBox(height: 16),
-              TextField(
-                controller: site,
-                decoration: const InputDecoration(
-                  labelText: '网站地址',
-                  hintText: 'https://travelview.blackrice.top',
-                  isDense: true,
-                  border: OutlineInputBorder(),
-                ),
-              ),
               const SizedBox(height: 12),
               _account(scheme),
               const SizedBox(height: 16),
@@ -223,8 +210,7 @@ class _PublishDialogState extends State<PublishDialog> {
                       const SizedBox(height: 8),
                       FilledButton.tonalIcon(
                         onPressed: () => _open(
-                            '${site.text.trim().replaceAll(RegExp(r"/+$"), "")}'
-                            '/pricing'),
+                            '$_base/pricing'),
                         icon: const Icon(Icons.open_in_new, size: 15),
                         label: const Text('去网站购买',
                             style: TextStyle(fontSize: 12)),
@@ -337,16 +323,7 @@ class _PublishDialogState extends State<PublishDialog> {
       children: [
         Row(children: [
           FilledButton.icon(
-            // 先把地址栏里的站点存下来 —— 用户可能刚改过，
-            // 设备码要发到那台服务器上
-            onPressed: c.linking
-                ? null
-                : () async {
-                    await c.savePublishSettings(
-                        siteUrl: site.text,
-                        token: c.settings.publishToken);
-                    await c.startDeviceLink();
-                  },
+            onPressed: c.linking ? null : c.startDeviceLink,
             icon: const Icon(Icons.link, size: 16),
             label: Text(c.linking ? '正在连接...' : '连接账号',
                 style: const TextStyle(fontSize: 12)),

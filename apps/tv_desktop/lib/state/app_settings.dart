@@ -8,6 +8,20 @@ import 'package:path/path.dart' as p;
 /// 存在系统的应用支持目录里，不依赖任何插件。
 /// 只存"上次做到哪里"，不存任何照片数据 ——
 /// 照片和标签的真相始终在照片库的 sidecar 里。
+/// 官方站点。开发时可以用 --dart-define=TV_SITE=http://localhost:3000 覆盖。
+const kDefaultSiteUrl = String.fromEnvironment(
+  'TV_SITE',
+  defaultValue: 'https://travelview.blackrice.top',
+);
+
+/// 早期版本把 travelview.app 写进了配置文件，那个域名根本不存在，
+/// 用户升级后会看到"Failed host lookup"。这里悄悄迁移掉。
+const _deadSiteUrls = {
+  'https://travelview.app',
+  'http://travelview.app',
+  '',
+};
+
 class AppSettings {
   String? lastLibraryPath;
   DateTime? rangeStart;
@@ -34,7 +48,11 @@ class AppSettings {
   String aiLanguage;
   String aiTone;
 
-  /// 发布到网站
+  /// 发布到网站。
+  ///
+  /// **这不该是一个让用户填的字段。** 用户当然是发布到我们的网站上，
+  /// 问他"你要发到哪个网站"只会让人困惑。保留这个字段只是为了
+  /// 自建服务器和本地开发（改配置文件即可），界面上不再出现。
   String siteUrl;
   String publishToken;
 
@@ -55,7 +73,7 @@ class AppSettings {
     this.aiModel = 'gpt-4o-mini',
     this.aiLanguage = '中文',
     this.aiTone = '简洁克制',
-    this.siteUrl = 'https://travelview.blackrice.top',
+    this.siteUrl = kDefaultSiteUrl,
     this.publishToken = '',
   });
 
@@ -73,6 +91,12 @@ class AppSettings {
   }
 
   static File get _file => File(p.join(_dir.path, 'settings.json'));
+
+  /// 配置文件里存的站点。历史遗留的死域名一律换成当前默认值。
+  static String _siteOf(String? stored) {
+    final v = (stored ?? '').trim();
+    return _deadSiteUrls.contains(v) ? kDefaultSiteUrl : v;
+  }
 
   static Future<AppSettings> load() async {
     try {
@@ -96,7 +120,7 @@ class AppSettings {
         aiModel: j['aiModel'] as String? ?? 'gpt-4o-mini',
         aiLanguage: j['aiLanguage'] as String? ?? '中文',
         aiTone: j['aiTone'] as String? ?? '简洁克制',
-        siteUrl: j['siteUrl'] as String? ?? 'https://travelview.app',
+        siteUrl: _siteOf(j['siteUrl'] as String?),
         publishToken: j['publishToken'] as String? ?? '',
       );
     } catch (_) {

@@ -254,13 +254,20 @@ class _StoryPageState extends State<StoryPage> {
     final ready = widget.c.signalReadyCount;
     final all = widget.c.photoCount;
 
+    // 工具栏必须能横向滚动。按钮数量是会长的，窗口宽度是用户说了算的，
+    // 固定成一行迟早 overflow —— 之前那条黄黑斜线就是这么来的。
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
       ),
       child: Row(
         children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
           Text('${r.stays.length} 站 · ${r.dayCount} 天 · '
               '${r.totalMiles.round()} mi',
               style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -342,8 +349,12 @@ class _StoryPageState extends State<StoryPage> {
             onPressed: () => AiSettingsDialog.show(context, widget.c),
             icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
           ),
-          const Spacer(),
+                ],
+              ),
+            ),
+          ),
           if (ready < all)
+
             Tooltip(
               message: '还在后台计算去重信号（清晰度、感知哈希、人脸）。\n'
                   '算完之前，去重只能靠拍摄时间兜底，重复照片会偏多。',

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
+import '../widgets/account_bar.dart';
 import 'map_page.dart';
 import 'phone_import_page.dart';
 import 'story_page.dart';
@@ -136,11 +137,17 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            c.root?.path ?? '',
-            style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-            overflow: TextOverflow.ellipsis,
-          ),
+          Row(children: [
+            Expanded(
+              child: Text(
+                c.root?.path ?? '',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            // 登录常驻顶栏: 发布前就该连好，而不是点了发布才被打断
+            AccountBar(c: c),
+          ]),
           const SizedBox(height: 12),
           StatBar(c: c),
           const SizedBox(height: 14),
