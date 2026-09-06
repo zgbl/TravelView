@@ -47,6 +47,11 @@ sudo git reset --hard origin/main          # 或: sudo git pull --ff-only origin
 sudo bash web/deploy/release.sh            # 内部自动: npm install + next build + 切 current + 重启
 ```
 
+> 注意: /opt/travelview/src 属 travelview 用户, 所以 git 命令**必须加 sudo**。
+> 服务器已配好 safe.directory, 直接 sudo git pull 即可(不用再带 -c safe.directory)。
+> 若换新机器遇到 "dubious ownership", 跑一次:
+> sudo git config --global --add safe.directory /opt/travelview/src
+
 > release.sh 结尾会自己 systemctl restart travelview-web, 不用再手动重启。
 > 只有当你改了 /etc/travelview/env(运行配置, 没动代码)时才需要单独:
 > sudo systemctl restart travelview-web

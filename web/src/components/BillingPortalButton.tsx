@@ -3,7 +3,9 @@
 import { useState } from 'react';
 
 /** 打开 Stripe 客户门户: 换卡、看发票、取消订阅，全部不用找我们人工 */
-export default function BillingPortalButton({ label }: { label: string }) {
+export default function BillingPortalButton({
+  label, busyLabel, errLabel,
+}: { label: string; busyLabel: string; errLabel: string }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -16,7 +18,7 @@ export default function BillingPortalButton({ label }: { label: string }) {
       window.location.href = j.url;
       return;
     }
-    setNote(j.message ?? j.error ?? '暂时打不开，请稍后再试');
+    setNote(j.message ?? j.error ?? errLabel);
     setBusy(false);
   }
 
@@ -28,7 +30,7 @@ export default function BillingPortalButton({ label }: { label: string }) {
         className="rounded-full border border-white/20 px-5 py-2 text-sm
           font-medium hover:border-white/40 disabled:opacity-50"
       >
-        {busy ? '正在打开...' : label}
+        {busy ? busyLabel : label}
       </button>
       {note && <p className="mt-2 text-xs text-muted">{note}</p>}
     </div>

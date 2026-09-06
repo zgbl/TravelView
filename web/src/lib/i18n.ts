@@ -94,6 +94,120 @@ export const dict: Dict = {
   },
   'account.buy': { zh: '购买发布额度', en: 'Buy publish credits' },
 
+  // ── 订阅与额度（/account/billing）──
+  'account.beta.credits.kept': {
+    zh: '（你买的 {n} 篇额度留着，公测期不会消耗）',
+    en: ' (your {n} purchased credits are kept — the beta does not consume them)',
+  },
+  'account.delete.title': { zh: '删除账户', en: 'Delete account' },
+  'account.delete.body': {
+    zh: '会删除你的全部故事和服务器上的图片。你电脑上的原图不受影响。需要请发邮件联系我们。',
+    en: 'This removes all your stories and the images on our server. The originals on your computer are untouched. Email us if you want this done.',
+  },
+  'pricing.pro.f1': { zh: '一年内发布任意多篇', en: 'Publish as many stories as you like' },
+  'pricing.pro.f2': {
+    zh: '永久有效的公开地址，随时可更新',
+    en: 'A permanent public link you can update anytime',
+  },
+  'pricing.pro.f3': { zh: '社交平台分享预览图', en: 'Social share preview images' },
+  'pricing.pro.f4': {
+    zh: '退订后已发布的内容不受影响',
+    en: 'Cancel anytime — published stories stay up',
+  },
+  'pricing.packs.from': { zh: ' 起', en: '+' },
+  'pricing.packs.sub': {
+    zh: '不想订阅就买额度，买了不过期',
+    en: "Don't want a subscription? Buy credits — they never expire",
+  },
+  'pricing.packs.f4': {
+    zh: '额度不过期，和订阅可以并存',
+    en: 'Credits never expire and work alongside a subscription',
+  },
+  'billing.title': { zh: '订阅与额度', en: 'Plan & credits' },
+  'billing.back': { zh: '返回账户', en: 'Back to account' },
+  'billing.manage': { zh: '管理订阅', en: 'Manage plan' },
+  'billing.entry': { zh: '订阅与额度', en: 'Plan & credits' },
+  'billing.portal': {
+    zh: '管理订阅 / 发票 / 换卡',
+    en: 'Manage subscription / invoices / card',
+  },
+  'billing.portal.busy': { zh: '正在打开...', en: 'Opening...' },
+  'billing.portal.err': {
+    zh: '暂时打不开，请稍后再试',
+    en: "Couldn't open it just now — please try again",
+  },
+  'billing.subscribed': {
+    zh: 'Pro 订阅中，不限篇数',
+    en: 'Pro — unlimited stories',
+  },
+  'billing.renews': { zh: '下次续费 {date}', en: 'renews {date}' },
+  'billing.credits': { zh: '可发布额度：', en: 'Publish credits: ' },
+  'billing.credits.unit': { zh: ' 篇', en: '' },
+  'billing.pastdue': {
+    zh: '上次扣款没成功（多半是卡过期）。权益到期前还能用，去下面的「管理订阅」换张卡就行。',
+    en: 'Your last payment failed (usually an expired card). Access continues until the period ends — open “Manage plan” below to update your card.',
+  },
+  'billing.beta.title': { zh: '公测期发布免费', en: 'Publishing is free during the beta' },
+  'billing.beta.body': {
+    zh: '，现在发布不扣额度。你买的额度会一直留着，公测结束（注册满 {limit} 人）后才开始消耗。',
+    en: ' — publishing costs no credits right now. Credits you buy stay untouched and only start being used once the beta ends (at {limit} sign-ups).',
+  },
+  'billing.choose': { zh: '选一个方案', en: 'Choose a plan' },
+  'billing.topup': { zh: '加买额度', en: 'Add more credits' },
+  'billing.choose.sub': {
+    zh: 'Pro 订阅不限篇数；不想订阅就按篇买，额度不过期，和订阅可以并存。',
+    en: 'Pro is unlimited. Prefer not to subscribe? Buy credits per story — they never expire and work alongside a subscription.',
+  },
+  'billing.pro.title': { zh: 'Pro · 不限篇数', en: 'Pro · unlimited' },
+  'billing.pro.per.year': { zh: ' / 年', en: ' / year' },
+  'billing.pro.alt': { zh: '或 $8 / 月，随时取消', en: 'or $8 / month, cancel anytime' },
+  'billing.packs.title': { zh: '额度包 · 按篇买', en: 'Credit packs · pay per story' },
+  'billing.packs.5': { zh: '$5 = 2 篇（$2.5 一篇）', en: '$5 = 2 stories ($2.50 each)' },
+  'billing.packs.10': { zh: '$10 = 5 篇（$2 一篇）', en: '$10 = 5 stories ($2.00 each)' },
+  'billing.packs.25': { zh: '$25 = 15 篇（$1.67 一篇）', en: '$25 = 15 stories ($1.67 each)' },
+  'billing.notready': {
+    zh: '支付还没开通，公测期间发布本来就是免费的。',
+    en: 'Payments are not live yet — publishing is free during the beta anyway.',
+  },
+  'billing.testmode': {
+    zh: '当前是 Stripe 测试模式，不会真的扣款。测试卡号 4242 4242 4242 4242，有效期填未来任意日期，CVC 任意三位。',
+    en: 'Stripe is in test mode — no real charge. Test card 4242 4242 4242 4242, any future expiry, any 3-digit CVC.',
+  },
+  'billing.history': { zh: '付款记录', en: 'Payment history' },
+  'billing.history.note': {
+    zh: '正式发票和退款在「管理订阅」里的 Stripe 门户处理。',
+    en: 'Official invoices and refunds are handled in the Stripe portal under “Manage plan”.',
+  },
+  'billing.granted': { zh: '+{n} 篇', en: '+{n} stories' },
+  'billing.privacy': {
+    zh: '无论哪一档，原图都不会上传。服务器上只有你挑中的那些照片的压缩版本。',
+    en: 'On every plan, your original photos stay on your computer. The server only holds compressed copies of the photos you picked.',
+  },
+  'billing.link.signedin': { zh: '已经注册了？', en: 'Already have an account? ' },
+  'billing.link.go': {
+    zh: '去「订阅与额度」查看当前权益并付款',
+    en: 'Open Plan & credits to see your access and pay',
+  },
+  'checkout.busy': { zh: '正在跳转...', en: 'Redirecting...' },
+  'checkout.err': {
+    zh: '暂时无法发起支付，请稍后再试',
+    en: "Couldn't start checkout — please try again",
+  },
+
+  // 档位名。价格数字不翻译，文字要翻译
+  'plan.pro_yearly.name': { zh: 'Pro · 年付', en: 'Pro · yearly' },
+  'plan.pro_yearly.blurb': {
+    zh: '不限篇数，平均 $4.17/月', en: 'Unlimited, $4.17/mo equivalent' },
+  'plan.pro_monthly.name': { zh: 'Pro · 月付', en: 'Pro · monthly' },
+  'plan.pro_monthly.blurb': {
+    zh: '不限篇数，随时取消', en: 'Unlimited, cancel anytime' },
+  'plan.credits_2.name': { zh: '2 篇额度', en: '2 credits' },
+  'plan.credits_2.blurb': { zh: '$2.5 一篇，先试试', en: '$2.50 each — try it out' },
+  'plan.credits_5.name': { zh: '5 篇额度', en: '5 credits' },
+  'plan.credits_5.blurb': { zh: '$2 一篇', en: '$2.00 each' },
+  'plan.credits_15.name': { zh: '15 篇额度', en: '15 credits' },
+  'plan.credits_15.blurb': { zh: '$1.67 一篇，最划算', en: '$1.67 each — best value' },
+
   'pricing.title': { zh: '价格', en: 'Pricing' },
   'pricing.intro': {
     zh: 'App 免费使用：导入照片、还原路线、自动精选、本地预览，都不需要付费，也不需要注册。',

@@ -34,29 +34,29 @@ export default async function Pricing() {
 
       <div className="mt-12 grid gap-6 md:grid-cols-2">
         <div className="rounded-2xl border border-accentBright/40 bg-accentBright/5 p-8">
-          <h2 className="text-xl font-semibold">Pro · 不限篇数</h2>
+          <h2 className="text-xl font-semibold">{t(L, 'billing.pro.title')}</h2>
           <p className="mt-2 text-3xl font-semibold tracking-tight">
-            $50<span className="text-base font-normal text-muted"> / 年</span>
+            $50<span className="text-base font-normal text-muted">{t(L, 'billing.pro.per.year')}</span>
           </p>
-          <p className="mt-1 text-sm text-muted">或 $8 / 月，随时取消</p>
+          <p className="mt-1 text-sm text-muted">{t(L, 'billing.pro.alt')}</p>
           <ul className="mt-6 space-y-2 text-sm text-muted">
-            <li>一年内发布任意多篇</li>
-            <li>永久有效的公开地址，随时可更新</li>
-            <li>社交平台分享预览图</li>
-            <li>退订后已发布的内容不受影响</li>
+            <li>{t(L, 'pricing.pro.f1')}</li>
+            <li>{t(L, 'pricing.pro.f2')}</li>
+            <li>{t(L, 'pricing.pro.f3')}</li>
+            <li>{t(L, 'pricing.pro.f4')}</li>
           </ul>
         </div>
         <div className="rounded-2xl border border-white/12 p-8">
-          <h2 className="text-xl font-semibold">额度包 · 按篇买</h2>
+          <h2 className="text-xl font-semibold">{t(L, 'billing.packs.title')}</h2>
           <p className="mt-2 text-3xl font-semibold tracking-tight">
-            $5<span className="text-base font-normal text-muted"> 起</span>
+            $5<span className="text-base font-normal text-muted">{t(L, 'pricing.packs.from')}</span>
           </p>
-          <p className="mt-1 text-sm text-muted">不想订阅就买额度，买了不过期</p>
+          <p className="mt-1 text-sm text-muted">{t(L, 'pricing.packs.sub')}</p>
           <ul className="mt-6 space-y-2 text-sm text-muted">
-            <li>$5 = 2 篇（$2.5 一篇）</li>
-            <li>$10 = 5 篇（$2 一篇）</li>
-            <li>$25 = 15 篇（$1.67 一篇）</li>
-            <li>额度不过期，和订阅可以并存</li>
+            <li>{t(L, 'billing.packs.5')}</li>
+            <li>{t(L, 'billing.packs.10')}</li>
+            <li>{t(L, 'billing.packs.25')}</li>
+            <li>{t(L, 'pricing.packs.f4')}</li>
           </ul>
         </div>
       </div>
@@ -64,26 +64,30 @@ export default async function Pricing() {
       <CheckoutButtons
         plans={[
           ...SUBSCRIPTION_PLANS.map((p) => ({
-            key: p.key, name: p.name, priceLabel: p.priceLabel,
-            blurb: p.blurb, available: !!p.priceId,
-            primary: p.key === 'pro_yearly',
+            key: p.key, name: t(L, `plan.${p.key}.name`),
+            priceLabel: p.priceLabel, blurb: t(L, `plan.${p.key}.blurb`),
+            available: !!p.priceId, primary: p.key === 'pro_yearly',
           })),
           ...CREDIT_PLANS.map((p) => ({
-            key: p.key, name: p.name, priceLabel: p.priceLabel,
-            blurb: p.blurb, available: !!p.priceId,
+            key: p.key, name: t(L, `plan.${p.key}.name`),
+            priceLabel: p.priceLabel, blurb: t(L, `plan.${p.key}.blurb`),
+            available: !!p.priceId,
           })),
         ]}
+        busyLabel={t(L, 'checkout.busy')}
+        errLabel={t(L, 'checkout.err')}
+        loginPath={href(L, '/login')}
       />
 
       <p className="mt-6 text-sm text-muted">
-        已经注册了？
+        {t(L, 'billing.link.signedin')}
         <Link href={href(L, '/account/billing')} className="ml-1 text-accentBright underline">
-          去「订阅与额度」查看当前权益并付款
+          {t(L, 'billing.link.go')}
         </Link>
       </p>
 
       <p className="mt-10 text-xs text-muted">
-        无论哪一档，原图都不会上传。服务器上只有你挑中的那些照片的压缩版本。
+        {t(L, 'billing.privacy')}
       </p>
     </main>
   );

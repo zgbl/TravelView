@@ -16,7 +16,14 @@ export type PlanButton = {
  * 档位不写死在这里 —— 由服务端从 PLANS 传进来，
  * 否则加一档价格要改两个文件，迟早对不上。
  */
-export default function CheckoutButtons({ plans }: { plans: PlanButton[] }) {
+export default function CheckoutButtons({
+  plans, busyLabel, errLabel, loginPath,
+}: {
+  plans: PlanButton[];
+  busyLabel: string;
+  errLabel: string;
+  loginPath: string;
+}) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -30,7 +37,7 @@ export default function CheckoutButtons({ plans }: { plans: PlanButton[] }) {
       body: JSON.stringify({ plan }),
     });
     if (res.status === 401) {
-      router.push('/login?next=/pricing');
+      router.push(`${loginPath}?next=/account/billing`);
       return;
     }
     const j = await res.json().catch(() => ({}));
@@ -39,7 +46,7 @@ export default function CheckoutButtons({ plans }: { plans: PlanButton[] }) {
       return;
     }
     // 支付没开通时说人话，别把用户扔在一个点了没反应的按钮前
-    setNote(j.message ?? j.error ?? '暂时无法发起支付，请稍后再试');
+    setNote(j.message ?? j.error ?? errLabel);
     setBusy(null);
   }
 
@@ -57,7 +64,7 @@ export default function CheckoutButtons({ plans }: { plans: PlanButton[] }) {
                 : 'border border-white/15'}`}
           >
             <span className="block text-sm">
-              {busy === p.key ? '正在跳转...' : p.name}
+              {busy === p.key ? busyLabel : p.name}
             </span>
             <span className={`block text-xs ${p.primary
               ? 'text-ink/70' : 'text-muted'}`}>

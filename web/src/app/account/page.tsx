@@ -49,17 +49,20 @@ export default async function Account() {
             <span className="text-accentBright">
               {t(L, 'beta.free.account')}
               {(row?.story_credits ?? 0) > 0 &&
-                `（你买的 ${row!.story_credits} 篇额度留着，公测期不会消耗）`}
+                t(L, 'account.beta.credits.kept', { n: row!.story_credits })}
             </span>
           ) : subscribed ? (
             <span className="text-accentBright">
-              订阅中，一年内不限篇数
+              {t(L, 'billing.subscribed')}
               {row?.subscription_until &&
-                `（到 ${row.subscription_until.slice(0, 10)}）`}
+                ` (${t(L, 'billing.renews',
+                  { date: row.subscription_until.slice(0, 10) })})`}
             </span>
           ) : (
             <span>
-              可发布额度：<strong>{row?.story_credits ?? 0}</strong> 篇
+              {t(L, 'billing.credits')}
+              <strong>{row?.story_credits ?? 0}</strong>
+              {t(L, 'billing.credits.unit')}
             </span>
           )}
         </div>
@@ -72,7 +75,7 @@ export default async function Account() {
               ? 'border border-white/20 text-paper'
               : 'bg-accentBright text-ink'}`}
         >
-          {subscribed ? '管理订阅' : '订阅与额度'}
+          {subscribed ? t(L, 'billing.manage') : t(L, 'billing.entry')}
         </Link>
       </div>
 
@@ -81,11 +84,8 @@ export default async function Account() {
       <TokenManager />
 
       <div className="mt-12 border-t border-white/10 pt-8">
-        <h2 className="text-sm font-medium">删除账户</h2>
-        <p className="mt-2 text-xs text-muted">
-          会删除你的全部故事和服务器上的图片。你电脑上的原图不受影响。
-          需要请发邮件联系我们。
-        </p>
+        <h2 className="text-sm font-medium">{t(L, 'account.delete.title')}</h2>
+        <p className="mt-2 text-xs text-muted">{t(L, 'account.delete.body')}</p>
       </div>
     </main>
   );
