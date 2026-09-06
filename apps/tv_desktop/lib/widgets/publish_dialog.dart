@@ -189,7 +189,21 @@ class _PublishDialogState extends State<PublishDialog> {
                           label: const Text('打开',
                               style: TextStyle(fontSize: 12)),
                         ),
+                        TextButton.icon(
+                          // Facebook 只认公开地址，所以这一步必须在发布之后
+                          onPressed: () => _open(
+                              'https://www.facebook.com/sharer/sharer.php?u='
+                              '${Uri.encodeComponent(done.publicUrl)}'),
+                          icon: const Icon(Icons.share, size: 15),
+                          label: const Text('分享到 Facebook',
+                              style: TextStyle(fontSize: 12)),
+                        ),
                       ]),
+                      const SizedBox(height: 4),
+                      Text('微信要用二维码转发 —— 打开上面的网页，'
+                          '页面底部有「微信」按钮，扫码即可。',
+                          style: TextStyle(
+                              fontSize: 11, color: scheme.onSurfaceVariant)),
                     ],
                   ),
                 ),

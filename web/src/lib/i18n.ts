@@ -102,6 +102,17 @@ export const dict: Dict = {
     zh: '{stops} 站 · {miles} 英里 · 点地图上的站可以跳到对应的照片',
     en: '{stops} stops · {miles} miles · tap a stop on the map to jump to its photos',
   },
+  'share.label': { zh: '分享这段旅行', en: 'Share this trip' },
+  'share.copy': { zh: '复制链接', en: 'Copy link' },
+  'share.copied': { zh: '已复制', en: 'Copied' },
+  'share.copy.manual': { zh: '复制下面的链接', en: 'Copy this link' },
+  'share.wechat': { zh: '微信', en: 'WeChat' },
+  'share.wechat.how': {
+    zh: '用微信扫码打开，再转发给朋友或朋友圈',
+    en: 'Scan with WeChat, then forward it from inside the app',
+  },
+  'share.close': { zh: '关闭', en: 'Close' },
+
   'story.days': { zh: '天', en: 'DAYS' },
   'story.stops': { zh: '站', en: 'STOPS' },
   'story.miles': { zh: '英里', en: 'MILES' },

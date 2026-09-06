@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import StoryRenderer from '@/components/StoryRenderer';
+import ShareBar from '@/components/ShareBar';
 import { getLocale } from '@/lib/i18n.server';
 import { one, query } from '@/lib/db';
 import { mediaUrl, type Story } from '@/lib/story';
@@ -66,7 +67,18 @@ export default async function PublicStory(
   // 不记录任何访客身份，只加个数
   query('select bump_story_view($1)', [slug]).catch(() => {});
 
-  return <StoryRenderer locale={await getLocale()} story={row.manifest} />;
+  const locale = await getLocale();
+  const url = `${process.env.NEXT_PUBLIC_SITE_URL}/${locale}/s/${row.slug}`;
+  return (
+    <>
+      {/* 底部分享条是固定的，留出空间，别压住结束卡片 */}
+      <div className="pb-24">
+        <StoryRenderer locale={locale} story={row.manifest} />
+      </div>
+      {/* 未公开的（unlisted）也给分享入口 —— 用户自己拿链接给谁是他的事 */}
+      <ShareBar url={url} title={row.title} locale={locale} />
+    </>
+  );
 }
 
 export const dynamic = 'force-dynamic';
