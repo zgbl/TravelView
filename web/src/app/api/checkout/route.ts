@@ -38,8 +38,23 @@ export async function POST(req: Request) {
   }
 
   const site = siteUrl();
+  /**
+   * 支付方式。
+   *
+   * 默认交给 Stripe 的动态支付方式（后台勾了什么就显示什么），包括 Link ——
+   * Link 会认出用户以前存过的卡，弹一个"输入短信验证码"的确认框。
+   * 那个验证码是 **Stripe 发的，不是我们发的**，我们既发不了也关不掉它，
+   * 只能选择根本不提供 Link 这个支付方式。
+   *
+   * 想关掉就设 STRIPE_PAYMENT_METHODS=card（逗号分隔可以写多个）。
+   * 注意: 一旦显式指定，Apple Pay / Google Pay 这些也要自己列进来才会出现。
+   */
+  const methods = (process.env.STRIPE_PAYMENT_METHODS ?? '')
+    .split(',').map((m) => m.trim()).filter(Boolean);
+
   const session = await stripe.checkout.sessions.create({
     mode: chosen.mode,
+    ...(methods.length ? { payment_method_types: methods as any } : {}),
     customer: customerId,
     line_items: [{ price: chosen.priceId, quantity: 1 }],
     // 带上 session_id: 回来时自己跟 Stripe 对一次账，

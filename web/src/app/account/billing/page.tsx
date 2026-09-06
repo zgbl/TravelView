@@ -90,7 +90,7 @@ export default async function Billing({
     ...SUBSCRIPTION_PLANS.map((p) => ({
       key: p.key,
       name: t(L, `plan.${p.key}.name`),
-      priceLabel: p.priceLabel,
+      priceLabel: t(L, `plan.${p.key}.price`),
       blurb: t(L, `plan.${p.key}.blurb`),
       available: !!p.priceId,
       primary: p.key === 'pro_yearly',
@@ -98,7 +98,7 @@ export default async function Billing({
     ...CREDIT_PLANS.map((p) => ({
       key: p.key,
       name: t(L, `plan.${p.key}.name`),
-      priceLabel: p.priceLabel,
+      priceLabel: t(L, `plan.${p.key}.price`),
       blurb: t(L, `plan.${p.key}.blurb`),
       available: !!p.priceId,
     })),
@@ -220,9 +220,14 @@ export default async function Billing({
       </section>
 
       {/* 票据 */}
-      {payments.length > 0 && (
-        <section className="mt-12">
+      <section className="mt-12">
           <h2 className="text-sm font-medium">{t(L, 'billing.history')}</h2>
+          {payments.length === 0 ? (
+            <p className="mt-3 text-sm text-muted">
+              {t(L, 'billing.history.empty')}
+            </p>
+          ) : (
+          <>
           <table className="mt-3 w-full text-sm">
             <tbody>
               {payments.map((p, i) => (
@@ -255,8 +260,9 @@ export default async function Billing({
             </tbody>
           </table>
           <p className="mt-3 text-xs text-muted">{t(L, 'billing.history.note')}</p>
-        </section>
-      )}
+          </>
+          )}
+      </section>
 
       <p className="mt-12 text-xs text-muted">{t(L, 'billing.privacy')}</p>
     </main>

@@ -65,12 +65,12 @@ export default async function Pricing() {
         plans={[
           ...SUBSCRIPTION_PLANS.map((p) => ({
             key: p.key, name: t(L, `plan.${p.key}.name`),
-            priceLabel: p.priceLabel, blurb: t(L, `plan.${p.key}.blurb`),
+            priceLabel: t(L, `plan.${p.key}.price`), blurb: t(L, `plan.${p.key}.blurb`),
             available: !!p.priceId, primary: p.key === 'pro_yearly',
           })),
           ...CREDIT_PLANS.map((p) => ({
             key: p.key, name: t(L, `plan.${p.key}.name`),
-            priceLabel: p.priceLabel, blurb: t(L, `plan.${p.key}.blurb`),
+            priceLabel: t(L, `plan.${p.key}.price`), blurb: t(L, `plan.${p.key}.blurb`),
             available: !!p.priceId,
           })),
         ]}

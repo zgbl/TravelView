@@ -37,6 +37,18 @@ stripe listen --forward-to localhost:3000/api/stripe/webhook
 stripe trigger checkout.session.completed
 ```
 
+## Link 的短信验证码
+
+结账页出现「Confirm it's you / 输入发送到 ••62 的验证码」时，那是 **Stripe Link**
+（Stripe 自己的一键支付，认出了这个邮箱或浏览器存过卡），
+**不是我们的代码发的**，我们也没有任何接口能关掉那一次验证。
+
+- 测试模式下输入 `000000` 即可通过，Stripe 不会真的发短信。
+- 不想让它出现，两条路（选一条）：
+  - Stripe 后台 → Settings → Payment methods → 关掉 Link；
+  - 或者设 `STRIPE_PAYMENT_METHODS=card`，Checkout 就只提供银行卡。
+    注意这会同时关掉 Apple Pay / Google Pay，除非把它们也列进去。
+
 ## 切到正式模式的检查清单
 
 1. `/etc/travelview/env` 里换 **7 个值**：secret key、webhook secret、5 条 price ID。

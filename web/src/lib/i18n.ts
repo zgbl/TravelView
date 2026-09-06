@@ -127,13 +127,22 @@ export const dict: Dict = {
     zh: '付款成功，权益已经加到你的账户上了。',
     en: 'Payment received — your account has been updated.',
   },
+  'plan.pro_yearly.price': { zh: '$50 / 年', en: '$50 / year' },
+  'plan.pro_monthly.price': { zh: '$8 / 月', en: '$8 / month' },
+  'plan.credits_2.price': { zh: '$5', en: '$5' },
+  'plan.credits_5.price': { zh: '$10', en: '$10' },
+  'plan.credits_15.price': { zh: '$25', en: '$25' },
+  'billing.history.empty': {
+    zh: '还没有付款记录。在这里付的每一笔都会列在这一栏，不用去 Stripe 查。',
+    en: "No payments yet. Everything you pay for here will be listed in this table — you won't have to look it up in Stripe.",
+  },
   'billing.title': { zh: '订阅与额度', en: 'Plan & credits' },
   'billing.back': { zh: '返回账户', en: 'Back to account' },
   'billing.manage': { zh: '管理订阅', en: 'Manage plan' },
   'billing.entry': { zh: '订阅与额度', en: 'Plan & credits' },
   'billing.portal': {
-    zh: '管理订阅 / 发票 / 换卡',
-    en: 'Manage subscription / invoices / card',
+    zh: '管理订阅 / 换卡 / 收据',
+    en: 'Manage subscription & payment method',
   },
   'billing.portal.busy': { zh: '正在打开...', en: 'Opening...' },
   'billing.portal.err': {
@@ -178,9 +187,12 @@ export const dict: Dict = {
     en: 'Stripe is in test mode — no real charge. Test card 4242 4242 4242 4242, any future expiry, any 3-digit CVC.',
   },
   'billing.history': { zh: '付款记录', en: 'Payment history' },
+  // 只说这个按钮实际能做什么。**不要提退款** ——
+  // 我们没有承诺过退款政策，客户门户默认也不给用户自助退款，
+  // 写上去等于凭空立下一个我们没打算兑现的承诺
   'billing.history.note': {
-    zh: '退款和付款方式在「管理订阅」里处理。',
-    en: 'Refunds and payment methods are handled under “Manage plan”.',
+    zh: '换卡、取消订阅在「管理订阅」里操作。',
+    en: 'Update your card or cancel a subscription under “Manage subscription”.',
   },
   'billing.granted': { zh: '+{n} 篇', en: '+{n} stories' },
   'billing.privacy': {
