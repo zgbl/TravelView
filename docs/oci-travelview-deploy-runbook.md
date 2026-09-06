@@ -45,10 +45,10 @@
 3. **修一个构建 bug**：`web/src/lib/stripe.ts` 写死了 `apiVersion: '2024-12-18.acacia'`，
    与当前 stripe SDK 的类型（`'2025-02-24.acacia'`）冲突，`next build` 类型检查直接挂。
    改成不锁版本（缺省用 SDK 默认）→ 已随你那次 GitHub commit 上去。
-4. **路径调整**：部署脚本默认 `/opt/apps/travelview`；因为 TensuGo 在 `/opt/tensugo`，
+4. **路径调整**：部署脚本默认 `/opt/travelview`；因为 TensuGo 在 `/opt/tensugo`，
    你希望两者并列便于查找，所以实际落到 **`/opt/travelview`**，并把
    `web/deploy/{setup-server.sh,release.sh,travelview-web.service}` 里的
-   `/opt/apps/travelview` 全部替换为 `/opt/travelview`（该改动已在 GitHub 上）。
+   `/opt/travelview` 全部替换为 `/opt/travelview`（该改动已在 GitHub 上）。
 5. **初始化**：`sudo bash web/deploy/setup-server.sh` → 建系统用户、建 `travelview`
    数据库+用户、生成 `/etc/travelview/env`。
 6. **建表**：`psql "$DATABASE_URL" -f db/schema.sql` → `users / publish_tokens / stories / payments`。
@@ -85,7 +85,7 @@
 （事件：checkout.session.completed / customer.subscription.updated / customer.subscription.deleted），
 拿到 `whsec_…` 填 `STRIPE_WEBHOOK_SECRET`。
 
-> ⚠️ 现在的 env 里 Stripe 还是占位符，**没有真实支付能力**；`NEXT_PUBLIC_MAP_TILES`
+> **注意** 现在的 env 里 Stripe 还是占位符，**没有真实支付能力**；`NEXT_PUBLIC_MAP_TILES`
 > 也还指向公共 OSM（正式流量前要换成自托管，见 `Design/map-tiles.md`）。
 
 ### 4.3 证书就位后的收尾命令（届时我来执行）

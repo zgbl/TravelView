@@ -25,7 +25,7 @@ header-includes: |
 |---|---|---|
 | 域名 | 原来那个 | `travelview.blackrice.top`（Cloudflare 橙云） |
 | Node 端口 | 原来那个 | `127.0.0.1:3001` |
-| 代码 | 原来那里 | `/opt/apps/travelview/` |
+| 代码 | 原来那里 | `/opt/travelview/` |
 | 数据库 | 各自的库和用户 | 库 `travelview`，用户 `travelview` |
 | 图片 | — | `/var/lib/travelview/media/` |
 | nginx | 各自一个 server 块 | `/etc/nginx/sites-available/travelview` |
@@ -110,13 +110,17 @@ sudo chmod 600 /etc/ssl/travelview/origin.key
 
 ---
 
+> **实际部署记录在 `docs/oci-travelview-deploy-runbook.md`** ——
+> 那份是这台机器上真正跑成的步骤和踩过的坑，和本文有出入时以那份为准。
+> 目录是 `/opt/travelview/`（和 `/opt/tensugo` 并列）。
+
 ## 3. 拉代码 + 初始化
 
 ```bash
-sudo mkdir -p /opt/apps/travelview
-sudo chown ubuntu:ubuntu /opt/apps/travelview
-git clone <你的仓库地址> /opt/apps/travelview/src
-cd /opt/apps/travelview/src
+sudo mkdir -p /opt/travelview
+sudo chown ubuntu:ubuntu /opt/travelview
+git clone <你的仓库地址> /opt/travelview/src
+cd /opt/travelview/src
 
 sudo bash web/deploy/setup-server.sh
 ```
@@ -143,7 +147,7 @@ sudo nano /etc/travelview/env
 
 ```bash
 set -a; . /etc/travelview/env; set +a
-psql "$DATABASE_URL" -f /opt/apps/travelview/src/web/db/schema.sql
+psql "$DATABASE_URL" -f /opt/travelview/src/web/db/schema.sql
 ```
 
 ---
@@ -151,12 +155,12 @@ psql "$DATABASE_URL" -f /opt/apps/travelview/src/web/db/schema.sql
 ## 4. 上线
 
 ```bash
-sudo cp /opt/apps/travelview/src/web/deploy/travelview-web.service \
+sudo cp /opt/travelview/src/web/deploy/travelview-web.service \
         /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable travelview-web
 
-cd /opt/apps/travelview/src
+cd /opt/travelview/src
 sudo bash web/deploy/release.sh
 ```
 
@@ -167,7 +171,7 @@ sudo bash web/deploy/release.sh
 nginx：
 
 ```bash
-sudo cp /opt/apps/travelview/src/web/deploy/nginx-travelview.conf \
+sudo cp /opt/travelview/src/web/deploy/nginx-travelview.conf \
         /etc/nginx/sites-available/travelview
 sudo ln -s /etc/nginx/sites-available/travelview /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
@@ -261,7 +265,7 @@ find /var/backups -name 'tv-*' -mtime +30 -delete
 ```text
 [ ] 摸清现状: 端口 3001 空着、Postgres 在、Node >= 20
 [ ] Cloudflare Origin 证书 + 加密模式 Full (strict)
-[ ] git clone 到 /opt/apps/travelview/src
+[ ] git clone 到 /opt/travelview/src
 [ ] sudo bash web/deploy/setup-server.sh
 [ ] 编辑 /etc/travelview/env（数据库密码 + Stripe）
 [ ] psql -f web/db/schema.sql 建表
@@ -273,4 +277,86 @@ find /var/backups -name 'tv-*' -mtime +30 -delete
 [ ] FB 分享调试器看卡片
 [ ] 备份 cron
 [ ] 换掉地图瓦片
+```
+
+---
+
+## 附录 B. 接通 Stripe（拿到账号之后）
+
+代码已经写好，**只差三个环境变量**。在此之前网站正常运行：
+公测期本来就免费，定价页的按钮会明确说"支付还没开通"，不会假装能点。
+
+### B.1 在 Stripe 后台建两个价格
+
+Products → Add product，各建一个 Price，记下 `price_...`：
+
+| 用途 | 类型 |
+|---|---|
+| 单篇发布 | One time |
+| 一年不限篇数 | Recurring / Yearly（可以先不做） |
+
+### B.2 填进服务器
+
+```bash
+sudo nano /etc/travelview/env
+```
+
+```bash
+STRIPE_SECRET_KEY=sk_test_...        # 先用测试密钥跑通，再换 sk_live_
+STRIPE_PRICE_ONETIME=price_...
+STRIPE_PRICE_SUBSCRIPTION=price_...  # 没有就留空
+```
+
+```bash
+sudo systemctl restart travelview-web
+```
+
+**密钥只放这个文件，不进数据库、不进后台表单。** 一个能读写支付密钥的网页
+本身就是最值钱的攻击目标，而且密钥一旦进了库，备份、日志、截图里到处都是它。
+后台 `/admin` 只**显示**配没配好，不提供填写入口。
+
+### B.3 Webhook（这一步不通，用户付了钱拿不到东西）
+
+1. Stripe → Developers → Webhooks → Add endpoint
+2. 地址 `https://travelview.blackrice.top/api/stripe/webhook`
+3. 事件勾这五个：
+
+```text
+checkout.session.completed
+customer.subscription.created
+customer.subscription.updated
+customer.subscription.deleted
+invoice.payment_failed
+```
+
+4. 把 `whsec_...` 填进 `STRIPE_WEBHOOK_SECRET`，重启服务
+5. 后台点 "Send test webhook"，确认返回 200
+
+再跑一次幂等表的迁移：
+
+```bash
+psql "$DATABASE_URL" -f /opt/travelview/src/web/db/migrations/005_stripe_events.sql
+```
+
+### B.4 为什么这么设计
+
+| 决定 | 原因 |
+|---|---|
+| **权益只在 webhook 里发放** | "支付成功"的跳转页任何人都能直接访问；唯一可信的是 Stripe 签名过的回调 |
+| **事件去重表** | Stripe 会重发同一事件（超时、5xx、它的重试策略），没有它一次付款可能加两次额度 |
+| 幂等表缺失时**照发不误** | 宁可重复也不能吞掉付款 —— 重复了还能人工退，吞了是用户真花钱没拿到东西 |
+| 订阅到期时间**取 Stripe 的 `current_period_end`** | 不自己算"一年后"，续费、改期、比例退款都以它为准 |
+| 扣款失败**不立刻停权益** | 多半只是卡过期，标成 `past_due`，到期自然失效；粗暴断服会赶走本来愿意换卡的人 |
+| 有客户门户 `/api/billing` | 退订找不到入口的用户，最后都会变成你的邮件和退款纠纷 |
+
+### B.5 冒烟测试
+
+用测试卡 `4242 4242 4242 4242`（任意未来日期 + 任意 CVC）：
+
+```text
+[ ] /pricing 点购买 -> 跳到 Stripe
+[ ] 付款完成 -> 回到 /account，额度 +1
+[ ] Stripe 后台 Webhooks 那条事件是 200
+[ ] 再点一次 "Resend" 那个事件 -> 额度**不再增加**（幂等生效）
+[ ] 换成 sk_live_ 和正式 price 后，重新跑一遍前两步
 ```

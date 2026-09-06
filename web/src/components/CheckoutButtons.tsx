@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function CheckoutButtons() {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
 
   async function go(plan: 'onetime' | 'subscription') {
     setBusy(plan);
@@ -18,9 +19,14 @@ export default function CheckoutButtons() {
       router.push('/login?next=/pricing');
       return;
     }
-    const j = await res.json();
-    if (j.url) window.location.href = j.url;
-    else setBusy(null);
+    const j = await res.json().catch(() => ({}));
+    if (j.url) {
+      window.location.href = j.url;
+      return;
+    }
+    // 支付没开通时说人话，别把用户扔在一个点了没反应的按钮前
+    setNote(j.message ?? j.error ?? '暂时无法发起支付，请稍后再试');
+    setBusy(null);
   }
 
   return (
@@ -41,6 +47,9 @@ export default function CheckoutButtons() {
       >
         {busy === 'subscription' ? '正在跳转...' : '订阅一年'}
       </button>
+      {note && (
+        <p className="md:col-span-2 text-center text-sm text-muted">{note}</p>
+      )}
     </div>
   );
 }

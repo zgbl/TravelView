@@ -107,3 +107,10 @@ create or replace function bump_story_view(p_slug text) returns void as $$
   select current_date, slug, 1 from bump
   on conflict (day, slug) do update set count = view_daily.count + 1;
 $$ language sql;
+
+-- Webhook 幂等表。Stripe 会重发同一个事件，没有这张表一次付款可能加两次额度。
+create table if not exists stripe_events (
+  id           text primary key,
+  type         text not null,
+  received_at  timestamptz not null default now()
+);

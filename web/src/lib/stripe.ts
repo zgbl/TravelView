@@ -30,3 +30,28 @@ export const PLANS = {
 } as const;
 
 export type PlanKey = keyof typeof PLANS;
+
+/**
+ * Stripe 到底配没配好。
+ *
+ * 密钥是环境变量，不是数据库里的设置 —— **不做"在后台网页里填密钥"那种功能**:
+ * 一个能读写支付密钥的网页表单，本身就是最值钱的攻击目标，
+ * 而且密钥写进数据库后备份、日志、截图到处都是它。
+ * 后台只**显示**配没配好，填还是去 /etc/travelview/env。
+ */
+export function stripeStatus() {
+  const v = (k: string) => (process.env[k] ?? '').trim();
+  const secret = v('STRIPE_SECRET_KEY');
+  const checks = {
+    secretKey: !!secret,
+    livemode: secret.startsWith('sk_live_'),
+    webhookSecret: !!v('STRIPE_WEBHOOK_SECRET'),
+    priceOnetime: !!v('STRIPE_PRICE_ONETIME'),
+    priceSubscription: !!v('STRIPE_PRICE_SUBSCRIPTION'),
+  };
+  return {
+    ...checks,
+    // 收一次钱最少需要这三样
+    ready: checks.secretKey && checks.webhookSecret && checks.priceOnetime,
+  };
+}

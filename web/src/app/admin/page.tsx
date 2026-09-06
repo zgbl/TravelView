@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/admin';
 import { betaState } from '@/lib/access';
+import { stripeStatus } from '@/lib/stripe';
 import { query, one } from '@/lib/db';
 import DailyBars from '@/components/DailyBars';
 
@@ -39,6 +40,7 @@ export default async function Admin() {
   if (!admin) notFound();
 
   const beta = await betaState();
+  const stripe = stripeStatus();
 
   const [totals] = await query<{
     users: string; stories: string; photos: string;
@@ -126,6 +128,34 @@ export default async function Admin() {
         </p>
       </section>
 
+      {/* 支付接通状态。密钥不在这里填 —— 见下面那行说明 */}
+      <section className="mt-6 rounded-2xl border border-white/12 p-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-sm font-medium">支付（Stripe）</h2>
+          <span className={`text-xs ${stripe.ready
+            ? 'text-accentBright' : 'text-muted'}`}>
+            {stripe.ready
+              ? (stripe.livemode ? '已接通（正式模式）' : '已接通（测试模式）')
+              : '还没接通'}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-2 text-sm sm:grid-cols-2">
+          <Check ok={stripe.secretKey} k="STRIPE_SECRET_KEY" />
+          <Check ok={stripe.webhookSecret} k="STRIPE_WEBHOOK_SECRET" />
+          <Check ok={stripe.priceOnetime} k="STRIPE_PRICE_ONETIME" />
+          <Check ok={stripe.priceSubscription} k="STRIPE_PRICE_SUBSCRIPTION（可选）" />
+        </div>
+        <p className="mt-4 text-xs leading-relaxed text-muted">
+          密钥写在服务器的 <code>/etc/travelview/env</code>，改完
+          <code className="mx-1">sudo systemctl restart travelview-web</code>。
+          <strong className="text-paper/80">
+            后台刻意不提供填密钥的表单
+          </strong>
+          —— 能读写支付密钥的网页本身就是最值钱的攻击目标，
+          而且密钥一旦进了数据库，备份、日志、截图里到处都是它。
+        </p>
+      </section>
+
       <section className="mt-8 grid grid-cols-2 gap-3 md:grid-cols-3">
         <Stat n={totals.users} k="注册用户" />
         <Stat n={totals.stories} k="已发布 Story" />
@@ -198,6 +228,17 @@ export default async function Admin() {
         不存 IP、不下 cookie、不做指纹。
       </p>
     </main>
+  );
+}
+
+function Check({ ok, k }: { ok: boolean; k: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={ok ? 'text-accentBright' : 'text-muted'}>
+        {ok ? '\u2713' : '\u2014'}
+      </span>
+      <code className="text-xs text-muted">{k}</code>
+    </div>
   );
 }
 

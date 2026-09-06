@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe';
 import { one } from '@/lib/db';
 
+// 必须跑在 Node 运行时: 验签要原始请求体，Edge 上拿不到
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 /**
  * Stripe webhook —— **权益只在这里发放**。
  *
@@ -19,7 +23,21 @@ export async function POST(req: Request) {
       raw, sig, process.env.STRIPE_WEBHOOK_SECRET ?? '',
     );
   } catch (e) {
+    // 400 让 Stripe 不再重试这一条 —— 签名错了重试多少次都一样
     return NextResponse.json({ error: `签名校验失败: ${e}` }, { status: 400 });
+  }
+
+  // 幂等: Stripe 会重发（超时、5xx、它自己的重试）。
+  // 没有这道闸，一次付款可能加两次额度。
+  try {
+    const fresh = await one<{ id: string }>(
+      `insert into stripe_events (id, type) values ($1, $2)
+       on conflict (id) do nothing returning id`,
+      [event.id, event.type]);
+    if (!fresh) return NextResponse.json({ received: true, duplicate: true });
+  } catch {
+    // 幂等表还没建（迁移没跑）时不阻断发放 —— 宁可重复也不能吞掉付款，
+    // 重复了还能人工退，吞了用户是真花了钱没拿到东西
   }
 
   if (event.type === 'checkout.session.completed') {
@@ -51,6 +69,21 @@ export async function POST(req: Request) {
     }
   }
 
+  // 续费成功、被暂停、过期，都从这一个事件走 ——
+  // 以 Stripe 的 current_period_end 为准，不要自己算一年后是哪天
+  if (event.type === 'customer.subscription.updated' ||
+      event.type === 'customer.subscription.created') {
+    const sub = event.data.object as any;
+    const until = sub.current_period_end
+      ? new Date(sub.current_period_end * 1000).toISOString()
+      : null;
+    await one(
+      `update users set subscription_status = $2, subscription_until = $3
+         where stripe_customer_id = $1`,
+      [String(sub.customer), String(sub.status), until],
+    );
+  }
+
   if (event.type === 'customer.subscription.deleted') {
     const sub = event.data.object;
     await one(
@@ -58,6 +91,16 @@ export async function POST(req: Request) {
          where stripe_customer_id = $1`,
       [String(sub.customer)],
     );
+  }
+
+  // 扣款失败: 不立刻停权益（可能只是卡过期），标记出来，
+  // 到期时间一到自然失效。粗暴断服会把本来愿意换张卡的用户赶走。
+  if (event.type === 'invoice.payment_failed') {
+    const inv = event.data.object as any;
+    await one(
+      `update users set subscription_status = 'past_due'
+         where stripe_customer_id = $1`,
+      [String(inv.customer)]);
   }
 
   return NextResponse.json({ received: true });
