@@ -28,4 +28,4 @@ export 'src/caption.dart';
 export 'src/geocode.dart';
 export 'src/ai_client.dart';
 export 'src/publisher.dart';
-export 'src/device_link.dart';
+export 'src/desktop_login.dart';

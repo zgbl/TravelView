@@ -693,65 +693,42 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  // ---- 连接账号（设备码）----
+  // ---- 登录 ----
 
-  DeviceLinkStart? linkStart;
-  bool linking = false;
-  String? linkError;
-  int linkSecondsLeft = 0;
-  bool _linkCancelled = false;
+  bool loggingIn = false;
+  String? loginError;
 
   bool get isLinked => settings.publishToken.trim().isNotEmpty;
 
-  /// 开始连接: 拿一串短码给用户看，然后一直轮询等他在网页上确认。
-  Future<void> startDeviceLink() async {
-    if (linking) return;
-    linking = true;
-    linkError = null;
-    linkStart = null;
-    _linkCancelled = false;
+  /// 邮箱 + 密码登录。**密码不落盘** ——
+  /// 它只在这一次请求里出现，存下来的是服务器换回的令牌。
+  Future<bool> login(String email, String password) async {
+    if (loggingIn) return false;
+    loggingIn = true;
+    loginError = null;
     notifyListeners();
-
     try {
-      final linker = DeviceLinker(settings.siteUrl);
-      final start = await linker.start(label: Platform.localHostname);
-      linkStart = start;
-      linkSecondsLeft = start.expiresIn;
-      notifyListeners();
-
-      final token = await linker.awaitToken(
-        start,
-        onTick: (left) {
-          linkSecondsLeft = left;
-          notifyListeners();
-        },
-        cancelled: () => _linkCancelled,
-      );
-
+      final token = await DesktopLogin(settings.siteUrl)
+          .signIn(email, password, label: Platform.localHostname);
       settings.publishToken = token;
       await settings.save();
-      linkStart = null;
-      status = '账号已连接';
-    } on DeviceLinkException catch (e) {
-      linkError = e.message;
+      status = '已登录';
+      return true;
+    } on LoginException catch (e) {
+      loginError = e.message;
+      return false;
     } catch (e) {
-      linkError = '$e';
+      loginError = '$e';
+      return false;
     } finally {
-      linking = false;
+      loggingIn = false;
       notifyListeners();
     }
   }
 
-  void cancelDeviceLink() {
-    _linkCancelled = true;
-    linkStart = null;
-    linking = false;
-    notifyListeners();
-  }
-
   /// 只是把本机存的令牌删掉。**不吊销服务器上的令牌** ——
   /// 那要在网站的账户页做，这样"这台机器还能不能发布"始终由网站说了算。
-  Future<void> unlinkDevice() async {
+  Future<void> logout() async {
     settings.publishToken = '';
     await settings.save();
     notifyListeners();

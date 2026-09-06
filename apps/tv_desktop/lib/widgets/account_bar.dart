@@ -6,9 +6,9 @@ import '../state/library_controller.dart';
 
 /// 账号状态，常驻主界面顶栏。
 ///
-/// **登录不该埋在发布对话框里。** 用户挑完照片、点了发布，才发现要先连账号，
-/// 这时候他的注意力在"我的照片"上，被打断去处理账号是最糟的时机。
-/// 放在顶栏，他任何时候都能顺手连上，发布时就只剩发布这一件事。
+/// **登录不该埋在发布对话框里。** 用户挑完照片、点了发布，才发现要先处理账号，
+/// 这是最糟的打断时机。放在顶栏，他任何时候都能顺手登录，
+/// 发布时就只剩发布这一件事。
 class AccountBar extends StatefulWidget {
   final LibraryController c;
   const AccountBar({super.key, required this.c});
@@ -25,17 +25,8 @@ class _AccountBarState extends State<AccountBar> {
   }
 
   void _tick() {
-    if (!mounted) return;
-    setState(() {});
-    // 连上了就把弹出的连接框关掉
-    final nav = Navigator.of(context, rootNavigator: true);
-    if (widget.c.isLinked && _dialogOpen && nav.canPop()) {
-      _dialogOpen = false;
-      nav.pop();
-    }
+    if (mounted) setState(() {});
   }
-
-  bool _dialogOpen = false;
 
   @override
   void dispose() {
@@ -54,17 +45,6 @@ class _AccountBarState extends State<AccountBar> {
   String get _base =>
       widget.c.settings.siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
 
-  Future<void> _connect() async {
-    _dialogOpen = true;
-    widget.c.startDeviceLink();      // 不 await: 它会一直轮询到用户确认
-    await showDialog<void>(
-      context: context,
-      builder: (_) => _LinkDialog(c: widget.c, open: _open),
-    );
-    _dialogOpen = false;
-    widget.c.cancelDeviceLink();
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
@@ -72,7 +52,7 @@ class _AccountBarState extends State<AccountBar> {
 
     if (!c.isLinked) {
       return TextButton.icon(
-        onPressed: c.linking ? null : _connect,
+        onPressed: () => LoginDialog.show(context, c),
         icon: const Icon(Icons.login, size: 15),
         label: const Text('登录', style: TextStyle(fontSize: 12)),
         style: TextButton.styleFrom(
@@ -86,7 +66,7 @@ class _AccountBarState extends State<AccountBar> {
       onSelected: (v) {
         if (v == 'account') _open('$_base/account');
         if (v == 'stories') _open('$_base/stories');
-        if (v == 'logout') c.unlinkDevice();
+        if (v == 'logout') c.logout();
       },
       itemBuilder: (_) => const [
         PopupMenuItem(value: 'account', child: Text('账户页')),
@@ -104,100 +84,110 @@ class _AccountBarState extends State<AccountBar> {
   }
 }
 
-/// 连接对话框: 显示短码，等用户去网页确认。
-class _LinkDialog extends StatefulWidget {
+/// 登录：邮箱 + 密码。就这一件事，没有第二步。
+class LoginDialog extends StatefulWidget {
   final LibraryController c;
-  final Future<void> Function(String url) open;
-  const _LinkDialog({required this.c, required this.open});
+  const LoginDialog({super.key, required this.c});
+
+  static Future<void> show(BuildContext context, LibraryController c) =>
+      showDialog(context: context, builder: (_) => LoginDialog(c: c));
 
   @override
-  State<_LinkDialog> createState() => _LinkDialogState();
+  State<LoginDialog> createState() => _LoginDialogState();
 }
 
-class _LinkDialogState extends State<_LinkDialog> {
-  @override
-  void initState() {
-    super.initState();
-    widget.c.addListener(_tick);
-  }
+class _LoginDialogState extends State<LoginDialog> {
+  final _email = TextEditingController();
+  final _password = TextEditingController();
 
-  void _tick() => mounted ? setState(() {}) : null;
+  String get _base =>
+      widget.c.settings.siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
 
   @override
   void dispose() {
-    widget.c.removeListener(_tick);
+    _email.dispose();
+    _password.dispose();
     super.dispose();
+  }
+
+  Future<void> _open(String url) async {
+    if (Platform.isMacOS) {
+      await Process.run('open', [url]);
+    } else if (Platform.isWindows) {
+      await Process.run('cmd', ['/c', 'start', '', url]);
+    }
+  }
+
+  Future<void> _submit() async {
+    final ok = await widget.c.login(_email.text, _password.text);
+    if (!mounted) return;
+    if (ok) Navigator.pop(context);
+    setState(() {});
   }
 
   @override
   Widget build(BuildContext context) {
     final c = widget.c;
     final scheme = Theme.of(context).colorScheme;
-    final start = c.linkStart;
+    final canSubmit = _email.text.trim().isNotEmpty &&
+        _password.text.isNotEmpty &&
+        !c.loggingIn;
 
     return AlertDialog(
       title: const Text('登录'),
       content: SizedBox(
-        width: 420,
+        width: 380,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            if (start == null && c.linkError == null) ...[
-              const Row(children: [
-                SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2)),
-                SizedBox(width: 10),
-                Text('正在获取登录码...', style: TextStyle(fontSize: 13)),
-              ]),
-            ] else if (start != null) ...[
-              const Text('在浏览器里输入这串码，就登录好了',
-                  style: TextStyle(fontSize: 13)),
-              const SizedBox(height: 14),
-              Center(
-                child: SelectableText(
-                  start.userCode,
-                  style: const TextStyle(
-                      fontSize: 34,
-                      letterSpacing: 8,
-                      fontWeight: FontWeight.w600),
-                ),
+            TextField(
+              controller: _email,
+              autofocus: true,
+              keyboardType: TextInputType.emailAddress,
+              onChanged: (_) => setState(() {}),
+              decoration: const InputDecoration(
+                labelText: '邮箱',
+                isDense: true,
+                border: OutlineInputBorder(),
               ),
-              const SizedBox(height: 14),
-              Row(children: [
-                FilledButton.icon(
-                  onPressed: () => widget.open(start.verifyUrl),
-                  icon: const Icon(Icons.open_in_new, size: 15),
-                  label: const Text('打开网页', style: TextStyle(fontSize: 12)),
-                ),
-                const Spacer(),
-                Text('${c.linkSecondsLeft}s',
-                    style: TextStyle(fontSize: 11, color: scheme.outline)),
-              ]),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _password,
+              obscureText: true,
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => canSubmit ? _submit() : null,
+              decoration: const InputDecoration(
+                labelText: '密码',
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text('密码不会保存在这台电脑上。登录后可以在网站账户页随时吊销这台设备。',
+                style: TextStyle(fontSize: 11, color: scheme.outline)),
+            if (c.loginError != null) ...[
               const SizedBox(height: 10),
-              Text('确认后这个窗口会自己关掉，不用回来点任何按钮。',
-                  style:
-                      TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-            ],
-            if (c.linkError != null) ...[
-              const SizedBox(height: 10),
-              Text(c.linkError!,
+              Text(c.loginError!,
                   style: TextStyle(fontSize: 12, color: scheme.error)),
-              const SizedBox(height: 10),
-              TextButton(
-                onPressed: c.linking ? null : c.startDeviceLink,
-                child: const Text('重试'),
-              ),
             ],
           ],
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: () => _open('$_base/signup'),
+          child: const Text('还没有账号？免费注册',
+              style: TextStyle(fontSize: 12)),
+        ),
+        TextButton(
+          onPressed: c.loggingIn ? null : () => Navigator.pop(context),
           child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: canSubmit ? _submit : null,
+          child: Text(c.loggingIn ? '正在登录...' : '登录'),
         ),
       ],
     );

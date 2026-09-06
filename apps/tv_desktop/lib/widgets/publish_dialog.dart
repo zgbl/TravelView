@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../state/library_controller.dart';
+import 'account_bar.dart';
 
 /// 发布到网站。
 ///
@@ -242,64 +243,16 @@ class _PublishDialogState extends State<PublishDialog> {
     );
   }
 
-  /// 账号连接区。三种状态: 没连、正在等用户确认、已连。
+  /// 账号状态。没登录就在这儿直接登录，不用跑回主界面。
   Widget _account(ColorScheme scheme) {
     final c = widget.c;
-    final start = c.linkStart;
-
-    if (start != null) {
-      // 正在等用户去网页确认
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: scheme.primaryContainer,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('在网页上输入这串码',
-                style:
-                    TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-            const SizedBox(height: 8),
-            SelectableText(
-              start.userCode,
-              style: const TextStyle(
-                  fontSize: 30, letterSpacing: 6, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Row(children: [
-              FilledButton.tonalIcon(
-                onPressed: () => _open(start.verifyUrl),
-                icon: const Icon(Icons.open_in_new, size: 15),
-                label: const Text('打开确认页',
-                    style: TextStyle(fontSize: 12)),
-              ),
-              const SizedBox(width: 8),
-              TextButton(
-                onPressed: c.cancelDeviceLink,
-                child: const Text('取消', style: TextStyle(fontSize: 12)),
-              ),
-              const Spacer(),
-              Text('${c.linkSecondsLeft}s',
-                  style: TextStyle(fontSize: 11, color: scheme.outline)),
-            ]),
-            const SizedBox(height: 4),
-            Text('确认后这里会自动登录，不用回来点任何按钮。',
-                style:
-                    TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-          ],
-        ),
-      );
-    }
 
     if (c.isLinked) {
       return Row(children: [
         Icon(Icons.check_circle, size: 16, color: scheme.primary),
         const SizedBox(width: 6),
         const Expanded(
-          child: Text('账号已连接', style: TextStyle(fontSize: 12)),
+          child: Text('已登录', style: TextStyle(fontSize: 12)),
         ),
         TextButton(
           onPressed: () => _open('$_base/account'),
@@ -309,45 +262,27 @@ class _PublishDialogState extends State<PublishDialog> {
           child: const Text('账户页', style: TextStyle(fontSize: 11)),
         ),
         TextButton(
-          onPressed: c.publishing ? null : c.unlinkDevice,
+          onPressed: c.publishing ? null : c.logout,
           style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               minimumSize: Size.zero),
-          child: const Text('断开', style: TextStyle(fontSize: 11)),
+          child: const Text('退出登录', style: TextStyle(fontSize: 11)),
         ),
       ]);
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          FilledButton.icon(
-            onPressed: c.linking ? null : c.startDeviceLink,
-            icon: const Icon(Icons.link, size: 16),
-            label: Text(c.linking ? '正在连接...' : '连接账号',
-                style: const TextStyle(fontSize: 12)),
-          ),
-          const SizedBox(width: 8),
-          TextButton(
-            onPressed: () => _open('$_base/signup'),
-            style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 6),
-                minimumSize: Size.zero),
-            child: const Text('还没有账号？免费注册',
-                style: TextStyle(fontSize: 11)),
-          ),
-        ]),
-        const SizedBox(height: 6),
-        Text('会显示一串短码，在网页上敲进去确认即可。App 不需要你的密码。',
+    return Row(children: [
+      FilledButton.icon(
+        onPressed: () => LoginDialog.show(context, c),
+        icon: const Icon(Icons.login, size: 16),
+        label: const Text('登录', style: TextStyle(fontSize: 12)),
+      ),
+      const SizedBox(width: 10),
+      Expanded(
+        child: Text('发布需要先登录',
             style: TextStyle(fontSize: 11, color: scheme.outline)),
-        if (c.linkError != null) ...[
-          const SizedBox(height: 6),
-          Text(c.linkError!,
-              style: TextStyle(fontSize: 11, color: scheme.error)),
-        ],
-      ],
-    );
+      ),
+    ]);
   }
 
   Widget _hint(ColorScheme scheme, String text) => Container(
