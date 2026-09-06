@@ -6,7 +6,7 @@ After=network.target postgresql.service
 Type=simple
 User=travelview
 Group=travelview
-WorkingDirectory=/opt/apps/travelview/web/current
+WorkingDirectory=/opt/travelview/web/current
 EnvironmentFile=/etc/travelview/env
 Environment=NODE_ENV=production
 Environment=PORT=3001

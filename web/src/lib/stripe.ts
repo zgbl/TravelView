@@ -1,8 +1,8 @@
 import Stripe from 'stripe';
 
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '', {
-  apiVersion: '2024-12-18.acacia',
-});
+// 不锁死 apiVersion: 不同版本的 stripe SDK 各自带一个类型上允许的版本，
+// 写死旧版本会在 npm install 之后构建报类型错。缺省时 SDK 用自己的默认版本。
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '');
 
 /**
  * 定价刻意只有两档，而且都指向同一件事: **能发布一篇 Story**。

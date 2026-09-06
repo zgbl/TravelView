@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # 构建并发布一个新版本。**可以重复跑**，失败不会影响正在跑的版本。
 #
-#   cd /opt/apps/travelview/src && git pull && sudo bash web/deploy/release.sh
+#   cd /opt/travelview/src && git pull && sudo bash web/deploy/release.sh
 #
 # 用「目录 + current 软链」的方式发布: 新版本先完整构建好，
 # 最后一步才切软链 + 重启。构建挂了，线上还是旧版本，一点没动。
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"   # .../web
-APP_ROOT=/opt/apps/travelview/web
+APP_ROOT=/opt/travelview/web
 ENV_FILE=/etc/travelview/env
 STAMP=$(date +%Y%m%d-%H%M%S)
 DEST="$APP_ROOT/releases/$STAMP"

@@ -7,7 +7,7 @@
 # 不碰 TensuGo 的任何东西。
 set -euo pipefail
 
-APP_ROOT=/opt/apps/travelview
+APP_ROOT=/opt/travelview
 MEDIA_ROOT=/var/lib/travelview/media
 ENV_FILE=/etc/travelview/env
 DB_NAME=travelview
