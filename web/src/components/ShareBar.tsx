@@ -55,10 +55,14 @@ export default function ShareBar({
 
   return (
     <>
-      <div className="fixed inset-x-0 bottom-0 z-40 flex justify-center
-        bg-gradient-to-t from-ink via-ink/90 to-transparent px-4 pb-5 pt-10">
-        <div className="flex items-center gap-2 rounded-full border
-          border-white/12 bg-ink/90 px-2 py-2 backdrop-blur">
+      {/* 外层横跨整个视口底部，只是为了让药丸居中 + 加一层渐变。
+          **必须 pointer-events-none**: 否则它会盖住地图右下角，
+          按钮点不着、点击还被转给这里的分享按钮。 */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40
+        flex justify-center bg-gradient-to-t from-ink via-ink/90
+        to-transparent px-4 pb-5 pt-10">
+        <div className="pointer-events-auto flex items-center gap-2
+          rounded-full border border-white/12 bg-ink/90 px-2 py-2 backdrop-blur">
           <span className="hidden px-3 text-sm text-muted sm:block">
             {t(locale, 'share.label')}
           </span>

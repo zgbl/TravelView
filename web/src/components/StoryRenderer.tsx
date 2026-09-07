@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { mediaUrl, miles, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
+import PhotoLightbox from './PhotoLightbox';
 import { t, type Locale } from '@/lib/i18n';
 
 /**
@@ -30,6 +31,9 @@ export default function StoryRenderer({
   const [stopAt, setStopAt] = useState({ index: 0, frac: 0 });
   const [activeStop, setActiveStop] = useState<string | null>(null);
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
+  /// 大图看的是第几张（story.photos 里的下标）。null = 没打开
+  const [lightbox, setLightbox] = useState<number | null>(null);
+  const indexOfPhoto = (id: string) => story.photos.findIndex((p) => p.id === id);
   const contentRef = useRef<HTMLDivElement>(null);
 
   /**
@@ -170,8 +174,9 @@ export default function StoryRenderer({
                         alt=""
                         loading="lazy"
                         onMouseEnter={() => setActivePhoto(hero.id)}
-                        className={`w-full rounded-2xl outline-accent
-                          transition-[outline-width] ${
+                        onClick={() => setLightbox(indexOfPhoto(hero.id))}
+                        className={`w-full cursor-zoom-in rounded-2xl
+                          outline-accent transition-[outline-width] ${
                             activePhoto === hero.id
                               ? 'outline outline-[3px]'
                               : 'outline-0'
@@ -191,8 +196,10 @@ export default function StoryRenderer({
                               alt=""
                               loading="lazy"
                               onMouseEnter={() => setActivePhoto(ph.id)}
-                              className={`w-full rounded-xl object-cover
-                                outline-accent transition-[outline-width] ${
+                              onClick={() => setLightbox(indexOfPhoto(ph.id))}
+                              className={`w-full cursor-zoom-in rounded-xl
+                                object-cover outline-accent
+                                transition-[outline-width] ${
                                 ph.web.h > ph.web.w
                                   ? 'aspect-[3/4]'
                                   : 'aspect-square'
@@ -222,6 +229,22 @@ export default function StoryRenderer({
           />
         </div>
       </div>
+
+      {lightbox !== null && (
+        <PhotoLightbox
+          photos={story.photos}
+          index={lightbox}
+          prefix={prefix}
+          onClose={() => setLightbox(null)}
+          onIndex={(i) => {
+            setLightbox(i);
+            // 大图翻页时地图上的定位点跟着走 —— 大图里最想知道的
+            // 就是"这张在哪拍的"
+            const ph = story.photos[i];
+            if (ph) setActivePhoto(ph.id);
+          }}
+        />
+      )}
 
       {/* 结束卡片 —— 专门为被截图分享而设计 */}
       {!compact && (

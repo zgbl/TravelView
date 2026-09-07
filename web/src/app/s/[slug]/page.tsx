@@ -41,20 +41,39 @@ export async function generateMetadata(
     story.subtitle ??
     `${stats.days} 天 · ${stats.stops} 站 · ${stats.photos} 张照片`;
 
+  /**
+   * 预览图给两张，顺序有讲究:
+   *
+   * 1. `og.jpg` —— 导出时生成的静态 JPEG。**微信只吃这种**:
+   *    它的抓取器不解 WebP，也不会去等一个动态渲染的接口，
+   *    超时就直接不显示图（就是那张光秃秃的方块卡）。
+   * 2. `opengraph-image` —— next/og 动态合成的那张（封面 + 标题 + 数字），
+   *    Facebook / Twitter 会用第一张，但老故事没有 og.jpg 时它兜底。
+   */
+  const prefix = story.media_prefix ?? `s/${story.slug}`;
+  const ogPath = (story.manifest as { ogImage?: string }).ogImage;
+  const images = [
+    ...(ogPath
+      ? [{ url: mediaUrl(ogPath, prefix), width: 1200, height: 900 }]
+      : []),
+    { url: `${url}/opengraph-image`, width: 1200, height: 630 },
+  ];
+
   return {
+    // 浏览器标签页带上站名，社交卡片**不带** ——
+    // 微信那张卡只有一行标题的宽度，"— TravelView" 会把真正的内容挤没
     title: `${story.title} — TravelView`,
     description: desc,
     alternates: { canonical: url },
     openGraph: {
       type: 'article',
       url,
+      siteName: 'TravelView',
       title: story.title,
       description: desc,
-      // 用 next/og 动态生成的 PNG。Facebook 的抓取器不吃 WebP，
-      // 所以社交预览图必须是 PNG/JPEG。
-      images: [{ url: `${url}/opengraph-image`, width: 1200, height: 630 }],
+      images,
     },
-    twitter: { card: 'summary_large_image' },
+    twitter: { card: 'summary_large_image', title: story.title, description: desc },
   };
 }
 

@@ -65,10 +65,9 @@ export default function StoryMap({
       center: [story.stops[0]?.lon ?? 0, story.stops[0]?.lat ?? 0],
       zoom: 4,
       attributionControl: false,
-      // **滚轮不缩放**: 地图占了半屏，滚轮如果被地图吃掉，
-      // 读者就滚不动这篇故事了。缩放走按钮、双击和双指手势 ——
-      // 这三种都是明确的"我想操作地图"，不会和阅读冲突。
-      scrollZoom: false,
+      // 鼠标滚轮 / 触控板双指缩放。地图是右半屏的 sticky 面板，
+      // 左半边照样能滚动正文，所以不必为了保住页面滚动而牺牲地图操作。
+      scrollZoom: true,
       doubleClickZoom: true,
       touchZoomRotate: true,
       dragPan: true,
@@ -76,11 +75,11 @@ export default function StoryMap({
     });
     mapRef.current = map;
 
-    // 右下角的 +/- 和指北针。放右下是因为左上那块留给了故事内容，
-    // 而且移动端右下角最好按
+    // **放右上，不放右下**: 右下被固定在视口底部的分享条压着，
+    // 按钮会被那层渐变糊掉一半，点击也被它截走
     map.addControl(
       new maplibregl.NavigationControl({ showCompass: true, showZoom: true }),
-      'bottom-right');
+      'top-right');
 
     // 读者自己动过地图之后，就别再把镜头抢回去了 ——
     // 正在放大看某条街，结果一滚动就被拽走，是最恼人的体验
@@ -90,6 +89,7 @@ export default function StoryMap({
       // 只认用户自己的操作，程序调用 easeTo 触发的不算
       if ((e as { originalEvent?: unknown }).originalEvent) markUserMoved();
     });
+    map.on('wheel', markUserMoved);
 
     // "回到路线": 自己缩放过之后，得有一条明确的路回到跟随模式，
     // 否则读者只能刷新页面。双击已经被用来放大了，所以做成一个按钮
@@ -108,7 +108,7 @@ export default function StoryMap({
     map.addControl({
       onAdd: () => back,
       onRemove: () => back.remove(),
-    } as maplibregl.IControl, 'bottom-right');
+    } as maplibregl.IControl, 'top-right');
 
     map.on('load', () => {
       // 全部路线，浅色
