@@ -117,6 +117,16 @@ const _template = r'''<!doctype html>
   #mapwrap{position:sticky;top:0;height:100vh}
   #map{width:100%;height:100%;background:#0c0e10}
   .leaflet-container{background:#0c0e10}
+  #mapwrap{position:relative}
+  .pinsize{position:absolute;left:12px;bottom:12px;z-index:500;
+    display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:999px;
+    background:rgba(15,17,19,.8);backdrop-filter:blur(6px);
+    color:#8a9196;font-size:12px}
+  .pinsize button{width:22px;height:22px;border:0;border-radius:999px;
+    background:transparent;color:#faf8f5;cursor:pointer;font-size:14px}
+  .pinsize button:hover{background:rgba(255,255,255,.12)}
+  .pinsize i{display:inline-block;width:10px;height:10px;border-radius:999px;
+    background:#ff8a5b;border:2px solid #fff}
   @media (max-width:900px){#mapwrap{height:52vh;top:0}}
 
   .car{font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
@@ -330,7 +340,12 @@ function render(){
     });
     html += '</section>';
   });
-  html += '</div><div id="mapwrap"><div id="map"></div></div></div>';
+  html += '</div><div id="mapwrap"><div id="map"></div>'
+       + '<div class="pinsize">定位点'
+       + '<button onclick="setPinScale(pinScale-0.3)" aria-label="调小">-</button>'
+       + '<i id="pindot"></i>'
+       + '<button onclick="setPinScale(pinScale+0.3)" aria-label="调大">+</button>'
+       + '</div></div></div>';
 
   html += '<section class="summary"><div class="card">';
   html += '<h2>'+esc(STORY.title)+'</h2>';
@@ -348,6 +363,8 @@ function render(){
   if (mode !== 'photo') {
     initStoryCover('heromap', mode === 'map' ? 260 : 40);
   }
+  // 把读者上次调好的定位点大小同步到那个示例小圆点上
+  setPinScale(pinScale);
 }
 function stat(n,k){return '<div><span class="n">'+n+'</span><span class="k">'+k+'</span></div>';}
 function big(n,k){return '<div><div class="n">'+n+'</div><div class="k">'+k+'</div></div>';}
@@ -568,13 +585,42 @@ function locate(photoId){
 
   if (ph.lat == null || ph.lon == null) return;
   if (!photoPin){
-    photoPin = L.circleMarker([ph.lat, ph.lon], {radius:8, weight:3,
+    photoPin = L.circleMarker([ph.lat, ph.lon], {radius:8*pinScale, weight:3,
       color:'#ffffff', fillColor:'#ff8a5b', fillOpacity:1}).addTo(map);
   } else {
     photoPin.setLatLng([ph.lat, ph.lon]);
+    photoPin.setRadius(8*pinScale);
   }
   photoPin.bringToFront();
-  map.panTo([ph.lat, ph.lon], {animate:true, duration:.5});
+
+  /* **只在点快跑出画面时才动镜头。**
+     像电视转播的跟拍: 主体在画面里就不动机位，快出画了才推一下，
+     而且保持读者自己调好的缩放级别。
+     每换一张就 panTo 会让放大看细节的读者被反复拽走。 */
+  const b = map.getBounds();
+  const w = b.getEast() - b.getWest(), h = b.getNorth() - b.getSouth();
+  const inside = ph.lon > b.getWest() + w*0.18 && ph.lon < b.getEast() - w*0.18
+              && ph.lat > b.getSouth() + h*0.18 && ph.lat < b.getNorth() - h*0.18;
+  if (!inside) map.panTo([ph.lat, ph.lon], {animate:true, duration:.5});
+}
+
+/* 定位点大小: 手机小屏上 8px 几乎看不见，大屏上又嫌小，
+   而且视力和看的距离因人而异。存在这台设备上，不属于作品本身。 */
+let pinScale = 1;
+try {
+  const v = Number(localStorage.getItem('tv.pinScale'));
+  if (v >= 0.6 && v <= 3) pinScale = v;
+} catch (e) { /* 隐私模式下不给用 localStorage，用默认值就好 */ }
+
+function setPinScale(v){
+  pinScale = Math.round(Math.max(0.6, Math.min(3, v)) * 10) / 10;
+  try { localStorage.setItem('tv.pinScale', String(pinScale)); } catch (e) {}
+  if (photoPin) photoPin.setRadius(8*pinScale);
+  const dot = document.getElementById('pindot');
+  if (dot) {
+    dot.style.width = Math.round(10*pinScale)+'px';
+    dot.style.height = Math.round(10*pinScale)+'px';
+  }
 }
 
 function initLocate(){

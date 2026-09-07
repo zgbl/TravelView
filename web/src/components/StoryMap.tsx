@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { decodePolyline, type Story } from '@/lib/story';
 
@@ -41,6 +41,27 @@ export default function StoryMap({
   const userMovedRef = useRef(false);
   /// 把镜头拉回整条路线。建图时装上，"回到路线"按钮用
   const fitAllRef = useRef<(() => void) | null>(null);
+
+  /**
+   * 定位点的大小。**这是给读者的选项，不是常量。**
+   * 在手机小屏上 8px 的点几乎看不见，在 5K 屏上又嫌小；
+   * 而且视力和使用距离因人而异，没有一个尺寸对所有人都对。
+   * 存 localStorage: 这是这台设备上这个读者的偏好，不是作品的一部分。
+   */
+  const [pinScale, setPinScale] = useState(1);
+  useEffect(() => {
+    try {
+      const v = Number(localStorage.getItem('tv.pinScale'));
+      if (v >= 0.6 && v <= 3) setPinScale(v);
+    } catch {
+      // 隐私模式 / 禁用了站点数据: 用默认值，不该因此报错
+    }
+  }, []);
+  const changePin = (v: number) => {
+    const n = Math.round(Math.max(0.6, Math.min(3, v)) * 10) / 10;
+    setPinScale(n);
+    try { localStorage.setItem('tv.pinScale', String(n)); } catch { /* 同上 */ }
+  };
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -309,32 +330,87 @@ export default function StoryMap({
       pinRef.current = null;
       return;
     }
+    const size = Math.round(16 * pinScale);
     if (!pinRef.current) {
       const el = document.createElement('div');
-      el.className =
-        'h-4 w-4 rounded-full border-2 border-white bg-[#ff8a5b] shadow';
+      el.className = 'rounded-full border-2 border-white bg-[#ff8a5b] shadow';
       pinRef.current = new maplibregl.Marker({ element: el })
         .setLngLat([ph.lon, ph.lat])
         .addTo(map);
-    } else {
-      pinRef.current.setLngLat([ph.lon, ph.lat]);
     }
-    if (!userMovedRef.current) {
-      map.easeTo({ center: [ph.lon, ph.lat], duration: 500 });
+    const el = pinRef.current.getElement();
+    el.style.width = `${size}px`;
+    el.style.height = `${size}px`;
+    pinRef.current.setLngLat([ph.lon, ph.lat]);
+
+    /**
+     * **只在点跑出画面时才动镜头。**
+     *
+     * 原来是每换一张照片就 easeTo 一次，读者放大看某条街时会被反复拽走；
+     * 后来改成"用户动过就再也不跟"，又变成点跑出屏幕得自己去找。
+     * 正确的行为是电视转播里的跟拍: 主体在画面里就不动机位，
+     * 快出画了才推一下，而且**保持读者自己调好的缩放级别**。
+     */
+    const b = map.getBounds();
+    const w = b.getEast() - b.getWest();
+    const h = b.getNorth() - b.getSouth();
+    // 留 18% 的安全边: 贴着边缘也算"快出去了"，等真出去就晚了
+    const inside =
+      ph.lon > b.getWest() + w * 0.18 && ph.lon < b.getEast() - w * 0.18 &&
+      ph.lat > b.getSouth() + h * 0.18 && ph.lat < b.getNorth() - h * 0.18;
+    if (!inside) {
+      map.easeTo({ center: [ph.lon, ph.lat], duration: 600 });
     }
-  }, [activePhoto, story.photos]);
+  }, [activePhoto, story.photos, pinScale]);
 
   // 滚到某一站，地图轻轻跟过去
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !activeStop) return;
     const s = story.stops.find((x) => x.id === activeStop);
-    if (s && !userMovedRef.current) {
-      map.easeTo({ center: [s.lon, s.lat], duration: 900 });
-    }
+    if (!s) return;
+    // 同样的跟拍规则: 这一站在画面里就不动镜头
+    const b = map.getBounds();
+    const w = b.getEast() - b.getWest();
+    const h = b.getNorth() - b.getSouth();
+    const inside =
+      s.lon > b.getWest() + w * 0.15 && s.lon < b.getEast() - w * 0.15 &&
+      s.lat > b.getSouth() + h * 0.15 && s.lat < b.getNorth() - h * 0.15;
+    if (!inside) map.easeTo({ center: [s.lon, s.lat], duration: 900 });
   }, [activeStop, story.stops]);
 
-  return <div ref={ref} className="h-full w-full bg-[#0c0e10]" />;
+  return (
+    <div className="relative h-full w-full">
+      <div ref={ref} className="h-full w-full bg-[#0c0e10]" />
+      {/* 定位点大小。放左下角: 右上是地图自己的控件，右下是分享条 */}
+      <div className="absolute bottom-3 left-3 flex items-center gap-1
+        rounded-full bg-ink/80 px-2 py-1 text-xs text-muted backdrop-blur">
+        <span className="px-1">定位点</span>
+        <button
+          onClick={() => changePin(pinScale - 0.3)}
+          aria-label="调小"
+          className="h-6 w-6 rounded-full hover:bg-white/10"
+        >
+          −
+        </button>
+        <span
+          className="inline-block rounded-full border-2 border-white
+            bg-[#ff8a5b]"
+          style={{
+            width: Math.round(10 * pinScale),
+            height: Math.round(10 * pinScale),
+          }}
+        />
+        <button
+          onClick={() => changePin(pinScale + 0.3)}
+          aria-label="调大"
+          className="h-6 w-6 rounded-full hover:bg-white/10"
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function haversine(a: [number, number], b: [number, number]) {
