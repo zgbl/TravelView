@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import 'package:tv_core/tv_core.dart';
+
 import '../state/library_controller.dart';
 import 'account_bar.dart';
 
@@ -34,6 +36,8 @@ class _PublishDialogState extends State<PublishDialog> {
   void initState() {
     super.initState();
     widget.c.addListener(_tick);
+    // 后台拉一次已发布列表 —— 有了它才能提示"你之前发过日期重叠的一篇"
+    if (widget.c.isLinked) widget.c.loadRemoteStories();
   }
 
   void _tick() {
@@ -54,16 +58,66 @@ class _PublishDialogState extends State<PublishDialog> {
     }
   }
 
+  /// 让用户从"我已发布的故事"里挑一篇来覆盖。
+  /// 列表来自服务器，所以换台电脑、重建草稿之后照样能找回自己的东西。
+  Future<void> _pickStory() async {
+    final c = widget.c;
+    await c.loadRemoteStories();
+    if (!mounted) return;
+    final picked = await showDialog<RemoteStory>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('更新我已发布的哪一篇？'),
+        content: SizedBox(
+          width: 520,
+          height: 420,
+          child: c.remoteStories.isEmpty
+              ? Center(
+                  child: Text(c.lastError ?? '还没有发布过任何故事',
+                      style: const TextStyle(fontSize: 13)))
+              : ListView.separated(
+                  itemCount: c.remoteStories.length,
+                  separatorBuilder: (_, __) => const Divider(height: 1),
+                  itemBuilder: (_, i) {
+                    final s = c.remoteStories[i];
+                    return ListTile(
+                      dense: true,
+                      title: Text(s.title,
+                          style: const TextStyle(fontSize: 13)),
+                      subtitle: Text(
+                        '${s.start ?? ''} - ${s.end ?? ''} · '
+                        '${s.stops} 站 · ${s.photos} 张'
+                        '${s.published ? '' : ' · 未发布完'}',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      onTap: () => Navigator.pop(ctx, s),
+                    );
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('取消')),
+        ],
+      ),
+    );
+    if (picked != null) c.pickStoryToUpdate(picked);
+  }
+
   Future<void> _publish() async {
     // 覆盖是不可撤销的，而且被覆盖的链接可能已经发给别人了。
     // 这一步问一次，代价是一次点击，省掉的是"我的游记没了"
     if (widget.c.updateExisting) {
+      final target = widget.c.pickedStoryUrl.isNotEmpty
+          ? widget.c.pickedStoryUrl
+          : widget.c.publishedUrl;
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('覆盖已发布的那一篇？'),
           content: Text(
-            '${widget.c.publishedUrl}\n\n'
+            '$target\n\n'
             '这个地址上现在的内容会被这次的内容替换掉，无法撤销。'
             '已经分享出去的链接仍然有效，但别人看到的会是新内容。',
             style: const TextStyle(fontSize: 13),
@@ -139,61 +193,137 @@ class _PublishDialogState extends State<PublishDialog> {
               // **默认永远是发新的一篇。** "更新"会覆盖掉一个可能已经
               // 分享给别人的链接，这种破坏性动作不该是默认值，
               // 更不该在内容根本不是同一趟行程时出现。
-              if (c.publishedIsDifferentTrip) ...[
+              // ── 这次是发新的一篇，还是更新已有的那一篇 ──
+              //
+              // **默认永远是发新的一篇。** "更新"会覆盖掉一个可能已经
+              // 分享给别人的链接，这种破坏性动作不该是默认值。
+              // 但**必须永远有一条路能更新** —— 草稿里那条记录会断，
+              // 断了还不给挑，用户就只能重发一篇、旧链接烂在外面。
+              if (done == null) ...[
                 const SizedBox(height: 14),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: scheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '这是一趟新的行程，会发布成新的一篇。',
-                        style: const TextStyle(
-                            fontSize: 12, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '这个草稿之前发布过另一份内容（日期或照片都不一样），'
-                        '那一篇不会被改动。想替换它的话，去网站上删掉再发。',
-                        style:
-                            TextStyle(fontSize: 11, color: scheme.outline),
-                      ),
-                      if (c.publishedUrl.isNotEmpty)
-                        TextButton(
-                          onPressed: () => _open(c.publishedUrl),
-                          style: TextButton.styleFrom(
-                              padding: EdgeInsets.zero,
-                              minimumSize: Size.zero),
-                          child: const Text('看看之前那一篇',
-                              style: TextStyle(fontSize: 11)),
+                if (c.pickedStoryId.isNotEmpty)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: scheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('将覆盖这一篇：',
+                            style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 4),
+                        Text(c.pickedStoryTitle,
+                            style: const TextStyle(fontSize: 13)),
+                        Text(c.pickedStoryUrl,
+                            style: TextStyle(
+                                fontSize: 11, color: scheme.onSurfaceVariant)),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: TextButton(
+                            onPressed: c.publishing
+                                ? null
+                                : () => c.pickStoryToUpdate(null),
+                            style: TextButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                minimumSize: Size.zero),
+                            child: const Text('改回发新的一篇',
+                                style: TextStyle(fontSize: 11)),
+                          ),
                         ),
-                    ],
+                      ],
+                    ),
+                  )
+                else if (c.canUpdatePublished)
+                  CheckboxListTile(
+                    value: c.updateExisting,
+                    onChanged: c.publishing
+                        ? null
+                        : (v) => c.setUpdateExisting(v ?? false),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    title: const Text('更新已发布的那一篇（不新发）',
+                        style: TextStyle(fontSize: 12)),
+                    subtitle: Text(
+                      c.updateExisting
+                          ? '会覆盖 ${c.publishedUrl} 的内容，链接不变，不扣额度'
+                          : '不勾就是发新的一篇，之前那一篇不受影响',
+                      style: TextStyle(fontSize: 11, color: scheme.outline),
+                    ),
+                  )
+                else if (c.updateCandidates.isNotEmpty) ...[
+                  // 日期有重叠 = 很可能就是同一趟行程的另一个版本。
+                  // **只提示，不替用户选** —— 覆盖不可撤销，猜错代价太大
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: scheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '你之前发布过日期重叠的 ${c.updateCandidates.length} 篇，'
+                          '这次可能是想更新它？',
+                          style: const TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                        const SizedBox(height: 6),
+                        ...c.updateCandidates.take(3).map((st) => Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: Row(children: [
+                                Expanded(
+                                  child: Text(
+                                    '${st.title}   ${st.start ?? ''} - '
+                                    '${st.end ?? ''} · ${st.photos} 张',
+                                    style: const TextStyle(fontSize: 12),
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: c.publishing
+                                      ? null
+                                      : () => c.pickStoryToUpdate(st),
+                                  style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8),
+                                      minimumSize: Size.zero),
+                                  child: const Text('更新这一篇',
+                                      style: TextStyle(fontSize: 11)),
+                                ),
+                              ]),
+                            )),
+                        Text('不选的话就是发新的一篇，那些都不会被改动。',
+                            style: TextStyle(
+                                fontSize: 11, color: scheme.outline)),
+                      ],
+                    ),
                   ),
-                ),
-              ] else if (c.canUpdatePublished && done == null) ...[
-                const SizedBox(height: 14),
-                CheckboxListTile(
-                  value: c.updateExisting,
-                  onChanged: c.publishing
-                      ? null
-                      : (v) => c.setUpdateExisting(v ?? false),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  controlAffinity: ListTileControlAffinity.leading,
-                  title: const Text('更新已发布的那一篇（不新发）',
-                      style: TextStyle(fontSize: 12)),
-                  subtitle: Text(
-                    c.updateExisting
-                        ? '会覆盖 ${c.publishedUrl} 的内容，链接不变，不扣额度'
-                        : '不勾就是发新的一篇，之前那一篇不受影响',
-                    style: TextStyle(fontSize: 11, color: scheme.outline),
+                ]
+                else
+                  Text('会发布成新的一篇。',
+                      style: TextStyle(fontSize: 12, color: scheme.outline)),
+                if (c.pickedStoryId.isEmpty)
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: c.publishing || !c.isLinked
+                          ? null
+                          : _pickStory,
+                      icon: const Icon(Icons.history, size: 15),
+                      label: const Text('改为更新我已发布的某一篇...',
+                          style: TextStyle(fontSize: 12)),
+                      style: TextButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: Size.zero),
+                    ),
                   ),
-                ),
               ],
               if (c.publishing) ...[
                 const SizedBox(height: 18),

@@ -658,9 +658,12 @@ class LibraryController extends ChangeNotifier {
       // 接着传它，而不是留一篇残缺的在服务器上、这边再建一篇新的
       final existingId = canResume
           ? resumeStoryId
-          : (updateExisting && canUpdatePublished)
-              ? (currentProject?.publishedStoryId ?? '')
-              : '';
+          // 用户自己挑的那一篇优先 —— 那是最明确的意图
+          : (updateExisting && pickedStoryId.isNotEmpty)
+              ? pickedStoryId
+              : (updateExisting && canUpdatePublished)
+                  ? (currentProject?.publishedStoryId ?? '')
+                  : '';
       final res = await Publisher(publishConfig).publish(
         export.dir,
         visibility: visibility,
@@ -681,6 +684,10 @@ class LibraryController extends ChangeNotifier {
       lastPublish = res;
       resumeStoryId = '';
       _resumeKey = '';
+      // 挑过一次之后，这个草稿就和那一篇绑上了，下次不用再挑
+      pickedStoryId = '';
+      pickedStoryTitle = '';
+      pickedStoryUrl = '';
       await _rememberPublished(res);
       status = res.updated
           ? '已更新: ${res.publicUrl}'
@@ -926,10 +933,15 @@ class LibraryController extends ChangeNotifier {
    */
   bool get canUpdatePublished {
     final proj = currentProject;
-    final key = lastExport?.storyKey ?? '';
     if (proj == null || proj.publishedStoryId.isEmpty) return false;
+    final key = lastExport?.storyKey ?? '';
     if (key.isEmpty || proj.publishedKey.isEmpty) return false;
-    return proj.publishedKey == key;
+    if (proj.publishedKey == key) return true;
+    // 日期变了一点也还算同一趟 —— 区间有重叠即可（见 updateCandidates）
+    final now = key.split('|');
+    final was = proj.publishedKey.split('|');
+    if (now.length < 2 || was.length < 2) return false;
+    return was[0].compareTo(now[1]) <= 0 && was[1].compareTo(now[0]) >= 0;
   }
 
   /// 草稿上挂着一篇已发布的，但**内容对不上**（换了行程）。
@@ -947,7 +959,80 @@ class LibraryController extends ChangeNotifier {
   bool updateExisting = false;
 
   void setUpdateExisting(bool v) {
-    updateExisting = v && canUpdatePublished;
+    updateExisting = v && (canUpdatePublished || pickedStoryId.isNotEmpty);
+    notifyListeners();
+  }
+
+  // ---- 手动挑一篇来更新 ----
+  //
+  // 草稿里"上次发的是哪一篇"的记录会断: 换台电脑、重建草稿、
+  // 或者内容改得指纹对不上。断了之后如果没有别的路，
+  // 用户就永远更新不了自己的东西，只能重发一篇、旧链接烂在外面。
+
+  List<RemoteStory> remoteStories = [];
+  bool loadingStories = false;
+  String pickedStoryId = '';
+  String pickedStoryTitle = '';
+  String pickedStoryUrl = '';
+
+  /// 这次要发的日期范围（从导出产物的指纹里取）
+  ({String start, String end})? get _exportRange {
+    final k = lastExport?.storyKey ?? '';
+    final parts = k.split('|');
+    if (parts.length < 2 || parts[0].isEmpty) return null;
+    return (start: parts[0], end: parts[1]);
+  }
+
+  /**
+   * 可能是"同一趟行程"的已发布故事。
+   *
+   * 判定用**日期区间有重叠**，不用精确相等:
+   * 用户完全可能多带一天、少带一天，或者删掉几张照片导致首尾日期变了 ——
+   * 那还是同一趟旅行。要求精确相等，等于逼他重发一篇。
+   *
+   * 但重叠**只是候选**: 一律要用户自己确认要覆盖哪一篇，
+   * 绝不自动选中。覆盖是不可撤销的，猜错的代价太大。
+   */
+  List<RemoteStory> get updateCandidates {
+    final r = _exportRange;
+    if (r == null) return const [];
+    final out = remoteStories.where((s) {
+      final a = s.start, b = s.end;
+      if (a == null || b == null || a.isEmpty || b.isEmpty) return false;
+      // 区间重叠: a <= 我的结束 且 b >= 我的开始
+      return a.compareTo(r.end) <= 0 && b.compareTo(r.start) >= 0;
+    }).toList();
+    // 完全一致的排最前面，最可能就是它
+    out.sort((x, y) {
+      final xe = (x.start == r.start && x.end == r.end) ? 0 : 1;
+      final ye = (y.start == r.start && y.end == r.end) ? 0 : 1;
+      return xe.compareTo(ye);
+    });
+    return out;
+  }
+
+  Future<void> loadRemoteStories() async {
+    if (loadingStories) return;
+    loadingStories = true;
+    lastError = null;
+    notifyListeners();
+    try {
+      remoteStories = await Publisher(publishConfig).listStories();
+    } on PublishException catch (e) {
+      lastError = e.message;
+    } catch (e) {
+      lastError = '$e';
+    } finally {
+      loadingStories = false;
+      notifyListeners();
+    }
+  }
+
+  void pickStoryToUpdate(RemoteStory? s) {
+    pickedStoryId = s?.id ?? '';
+    pickedStoryTitle = s?.title ?? '';
+    pickedStoryUrl = s?.url ?? '';
+    updateExisting = pickedStoryId.isNotEmpty;
     notifyListeners();
   }
 

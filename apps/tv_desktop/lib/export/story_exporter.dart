@@ -14,12 +14,15 @@ class ExportResult {
   final int totalBytes;
   final List<String> warnings;
 
-  /// **这一份产物是哪一趟行程**的指纹: 起止日期 + 站数 + 照片数。
+  /// **这一份产物是哪一趟行程**的指纹: 只有起止日期。
   ///
-  /// 发布时把它记在草稿上。下次要判断"这次发的还是不是网站上那一篇"，
-  /// 靠它来比，**不能靠草稿的名字** —— 用户在同一个草稿里换个时间范围
-  /// 做的就是另一趟行程了，名字却一点没变。
-  /// 认错了的代价是把上一篇直接覆盖掉，所以这里宁可判成"不是同一篇"。
+  /// 发布时把它记在草稿上，用来判断"这次发的还是不是网站上那一篇"。
+  /// **不能靠草稿的名字** —— 同一个草稿里换个时间范围做的就是另一趟了，
+  /// 名字却一点没变，认错的代价是把上一篇覆盖掉。
+  ///
+  /// 但也**不能把照片数算进去**: 删掉一张不该发的照片再更新，
+  /// 是最正当的使用方式，指纹却会因此对不上，用户就再也更新不了了。
+  /// 日期范围是"哪一趟行程"的天然身份，改内容不会动它。
   final String storyKey;
 
   const ExportResult({
@@ -220,8 +223,6 @@ class StoryExporter {
       storyKey: [
         finalStory.start.toIso8601String().substring(0, 10),
         finalStory.end.toIso8601String().substring(0, 10),
-        finalStory.stops.length,
-        finalStory.photos.length,
       ].join('|'),
     );
   }

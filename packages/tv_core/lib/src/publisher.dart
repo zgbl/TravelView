@@ -69,6 +69,43 @@ class PublishResult {
   });
 }
 
+/// 服务器上的一篇 Story（用来让用户挑要更新哪一篇）
+class RemoteStory {
+  final String id;
+  final String slug;
+  final String title;
+  final String? start;
+  final String? end;
+  final int photos;
+  final int stops;
+  final bool published;
+  final String url;
+
+  const RemoteStory({
+    required this.id,
+    required this.slug,
+    required this.title,
+    required this.photos,
+    required this.stops,
+    required this.published,
+    required this.url,
+    this.start,
+    this.end,
+  });
+
+  factory RemoteStory.fromJson(Map<String, dynamic> j) => RemoteStory(
+        id: j['id'] as String,
+        slug: j['slug'] as String? ?? '',
+        title: j['title'] as String? ?? '未命名',
+        start: j['start'] as String?,
+        end: j['end'] as String?,
+        photos: (j['photos'] as num?)?.toInt() ?? 0,
+        stops: (j['stops'] as num?)?.toInt() ?? 0,
+        published: j['published'] == true,
+        url: j['url'] as String? ?? '',
+      );
+}
+
 /// 允许上传的后缀。**白名单，不是黑名单** ——
 /// 新增一种原图格式时，不该因为忘了往黑名单里加就泄漏出去。
 ///
@@ -94,6 +131,36 @@ class Publisher {
     this.timeout = const Duration(seconds: 120),
     this.concurrency = 4,
   });
+
+  /// 列出这个账号已经发布的故事。
+  /// 用户据此挑"要更新哪一篇" —— 草稿里那条记录断了也还有路可走。
+  Future<List<RemoteStory>> listStories() async {
+    final client = HttpClient()..connectionTimeout = timeout;
+    try {
+      final base = config.siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
+      final req = await client
+          .getUrl(Uri.parse('$base/api/stories'))
+          .timeout(timeout);
+      req.headers.set('Authorization', 'Bearer ${config.token.trim()}');
+      final res = await req.close().timeout(timeout);
+      final body = await utf8.decoder.bind(res).join();
+      if (res.statusCode >= 400) {
+        throw PublishException(_errorOf(body, res.statusCode),
+            statusCode: res.statusCode);
+      }
+      final list = (jsonDecode(body) as Map<String, dynamic>)['stories'] as List;
+      return list
+          .cast<Map<String, dynamic>>()
+          .map(RemoteStory.fromJson)
+          .toList();
+    } on SocketException catch (e) {
+      throw PublishException('连不上服务器: ${e.message}');
+    } on TimeoutException {
+      throw const PublishException('服务器没有响应（超时）');
+    } finally {
+      client.close(force: true);
+    }
+  }
 
   /// [exportDir] 就是 StoryExporter 产出的那个目录。
   /// [onCreated] 在 Story 建好、开始传图之前回调一次。
