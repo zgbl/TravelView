@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import { decodePolyline, mediaUrl, miles, type Story } from '@/lib/story';
 import { t, type Locale } from '@/lib/i18n';
-import { Ambient } from '@/lib/ambient';
+import { Ambient, PLAYER_MUSIC } from '@/lib/ambient';
+import { carSvg, bearing, smoothTurn } from '@/lib/carMarker';
 
 /**
  * 全屏播放。
@@ -283,10 +284,13 @@ export default function StoryPlayer({
           label={playing ? t(locale, 'player.pause') : t(locale, 'player.play')}>
           {playing ? '❚❚' : '▶'}
         </Ctrl>
-        <Ctrl onClick={toggleSound}
-          label={sound ? t(locale, 'player.mute') : t(locale, 'player.unmute')}>
-          <span className={sound ? '' : 'line-through opacity-60'}>♪</span>
-        </Ctrl>
+        {/* 配乐还没有做，按钮就不出现 —— 点了没反应比没有更糟 */}
+        {PLAYER_MUSIC && (
+          <Ctrl onClick={toggleSound}
+            label={sound ? t(locale, 'player.mute') : t(locale, 'player.unmute')}>
+            <span className={sound ? '' : 'line-through opacity-60'}>♪</span>
+          </Ctrl>
+        )}
         <Ctrl onClick={onClose} label={t(locale, 'player.exit')}>✕</Ctrl>
       </div>
     </div>
@@ -307,6 +311,8 @@ function PlayerMap({
   const cumRef = useRef<number[]>([]);
   /// 每一站落在折线上的里程 —— 小车就在相邻两站的里程之间走
   const stopDistRef = useRef<number[]>([]);
+  /// 车头当前朝向（度）。平滑转向要用上一帧的值
+  const headRef = useRef<number>(0);
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -392,12 +398,21 @@ function PlayerMap({
       });
 
       const el = document.createElement('div');
-      el.className = 'text-3xl leading-none drop-shadow-lg';
-      el.textContent = '🚗';
+      el.innerHTML = carSvg(26);
+      el.style.filter = 'drop-shadow(0 3px 6px rgba(0,0,0,.45))';
       const start = all[0] ?? [story.stops[0]?.lat ?? 0, story.stops[0]?.lon ?? 0];
-      markerRef.current = new maplibregl.Marker({ element: el })
+      markerRef.current = new maplibregl.Marker({
+        element: el,
+        // **跟着地图转，不跟着屏幕。** pitch/bearing 变化时车要贴在路上
+        rotationAlignment: 'map',
+        pitchAlignment: 'map',
+      })
         .setLngLat([start[1], start[0]])
         .addTo(map);
+      if (all.length > 1) {
+        headRef.current = bearing(all[0], all[1]);
+        markerRef.current.setRotation(headRef.current);
+      }
     });
 
     return () => { map.remove(); mapRef.current = null; };
@@ -476,6 +491,13 @@ function PlayerMap({
       if (usePath && dTo > dFrom) {
         const { pos, idx } = at(dFrom + (dTo - dFrom) * e);
         markerRef.current?.setLngLat([pos[1], pos[0]]);
+        // 朝向取当前所在的那一小段折线的方向，再平滑地转过去
+        const a = all[Math.max(0, idx - 1)];
+        const b2 = all[Math.min(all.length - 1, idx)];
+        if (a && b2 && (a[0] !== b2[0] || a[1] !== b2[1])) {
+          headRef.current = smoothTurn(headRef.current, bearing(a, b2));
+          markerRef.current?.setRotation(headRef.current);
+        }
         traveled?.setData({
           type: 'Feature', properties: {},
           geometry: {

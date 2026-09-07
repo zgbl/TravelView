@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
+import { carSvg, bearing as bearingOf, smoothTurn } from '@/lib/carMarker';
 import { decodePolyline, type Story } from '@/lib/story';
 
 /**
@@ -36,6 +37,8 @@ export default function StoryMap({
   const cumRef = useRef<number[]>([]);
   /// 每一站在路线上的里程位置（沿路线的累计距离）
   const stopDistRef = useRef<number[]>([]);
+  /// 车头当前朝向（度）—— 平滑转向要记住上一次的值
+  const carHeadRef = useRef<number>(0);
   const pinRef = useRef<maplibregl.Marker | null>(null);
   /// 读者自己缩放/拖动过地图了吗。true 之后不再自动跟随镜头
   const userMovedRef = useRef(false);
@@ -302,12 +305,22 @@ export default function StoryMap({
       cumRef.current = cum;
 
       if (all.length > 1) {
+        // 俯视的车，按行进方向转头。**不能用 🚗 emoji** ——
+        // 它是侧视的、永远朝左，往东开的时候看着像在倒车
         const el = document.createElement('div');
-        el.className = 'text-2xl leading-none drop-shadow';
-        el.textContent = '🚗';
-        carRef.current = new maplibregl.Marker({ element: el })
+        el.innerHTML = carSvg(24);
+        el.style.filter = 'drop-shadow(0 3px 6px rgba(0,0,0,.4))';
+        carRef.current = new maplibregl.Marker({
+          element: el,
+          rotationAlignment: 'map',
+          pitchAlignment: 'map',
+        })
           .setLngLat([all[0][1], all[0][0]])
           .addTo(map);
+        if (all.length > 1) {
+          carHeadRef.current = bearingOf(all[0], all[1]);
+          carRef.current.setRotation(carHeadRef.current);
+        }
 
         const bounds = all.reduce(
           (b, [la, lo]) => b.extend([lo, la] as [number, number]),
@@ -397,9 +410,13 @@ export default function StoryMap({
 
     if (carRef.current) {
       carRef.current.setLngLat([pos[1], pos[0]]);
-      const el = carRef.current.getElement();
-      // 车头跟着道路方向转，不是横着滑
-      el.style.transform += ` rotate(${bearing(all[i - 1], all[i]) - 90}deg)`;
+      // 车头跟着道路方向转。**用 marker 的 rotation，不要动 transform** ——
+      // maplibre 每帧都会重写 element 的 transform，往上追加只会越叠越歪
+      const a = all[i - 1], b = all[i];
+      if (a && b && (a[0] !== b[0] || a[1] !== b[1])) {
+        carHeadRef.current = smoothTurn(carHeadRef.current, bearingOf(a, b), 0.5);
+        carRef.current.setRotation(carHeadRef.current);
+      }
     }
   }, [stopAt, story.stops]);
 
@@ -488,11 +505,3 @@ function haversine(a: [number, number], b: [number, number]) {
   return 2 * R * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
 }
 
-function bearing(a: [number, number], b: [number, number]) {
-  const r = Math.PI / 180;
-  const y = Math.sin((b[1] - a[1]) * r) * Math.cos(b[0] * r);
-  const x =
-    Math.cos(a[0] * r) * Math.sin(b[0] * r) -
-    Math.sin(a[0] * r) * Math.cos(b[0] * r) * Math.cos((b[1] - a[1]) * r);
-  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
-}
