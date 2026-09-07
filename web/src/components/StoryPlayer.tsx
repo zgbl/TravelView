@@ -94,6 +94,49 @@ export default function StoryPlayer({
   const photoById = useMemo(
     () => Object.fromEntries(story.photos.map((p) => [p.id, p])), [story]);
 
+  /**
+   * 真·全屏（Fullscreen API），不是"铺满浏览器窗口"。
+   *
+   * 用户想看全屏播放时，会本能地去点浏览器的绿色按钮 —— 在 macOS 上
+   * 那是"进入全屏"，系统会把窗口挪进一个新的 Space，画面向右滑走，
+   * 看起来就像窗口跑丢了。**这件事不该让用户去跟浏览器较劲**:
+   * 播放器自己申请全屏，地址栏、标签栏、Dock 一起消失，退出按 Esc。
+   */
+  const rootRef = useRef<HTMLDivElement>(null);
+  const [full, setFull] = useState(false);
+
+  const toggleFull = useCallback(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    if (document.fullscreenElement) {
+      void document.exitFullscreen().catch(() => {});
+    } else {
+      // Safari 老版本要 webkit 前缀；拿不到就算了，窗口内播放照样能看
+      const req = el.requestFullscreen?.bind(el) ??
+        (el as unknown as { webkitRequestFullscreen?: () => Promise<void> })
+          .webkitRequestFullscreen?.bind(el);
+      void req?.()?.catch(() => {});
+    }
+  }, []);
+
+  // 打开播放器就直接进全屏 —— 点"播放"这个手势足以让浏览器放行
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el || document.fullscreenElement) return;
+    void el.requestFullscreen?.().catch(() => {
+      /* 浏览器不给就算了，不是错误 */
+    });
+    return () => {
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    };
+  }, []);
+
+  useEffect(() => {
+    const onFs = () => setFull(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFs);
+    return () => document.removeEventListener('fullscreenchange', onFs);
+  }, []);
+
   const go = useCallback((d: number) => {
     setI((prev) => Math.max(0, Math.min(beats.length - 1, prev + d)));
   }, [beats.length]);
@@ -110,7 +153,10 @@ export default function StoryPlayer({
   // ── 键盘 ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      // 全屏时 Esc 由浏览器接管（退出全屏），播放器不该跟着一起关 ——
+      // 用户按 Esc 的意思通常是"退出全屏"，不是"别看了"
+      if (e.key === 'Escape' && !document.fullscreenElement) onClose();
+      if (e.key === 'f' || e.key === 'F') toggleFull();
       if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
       if (e.key === 'ArrowLeft') go(-1);
       if (e.key === 'p' || e.key === 'P') setPlaying((v) => !v);
@@ -122,7 +168,7 @@ export default function StoryPlayer({
       window.removeEventListener('keydown', onKey);
       document.body.style.overflow = prev;
     };
-  }, [go, onClose]);
+  }, [go, onClose, toggleFull]);
 
   // 切到别的标签页就暂停 —— 没人看的时候还在跑，纯属浪费电和流量
   useEffect(() => {
@@ -165,6 +211,7 @@ export default function StoryPlayer({
      暂停才是看照片时真正想做的事。 */
   return (
     <div
+      ref={rootRef}
       className="fixed inset-0 z-[80] select-none overflow-hidden bg-black"
       onClick={() => setPlaying((v) => !v)}
     >
@@ -291,6 +338,10 @@ export default function StoryPlayer({
             <span className={sound ? '' : 'line-through opacity-60'}>♪</span>
           </Ctrl>
         )}
+        <Ctrl onClick={toggleFull}
+          label={full ? t(locale, 'player.windowed') : t(locale, 'player.full')}>
+          {full ? '⤡' : '⛶'}
+        </Ctrl>
         <Ctrl onClick={onClose} label={t(locale, 'player.exit')}>✕</Ctrl>
       </div>
     </div>

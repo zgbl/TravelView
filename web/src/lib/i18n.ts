@@ -196,6 +196,8 @@ export const dict: Dict = {
   'player.play': { zh: '播放', en: 'Play' },
   'player.pause': { zh: '暂停', en: 'Pause' },
   'player.exit': { zh: '退出播放', en: 'Exit' },
+  'player.full': { zh: '全屏 (F)', en: 'Fullscreen (F)' },
+  'player.windowed': { zh: '退出全屏 (F)', en: 'Exit fullscreen (F)' },
   'player.unmute': { zh: '打开配乐', en: 'Play music' },
   'player.mute': { zh: '关掉配乐', en: 'Mute music' },
   'billing.title': { zh: '订阅与额度', en: 'Plan & credits' },
