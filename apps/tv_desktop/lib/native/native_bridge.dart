@@ -228,6 +228,7 @@ class NativeBridge {
     String destPath, {
     int maxPixels = 1600,
     double quality = 0.82,
+    bool forceJpeg = false,
   }) async {
     if (!supported) return null;
     try {
@@ -236,6 +237,7 @@ class NativeBridge {
         'destPath': destPath,
         'maxPixels': maxPixels,
         'quality': quality,
+        'forceJpeg': forceJpeg,
       });
       if (m == null || m['ok'] != true) return null;
       return ExportedImage(

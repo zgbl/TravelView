@@ -166,9 +166,30 @@ class StoryExporter {
       routes: story.routes,
     );
 
+    // ── 分享预览图 og.jpg ──
+    // **必须是 JPEG**: Facebook / 微信的抓取器和 next/og 都不解 WebP，
+    // 塞一张 WebP 过去，分享出来就是一大块白。
+    // 单独生成一张 1200px 的封面图，不复用 photos/ 里那张。
+    String? ogImage;
+    final coverId = finalStory.coverPhotoId ??
+        (fixedPhotos.isEmpty ? null : fixedPhotos.first.id);
+    final coverRel = coverId == null ? null : catalog.relPathOf(coverId);
+    if (coverRel != null) {
+      final og = await NativeBridge.exportWeb(
+        File(p.joinAll([libraryRoot.path, ...p.posix.split(coverRel)])).path,
+        p.join(dir.path, 'og.jpg'),
+        maxPixels: 1200,
+        quality: 0.85,
+        forceJpeg: true,
+      );
+      if (og != null) ogImage = 'og.jpg';
+    }
+
     final manifest = File(p.join(dir.path, 'story.json'));
+    final manifestJson = finalStory.toJson();
+    if (ogImage != null) manifestJson['ogImage'] = ogImage;
     await manifest.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(finalStory.toJson()));
+        const JsonEncoder.withIndent('  ').convert(manifestJson));
 
     final indexHtml = File(p.join(dir.path, 'index.html'));
     await indexHtml.writeAsString(buildStoryHtml(finalStory));

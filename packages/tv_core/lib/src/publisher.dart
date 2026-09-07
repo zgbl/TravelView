@@ -182,6 +182,12 @@ class Publisher {
         ));
       }
     }
+    // 分享预览图放在导出目录根下，不在 photos/ 里 —— 它不是一张作品照片，
+    // 是社交平台专用的那一张卡片图
+    final og = File(p.join(dir.path, 'og.jpg'));
+    if (await og.exists()) {
+      out.add((path: 'og.jpg', file: og, contentType: 'image/jpeg'));
+    }
     out.sort((a, b) => a.path.compareTo(b.path));
     return out;
   }

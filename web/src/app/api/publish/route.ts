@@ -81,7 +81,7 @@ export async function POST(req: Request) {
       { error: 'manifest 里出现了原图路径，拒绝发布' }, { status: 400 });
   }
   const badPath = files.find(
-    (f) => !/^(photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.(webp|jpg|jpeg)$/i
+    (f) => !/^((photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.(webp|jpg|jpeg)|og\.jpg)$/i
       .test(f.path.replace(/^\/+/, '')));
   if (badPath) {
     return NextResponse.json(

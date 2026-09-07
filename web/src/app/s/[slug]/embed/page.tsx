@@ -8,12 +8,19 @@ export default async function Embed(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const { slug } = await params;
-  const row = await one<{ manifest: Story }>(
-    `select manifest from stories where slug = $1 and visibility = 'public'`,
+  const row = await one<{ manifest: Story; media_prefix: string | null }>(
+    `select manifest, media_prefix from stories
+      where slug = $1 and visibility = 'public'`,
     [slug],
   );
   if (!row) notFound();
-  return <StoryRenderer story={row.manifest} compact />;
+  return (
+    <StoryRenderer
+      story={row.manifest}
+      compact
+      prefix={row.media_prefix ?? `s/${slug}`}
+    />
+  );
 }
 
 export const dynamic = 'force-dynamic';

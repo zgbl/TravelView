@@ -74,7 +74,11 @@ export default async function PublicStory(
     <>
       {/* 底部分享条是固定的，留出空间，别压住结束卡片 */}
       <div className="pb-24">
-        <StoryRenderer locale={locale} story={row.manifest} />
+        <StoryRenderer
+          locale={locale}
+          story={row.manifest}
+          prefix={row.media_prefix ?? `s/${row.slug}`}
+        />
       </div>
       {/* 未公开的（unlisted）也给分享入口 —— 用户自己拿链接给谁是他的事 */}
       <ShareBar url={url} title={row.title} locale={locale} />

@@ -147,9 +147,11 @@ class PhoneBridge: NSObject {
       }
       let maxPx = args["maxPixels"] as? Int ?? 1600
       let quality = args["quality"] as? Double ?? 0.82
+      let forceJpeg = args["forceJpeg"] as? Bool ?? false
       PhoneBridge.bgWork.async {
         let m = PhoneBridge.exportWeb(
-          src: src, dst: dst, maxPixels: maxPx, quality: quality)
+          src: src, dst: dst, maxPixels: maxPx, quality: quality,
+          forceJpeg: forceJpeg)
         DispatchQueue.main.async { result(m) }
       }
 
@@ -400,8 +402,11 @@ extension PhoneBridge {
   ///
   /// 优先写 WebP（体积比 JPEG 小 25-35%）；系统不支持时自动退回 JPEG，
   /// 返回值里带上实际格式，调用方据此决定文件后缀。
+  /// [forceJpeg] 为 true 时直接写 JPEG，不尝试 WebP ——
+  /// 分享预览图必须是 JPEG，社交平台的抓取器（和 next/og）都不解 WebP。
   static func exportWeb(src: String, dst: String, maxPixels: Int,
-                        quality: Double) -> [String: Any] {
+                        quality: Double,
+                        forceJpeg: Bool = false) -> [String: Any] {
     let srcURL = URL(fileURLWithPath: src)
     guard let source = CGImageSourceCreateWithURL(srcURL as CFURL, nil) else {
       return ["ok": false, "error": "无法读取源文件"]
@@ -427,10 +432,13 @@ extension PhoneBridge {
     ]
 
     var format = "webp"
-    var out = CGImageDestinationCreateWithURL(
-      dstURL as CFURL, "org.webmproject.webp" as CFString, 1, nil)
+    var out: CGImageDestination? = nil
+    if !forceJpeg {
+      out = CGImageDestinationCreateWithURL(
+        dstURL as CFURL, "org.webmproject.webp" as CFString, 1, nil)
+    }
     if out == nil {
-      // 系统不支持写 WebP，退回 JPEG
+      // 要么调用方指定了 JPEG，要么系统不支持写 WebP
       format = "jpeg"
       dstURL = dstURL.deletingPathExtension().appendingPathExtension("jpg")
       out = CGImageDestinationCreateWithURL(
