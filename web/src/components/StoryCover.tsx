@@ -56,6 +56,8 @@ export default function StoryCover({
       center: [story.stops[0]?.lon ?? 0, story.stops[0]?.lat ?? 0],
       zoom: 3,
       attributionControl: false,
+      // 5K 屏上别按 2 倍像素铺满整屏 —— 显存扛不住，肉眼也看不出差别
+      maxCanvasSize: [4096, 4096] as [number, number],
       interactive: false,
     });
     mapRef.current = map;

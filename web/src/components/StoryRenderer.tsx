@@ -141,7 +141,7 @@ export default function StoryRenderer({
             <PlayButton onClick={() => setPlaying(true)} locale={locale} />
           </div>
           <div className="relative mt-8 h-[62vh] overflow-hidden rounded-3xl">
-            <StoryCover story={story} bottomPad={70} />
+            {!playing && <StoryCover story={story} bottomPad={70} />}
             {/* 只在四周收一圈内阴影，中间完全干净 */}
             <div className="pointer-events-none absolute inset-0 rounded-3xl
               shadow-[inset_0_0_90px_rgba(15,17,19,.55)]" />
@@ -155,7 +155,7 @@ export default function StoryRenderer({
               所以在任何底图上都跳得出来。 */}
           {coverMode === 'map' ? (
             <div className="absolute inset-0">
-              <StoryCover story={story} />
+              {!playing && <StoryCover story={story} />}
               <div className="pointer-events-none absolute inset-x-0 bottom-0
                 h-[58%] bg-gradient-to-t from-ink via-ink/75 to-transparent" />
             </div>
@@ -207,7 +207,7 @@ export default function StoryRenderer({
               miles: miles(story.stats.distanceMeters),
             })}
           </p>
-          <StoryOverviewMap story={story} />
+          {!playing && <StoryOverviewMap story={story} />}
         </section>
       )}
 
@@ -299,13 +299,17 @@ export default function StoryRenderer({
           ))}
         </div>
 
+        {/* 播放时把这张地图**卸载掉**，不是藏起来。
+            display:none 不会释放 WebGL 上下文和它的显存 ——
+            播放器自己还要开一张地图，页面上同时活着三张，
+            在 5K 屏最大化时 Chrome 会直接杀掉这个标签页。 */}
         <div className="sticky top-0 hidden h-screen lg:block">
-          <StoryMap
+          {!playing && <StoryMap
             story={story}
             stopAt={stopAt}
             activeStop={activeStop}
             activePhoto={activePhoto}
-          />
+          />}
         </div>
       </div>
 

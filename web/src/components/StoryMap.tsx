@@ -120,6 +120,8 @@ export default function StoryMap({
       center: [story.stops[0]?.lon ?? 0, story.stops[0]?.lat ?? 0],
       zoom: 4,
       attributionControl: false,
+      // 5K 屏上别按 2 倍像素铺满整屏 —— 显存扛不住，肉眼也看不出差别
+      maxCanvasSize: [4096, 4096] as [number, number],
       // 鼠标滚轮 / 触控板双指缩放。地图是右半屏的 sticky 面板，
       // 左半边照样能滚动正文，所以不必为了保住页面滚动而牺牲地图操作。
       scrollZoom: true,

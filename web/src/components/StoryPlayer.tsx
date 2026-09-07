@@ -331,6 +331,11 @@ function PlayerMap({
       zoom: 4,
       attributionControl: false,
       interactive: false,
+      // **在 5K 屏上限制画布分辨率。** 默认会按 devicePixelRatio=2 铺满整屏，
+      // 一张 10240×5760 的 WebGL 画布，光这一层就是几百 MB 显存；
+      // 而这张图是被压暗当背景用的，多出来的分辨率一点也看不见
+      maxCanvasSize: [4096, 4096],
+      refreshExpiredTiles: false,
     });
     mapRef.current = map;
 
@@ -550,12 +555,30 @@ function PhotoBeat({
 
   return (
     <>
-      {/* 竖图不裁: 背后放一张放大模糊的同一张图当底，比黑边体面得多 */}
-      <div
-        className="absolute inset-0 scale-110 bg-cover bg-center blur-2xl
-          opacity-45"
-        style={{ backgroundImage: `url(${src})` }}
-      />
+      {/*
+        竖图不裁: 背后放一张放大模糊的同一张图当底，比黑边体面得多。
+
+        **模糊必须在一个很小的层上做，再放大。**
+        原来是给整屏那么大的一层加 blur(40px) —— 在 5K 屏上等于让 GPU
+        对一张 5120×2880 的位图做大半径卷积，每换一张照片重来一次，
+        再叠上放大动画和地图的 WebGL 上下文，显存直接爆掉，
+        Chrome 就把这个标签页杀了（把窗口最大化时必然触发）。
+        现在这层只有 64×36，模糊半径也随之缩到 4px，效果一模一样，
+        代价是原来的几千分之一。
+      */}
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div
+          className="absolute left-1/2 top-1/2 h-9 w-16 bg-cover bg-center
+            opacity-45"
+          style={{
+            backgroundImage: `url(${src})`,
+            filter: 'blur(4px)',
+            // 放大到铺满，缩放发生在模糊之后，所以不增加卷积成本
+            transform: 'translate(-50%,-50%) scale(90)',
+            transformOrigin: 'center',
+          }}
+        />
+      </div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={src}
