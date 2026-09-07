@@ -71,11 +71,21 @@ export async function POST(req: Request) {
   }
   const { manifest, files, visibility, storyId } = parsed.data;
 
-  // 防呆: manifest 里出现原图后缀说明 App 那边出了问题，直接拒绝
+  // 防呆: manifest 里出现原图格式说明 App 那边出了问题，直接拒绝。
+  // jpg 不在这个名单里 —— 系统编不出 WebP 时导出的就是 JPEG 派生图。
+  // 真正兜住"不许传原图"的是下面这条路径形状检查 + safeKey:
+  // 只有导出目录里 photos/ 和 thumbs/ 下的文件才可能被上传。
   const asText = JSON.stringify(manifest);
-  if (/\.(heic|heif|dng|cr2|nef|arw|jpg|jpeg|png)"/i.test(asText)) {
+  if (/\.(heic|heif|dng|cr2|nef|arw|raf|orf|rw2|tif|tiff)"/i.test(asText)) {
     return NextResponse.json(
       { error: 'manifest 里出现了原图路径，拒绝发布' }, { status: 400 });
+  }
+  const badPath = files.find(
+    (f) => !/^(photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.(webp|jpg|jpeg)$/i
+      .test(f.path.replace(/^\/+/, '')));
+  if (badPath) {
+    return NextResponse.json(
+      { error: `不允许的文件路径: ${badPath.path}` }, { status: 400 });
   }
 
   const user = await one<{

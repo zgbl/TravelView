@@ -66,7 +66,16 @@ class PublishResult {
 
 /// 允许上传的后缀。**白名单，不是黑名单** ——
 /// 新增一种原图格式时，不该因为忘了往黑名单里加就泄漏出去。
-const _allowedExt = {'.webp'};
+///
+/// 为什么 jpg 也在里面: 导出用的是系统的图像编码器，
+/// **某些图它编不出 WebP，会退回 JPEG**（exportWeb 的返回值里写了实际格式）。
+/// 那张 JPEG 一样是 1600px、剥干净元数据的派生图 ——
+/// 这条闸门要挡的是"原图被传上去"，不是某一种格式。
+/// 原图格式（HEIC / DNG / CR2 / NEF / ARW）依然进不来。
+const _allowedExt = {'.webp', '.jpg', '.jpeg'};
+
+String _contentTypeOf(String ext) =>
+    ext == '.webp' ? 'image/webp' : 'image/jpeg';
 
 class Publisher {
   final PublishConfig config;
@@ -163,12 +172,13 @@ class Publisher {
         final ext = p.extension(e.path).toLowerCase();
         if (!_allowedExt.contains(ext)) {
           throw PublishException(
-              '导出目录里有非 WebP 文件 ${p.basename(e.path)}，为安全起见拒绝上传');
+              '导出目录里有不该出现的文件 ${p.basename(e.path)}，'
+              '为安全起见拒绝上传');
         }
         out.add((
           path: '$sub/${p.basename(e.path)}',
           file: e,
-          contentType: 'image/webp',
+          contentType: _contentTypeOf(ext),
         ));
       }
     }

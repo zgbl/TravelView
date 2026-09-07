@@ -35,8 +35,9 @@ export async function PUT(req: Request) {
   }
 
   const type = req.headers.get('content-type') ?? '';
-  if (!type.startsWith('image/webp')) {
-    return NextResponse.json({ error: '只接受 WebP' }, { status: 415 });
+  if (!type.startsWith('image/webp') && !type.startsWith('image/jpeg')) {
+    return NextResponse.json({ error: '只接受 WebP 或 JPEG 派生图' },
+      { status: 415 });
   }
 
   const body = Buffer.from(await req.arrayBuffer());
@@ -46,10 +47,20 @@ export async function PUT(req: Request) {
   if (body.length > maxUploadBytes) {
     return NextResponse.json({ error: '文件太大' }, { status: 413 });
   }
-  // RIFF....WEBP —— 光信 Content-Type 不够，客户端说什么都可以
-  if (body.subarray(0, 4).toString('ascii') !== 'RIFF' ||
-      body.subarray(8, 12).toString('ascii') !== 'WEBP') {
-    return NextResponse.json({ error: '这不是 WebP 文件' }, { status: 415 });
+  // 光信 Content-Type 不够，客户端说什么都可以 —— 认魔数。
+  // RIFF....WEBP 或 JPEG 的 FF D8 FF
+  const isWebp = body.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    body.subarray(8, 12).toString('ascii') === 'WEBP';
+  const isJpeg = body[0] === 0xff && body[1] === 0xd8 && body[2] === 0xff;
+  if (!isWebp && !isJpeg) {
+    return NextResponse.json({ error: '这不是 WebP 或 JPEG 文件' },
+      { status: 415 });
+  }
+  // 声明的格式和实际内容必须对得上，否则浏览器拿到的 Content-Type 是错的
+  if ((type.startsWith('image/webp') && !isWebp) ||
+      (type.startsWith('image/jpeg') && !isJpeg)) {
+    return NextResponse.json({ error: '文件内容和声明的格式不一致' },
+      { status: 415 });
   }
 
   await writeLocal(key, body);

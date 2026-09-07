@@ -65,6 +65,7 @@ class StoryExporter {
     final warnings = <String>[];
     final records = <String, PhotoRecord>{};
     final exported = <String, ExportedImage>{};
+    final thumbs = <String, String>{};
 
     // 只导出被选中的照片
     final wanted = <PhotoRecord>[];
@@ -97,12 +98,17 @@ class StoryExporter {
         onProgress?.call(done, wanted.length, r.origFilename);
         continue;
       }
-      await NativeBridge.exportWeb(
+      // 缩略图也可能退回 JPEG，路径必须用**实际导出的文件名**，
+      // 不能写死 .webp —— 写死的话 manifest 会指向一个不存在的文件
+      final thumb = await NativeBridge.exportWeb(
         src.path,
         p.join(dir.path, 'thumbs', '${r.id}.webp'),
         maxPixels: thumbMaxPixels,
         quality: 0.72,
       );
+      thumbs[r.id] = thumb == null
+          ? 'thumbs/${r.id}.webp'
+          : 'thumbs/${p.basename(thumb.path)}';
 
       records[r.id] = r;
       exported[r.id] = web;
@@ -123,7 +129,7 @@ class StoryExporter {
       heroByStopSeq: heroByStopSeq,
       legs: legs,
       webPathOf: (r) => 'photos/${p.basename(exported[r.id]!.path)}',
-      thumbPathOf: (r) => 'thumbs/${r.id}.webp',
+      thumbPathOf: (r) => thumbs[r.id] ?? 'thumbs/${r.id}.webp',
       stopNames: stopNames,
       stopNotes: stopNotes,
     );

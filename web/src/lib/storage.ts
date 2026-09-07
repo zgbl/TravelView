@@ -59,10 +59,14 @@ export function verifyUpload(key: string, exp: string, sig: string) {
  * 一次上传就能写到磁盘上任何地方。老形状必须继续认 ——
  * 已经发布出去的 Story 还指着那些路径。
  */
-const LEGACY_KEY =
-  /^s\/[a-z0-9]{4,32}\/(photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.webp$/;
-const USER_KEY =
-  /^u\/[0-9a-f-]{36}\/\d{4}\/\d{2}\/[a-z0-9]{4,32}\/(photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.webp$/;
+// 派生图的两种格式: WebP，以及系统编不出 WebP 时退回的 JPEG。
+// 原图格式（heic/dng/cr2/nef/arw…）一个都不在里面。
+const EXT = '(webp|jpg|jpeg)';
+const LEGACY_KEY = new RegExp(
+  `^s/[a-z0-9]{4,32}/(photos|thumbs)/[A-Za-z0-9._-]{1,80}\\.${EXT}$`);
+const USER_KEY = new RegExp(
+  `^u/[0-9a-f-]{36}/\\d{4}/\\d{2}/[a-z0-9]{4,32}` +
+  `/(photos|thumbs)/[A-Za-z0-9._-]{1,80}\\.${EXT}$`);
 
 export function safeKey(key: string): string | null {
   if (key.includes('..')) return null;
