@@ -37,15 +37,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: '参数不对' }, { status: 400 });
   }
 
-  const story = await one<{
+  type StoryRow = {
     id: string; slug: string; media_prefix: string | null;
     manifest: Story; published_at: string | null; credit_consumed: boolean;
     update_count: number;
-  }>(`select id, slug, media_prefix, manifest, published_at,
-             coalesce(credit_consumed, false) as credit_consumed,
-             coalesce(update_count, 0) as update_count
-        from stories where id = $1 and user_id = $2`,
-    [parsed.data.storyId, owner.user_id]);
+  };
+  let story: StoryRow | null = null;
+  try {
+    story = await one<StoryRow>(
+      `select id, slug, media_prefix, manifest, published_at,
+              coalesce(credit_consumed, false) as credit_consumed,
+              coalesce(update_count, 0) as update_count
+         from stories where id = $1 and user_id = $2`,
+      [parsed.data.storyId, owner.user_id]);
+  } catch {
+    // 010 迁移还没跑。**发布是用户花过钱的动作，
+    // 绝不能因为少一列就整个 500** —— 当作从没更新过即可
+    story = await one<StoryRow>(
+      `select id, slug, media_prefix, manifest, published_at,
+              coalesce(credit_consumed, false) as credit_consumed,
+              0 as update_count
+         from stories where id = $1 and user_id = $2`,
+      [parsed.data.storyId, owner.user_id]);
+  }
   if (!story) return NextResponse.json({ error: '找不到这一篇' }, { status: 404 });
 
   // 本地磁盘驱动下真的去数一遍文件。少一张就不算发布完成 ——
@@ -73,14 +87,24 @@ export async function POST(req: Request) {
   }
 
   const beta = await betaState();
-  const user = await one<{
+  type UserRow = {
     story_credits: number;
     subscription_status: string | null;
     subscription_until: string | null;
     credit_half: number;
-  }>(`select story_credits, subscription_status, subscription_until,
-             coalesce(credit_half, 0) as credit_half
-        from users where id = $1`, [owner.user_id]);
+  };
+  let user: UserRow | null = null;
+  try {
+    user = await one<UserRow>(
+      `select story_credits, subscription_status, subscription_until,
+              coalesce(credit_half, 0) as credit_half
+         from users where id = $1`, [owner.user_id]);
+  } catch {
+    user = await one<UserRow>(
+      `select story_credits, subscription_status, subscription_until,
+              0 as credit_half
+         from users where id = $1`, [owner.user_id]);
+  }
   const ent = entitlementOf(user ?? null, beta);
 
   let consumed = false;
@@ -108,8 +132,9 @@ export async function POST(req: Request) {
   } else {
     // ── 更新: 前 FREE_UPDATES 次免费，之后每次 0.5 篇 ──
     updateCount = story.update_count + 1;
+    // 计次失败（迁移没跑）就当没计 —— 少收一次钱远好过让发布失败
     await one('update stories set update_count = $2 where id = $1',
-      [story.id, updateCount]);
+      [story.id, updateCount]).catch(() => {});
 
     // 每 5 次收一次 0.5 篇: 第 6、11、16... 次
     if (ent.consumesCredit && updateCharged(updateCount)) {
@@ -125,10 +150,11 @@ export async function POST(req: Request) {
         }
         await one(
           `update users set story_credits = story_credits - 1,
-                  credit_half = 0 where id = $1`, [owner.user_id]);
+                  credit_half = 0 where id = $1`, [owner.user_id])
+            .catch(() => {});
       } else {
         await one('update users set credit_half = 1 where id = $1',
-          [owner.user_id]);
+          [owner.user_id]).catch(() => {});
       }
       charged = 0.5;
     }

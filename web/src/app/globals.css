@@ -4,3 +4,50 @@
 
 :root { color-scheme: dark; }
 html, body { background: #0f1113; }
+
+
+/* ---------- 全屏播放的动画 ----------
+   都用 transform / opacity / filter，不碰 layout ——
+   这些属性走合成器，掉帧的时候画面还是顺的。 */
+
+@keyframes tvUp {
+  from { opacity: 0; transform: translateY(26px); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* 字距收拢: 电影片头常用的做法，比单纯淡入"贵"一点 */
+@keyframes tvIn {
+  from { opacity: 0; letter-spacing: .28em; transform: translateY(10px); }
+  to   { opacity: 1; letter-spacing: normal; transform: none; }
+}
+
+/* 从左边擦出来 */
+@keyframes tvWipe {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+  to   { opacity: 1; clip-path: inset(0 0 0 0); }
+}
+
+@keyframes tvBlur {
+  from { opacity: 0; filter: blur(14px); transform: scale(1.04); }
+  to   { opacity: 1; filter: blur(0); transform: none; }
+}
+
+/* Ken Burns: 照片缓慢推近/拉远。静止的照片连放十张会显得很死 */
+@keyframes tvKenIn {
+  from { transform: scale(1.0) translate3d(0,0,0); }
+  to   { transform: scale(1.09) translate3d(-1.5%, -1%, 0); }
+}
+@keyframes tvKenOut {
+  from { transform: scale(1.09) translate3d(1.5%, 1%, 0); }
+  to   { transform: scale(1.0) translate3d(0,0,0); }
+}
+
+@keyframes tvBar { from { width: 0 } to { width: 100% } }
+
+/* 系统里关了动效的人，不该被推镜头和擦入晃到 */
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[tv"], [style*="tvKen"] {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

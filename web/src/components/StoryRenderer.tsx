@@ -5,6 +5,7 @@ import { mediaUrl, miles, thumbUrl, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
 import PhotoLightbox from './PhotoLightbox';
+import StoryPlayer from './StoryPlayer';
 import StoryCover from './StoryCover';
 import Logo from './Logo';
 import { t, type Locale } from '@/lib/i18n';
@@ -35,6 +36,8 @@ export default function StoryRenderer({
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
   /// 大图看的是第几张（story.photos 里的下标）。null = 没打开
   const [lightbox, setLightbox] = useState<number | null>(null);
+  /// 全屏播放。**滚动阅读仍然是默认**，这只是另一种看法
+  const [playing, setPlaying] = useState(false);
   const indexOfPhoto = (id: string) => story.photos.findIndex((p) => p.id === id);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -128,11 +131,14 @@ export default function StoryRenderer({
               {story.subtitle}
             </p>
           )}
-          <div className="mt-7 flex flex-wrap gap-8">
-            <Stat n={story.stats.days} k="DAYS" />
-            <Stat n={story.stats.stops} k="STOPS" />
-            <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
-            <Stat n={story.stats.photos} k="PHOTOS" />
+          <div className="mt-7 flex flex-wrap items-center gap-5">
+            <div className="flex flex-wrap gap-8">
+              <Stat n={story.stats.days} k="DAYS" />
+              <Stat n={story.stats.stops} k="STOPS" />
+              <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
+              <Stat n={story.stats.photos} k="PHOTOS" />
+            </div>
+            <PlayButton onClick={() => setPlaying(true)} locale={locale} />
           </div>
           <div className="relative mt-8 h-[62vh] overflow-hidden rounded-3xl">
             <StoryCover story={story} bottomPad={70} />
@@ -300,6 +306,15 @@ export default function StoryRenderer({
         </div>
       </div>
 
+      {playing && (
+        <StoryPlayer
+          story={story}
+          prefix={prefix}
+          locale={locale}
+          onClose={() => setPlaying(false)}
+        />
+      )}
+
       {lightbox !== null && (
         <PhotoLightbox
           photos={story.photos}
@@ -346,6 +361,36 @@ export default function StoryRenderer({
         </section>
       )}
     </div>
+  );
+}
+
+/**
+ * 全屏播放的入口。
+ *
+ * **放在封面上、紧挨着那四个数字** —— 读者刚看到"5 天 72 站 1949 英里"
+ * 的那一刻，正是最想知道"这一路都有什么"的时候。
+ * 藏在页脚或菜单里，等于没有。
+ */
+function PlayButton({
+  onClick, locale,
+}: { onClick: () => void; locale: Locale }) {
+  return (
+    <button
+      onClick={onClick}
+      className="group flex items-center gap-3 rounded-full bg-white/95
+        px-6 py-3.5 text-ink transition hover:bg-white"
+    >
+      <span className="flex h-7 w-7 items-center justify-center rounded-full
+        bg-ink text-[11px] text-paper">▶</span>
+      <span className="text-left">
+        <span className="block text-sm font-semibold">
+          {t(locale, 'player.open')}
+        </span>
+        <span className="block text-[11px] text-ink/55">
+          {t(locale, 'player.hint')}
+        </span>
+      </span>
+    </button>
   );
 }
 
