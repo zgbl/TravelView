@@ -201,7 +201,9 @@ class StoryExporter {
     final manifestJson = finalStory.toJson();
     if (ogImage != null) manifestJson['ogImage'] = ogImage;
     // 片头用路线图还是照片。网页和分享预览图都看这个字段
-    manifestJson['coverMode'] = coverMode == 'photo' ? 'photo' : 'map';
+    manifestJson['coverMode'] =
+        const {'map', 'mapcard', 'photo'}.contains(coverMode)
+            ? coverMode : 'map';
     await manifest.writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifestJson));
 

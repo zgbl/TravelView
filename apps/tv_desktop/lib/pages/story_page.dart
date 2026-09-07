@@ -356,7 +356,10 @@ class _StoryPageState extends State<StoryPage> {
             segments: const [
               ButtonSegment(
                   value: 'map',
-                  label: Text('路线图', style: TextStyle(fontSize: 11))),
+                  label: Text('整屏地图', style: TextStyle(fontSize: 11))),
+              ButtonSegment(
+                  value: 'mapcard',
+                  label: Text('地图卡片', style: TextStyle(fontSize: 11))),
               ButtonSegment(
                   value: 'photo',
                   label: Text('照片', style: TextStyle(fontSize: 11))),

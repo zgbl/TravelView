@@ -5,7 +5,7 @@ import { mediaUrl, miles, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
 import PhotoLightbox from './PhotoLightbox';
-import RouteArtwork from './RouteArtwork';
+import HeroMap from './HeroMap';
 import { t, type Locale } from '@/lib/i18n';
 
 /**
@@ -93,38 +93,23 @@ export default function StoryRenderer({
   const cover = story.cover ? photoById[story.cover] : undefined;
   // manifest 里没写就是地图 —— 老故事也一并换成地图片头，
   // 它们的封面本来就是"第一站的第一张"，没有任何人挑过
-  const coverMode =
-    (story as unknown as { coverMode?: string }).coverMode === 'photo'
-      ? 'photo' : 'map';
+  const rawMode = (story as unknown as { coverMode?: string }).coverMode;
+  const coverMode: 'map' | 'mapcard' | 'photo' =
+    rawMode === 'photo' ? 'photo' : rawMode === 'mapcard' ? 'mapcard' : 'map';
 
   return (
     <div className="bg-ink text-paper">
       {/* Hero */}
-      <section className="relative flex h-[88vh] items-end overflow-hidden">
-        {/* 片头用路线图还是照片。默认路线图 ——
-            一张照片谁都有，这条真实走过的路线只有这一趟有，
-            它才是这篇东西第一眼该给人看的东西。 */}
-        {coverMode === 'map' ? (
-          <div className="absolute inset-0">
-            <RouteArtwork story={story} />
-            {/* 底部压暗，保证标题永远读得清 */}
-            <div className="absolute inset-0 bg-gradient-to-t
-              from-ink via-ink/45 to-ink/10" />
-          </div>
-        ) : cover ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={mediaUrl(cover.web.path, prefix)}
-            alt=""
-            className="absolute inset-0 h-full w-full object-cover brightness-[.6]"
-          />
-        ) : null}
-        <div className="relative max-w-3xl px-[6vw] pb-[8vh]">
-          <h1 className="text-[clamp(34px,6vw,68px)] font-semibold leading-[1.08] tracking-tight">
+      {coverMode === 'mapcard' ? (
+        /* 方案 B: 标题在地图外面，地图做成一张干净的卡片。
+           最保守 —— 地图一个像素都没被遮住。 */
+        <section className="px-[6vw] pb-[6vh] pt-[9vh]">
+          <h1 className="text-[clamp(34px,6vw,68px)] font-semibold
+            leading-[1.08] tracking-tight">
             {story.title}
           </h1>
           {story.subtitle && (
-            <p className="mt-3 text-[clamp(14px,2vw,19px)] text-white/85">
+            <p className="mt-3 text-[clamp(14px,2vw,19px)] text-muted">
               {story.subtitle}
             </p>
           )}
@@ -134,8 +119,55 @@ export default function StoryRenderer({
             <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
             <Stat n={story.stats.photos} k="PHOTOS" />
           </div>
-        </div>
-      </section>
+          <div className="relative mt-8 h-[62vh] overflow-hidden rounded-3xl">
+            <HeroMap story={story} bottomPad={70} />
+            {/* 只在四周收一圈内阴影，中间完全干净 */}
+            <div className="pointer-events-none absolute inset-0 rounded-3xl
+              shadow-[inset_0_0_90px_rgba(15,17,19,.55)]" />
+          </div>
+        </section>
+      ) : (
+        <section className="relative flex h-[88vh] items-end overflow-hidden">
+          {/* 方案 A: 整屏真地图。**底图一点都不压暗** ——
+              只有画面下方约一半有一层从透明渐变到深色的遮罩托住标题，
+              上半张地图完全没被遮。路线本身是"深描边 + 亮线"两层，
+              所以在任何底图上都跳得出来。 */}
+          {coverMode === 'map' ? (
+            <div className="absolute inset-0">
+              <HeroMap story={story} />
+              <div className="pointer-events-none absolute inset-x-0 bottom-0
+                h-[58%] bg-gradient-to-t from-ink via-ink/75 to-transparent" />
+            </div>
+          ) : cover ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={mediaUrl(cover.web.path, prefix)}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover
+                brightness-[.6]"
+            />
+          ) : null}
+          <div className="relative max-w-3xl px-[6vw] pb-[8vh]"
+            style={{ textShadow: '0 2px 18px rgba(0,0,0,.55)' }}>
+            <h1 className="text-[clamp(34px,6vw,68px)] font-semibold
+              leading-[1.08] tracking-tight">
+              {story.title}
+            </h1>
+            {story.subtitle && (
+              <p className="mt-3 text-[clamp(14px,2vw,19px)] text-white/90">
+                {story.subtitle}
+              </p>
+            )}
+            <div className="mt-7 inline-flex flex-wrap gap-8 rounded-2xl
+              bg-black/25 px-6 py-4 backdrop-blur-sm">
+              <Stat n={story.stats.days} k="DAYS" />
+              <Stat n={story.stats.stops} k="STOPS" />
+              <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
+              <Stat n={story.stats.photos} k="PHOTOS" />
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* ② Route: 整趟旅行的全貌，分享出去第一眼想看的就是它 */}
       <section className="px-[6vw] pb-[4vh] pt-[8vh]">

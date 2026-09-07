@@ -42,11 +42,28 @@ const _template = r'''<!doctype html>
     overflow:hidden}
   .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
     filter:brightness(.62)}
-  .hero .art{position:absolute;inset:0}
-  .hero .art svg{width:100%;height:100%;display:block}
-  .hero .scrim{position:absolute;inset:0;
-    background:linear-gradient(to top,#0f1113 0%,rgba(15,17,19,.45) 45%,
-      rgba(15,17,19,.10) 100%)}
+  /* 片头的真地图。**底图一点都不压暗** —— 只有下方一条渐变托住标题 */
+  .hero .heromap{position:absolute;inset:0}
+  .hero .scrim{position:absolute;left:0;right:0;bottom:0;height:58%;
+    background:linear-gradient(to top,#0f1113 0%,rgba(15,17,19,.75) 45%,
+      rgba(15,17,19,0) 100%);pointer-events:none}
+  .hero .inner{text-shadow:0 2px 18px rgba(0,0,0,.55)}
+  .hero .stats{display:inline-flex;gap:26px;flex-wrap:wrap;
+    background:rgba(0,0,0,.25);padding:14px 22px;border-radius:16px;
+    backdrop-filter:blur(4px)}
+  /* 方案 B: 标题在地图外面，地图是一张干净的卡片 */
+  .cardhero{padding:9vh 6vw 6vh}
+  .cardhero h1{font-size:clamp(34px,6vw,68px);line-height:1.1;margin:0 0 14px;
+    letter-spacing:-.02em}
+  .cardhero .sub{color:#8a9196;font-size:clamp(14px,2vw,19px)}
+  .cardhero .stats{margin-top:22px;display:flex;gap:26px;flex-wrap:wrap}
+  .cardhero .stats .n{font-size:26px;font-weight:600;display:block}
+  .cardhero .stats .k{font-size:12px;color:#8a9196;letter-spacing:.08em;
+    display:block}
+  .cardhero .mapwrap{position:relative;height:62vh;margin-top:30px;
+    border-radius:24px;overflow:hidden}
+  .cardhero .mapwrap .edge{position:absolute;inset:0;border-radius:24px;
+    box-shadow:inset 0 0 90px rgba(15,17,19,.55);pointer-events:none}
   .hero .inner{position:relative;padding:0 6vw 8vh;max-width:900px}
   .hero h1{font-size:clamp(34px,6vw,68px);line-height:1.1;margin:0 0 14px;
     letter-spacing:-.02em}
@@ -95,9 +112,6 @@ const _template = r'''<!doctype html>
   #mapwrap{position:sticky;top:0;height:100vh}
   #map{width:100%;height:100%;background:#0c0e10}
   .leaflet-container{background:#0c0e10}
-  .hero .art path.draw{stroke-dasharray:6000;stroke-dashoffset:6000;
-    animation:tvDraw 2.6s ease-out forwards}
-  @keyframes tvDraw{to{stroke-dashoffset:0}}
   @media (max-width:900px){#mapwrap{height:52vh;top:0}}
 
   .car{font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
@@ -140,6 +154,9 @@ const _template = r'''<!doctype html>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const STORY = __STORY_JSON__;
+// 导出包是自包含的，但瓦片只能联网取。离线打开时地图是空的，
+// 照片和文字照常能看 —— 这是刻意的取舍
+const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 /* ---------- polyline6 解码：和 Dart 端是同一套算法 ---------- */
 function decodePolyline(str, precision){
@@ -173,66 +190,45 @@ function fmtTime(iso){
   return d.toTimeString().slice(0,5);
 }
 
-/* ---------- 片头的路线图 ----------
-   和网站上那份是同一套算法: Web Mercator 投影 + 等比缩放。
-   **不画地图**: 没有瓦片、没有地名，只有一个形状。
-   好处是离线打开也一样能看，而且秒开。 */
-function mercXY(lat, lon){
-  const x = (lon + 180) / 360;
-  const s = Math.sin(lat * Math.PI / 180);
-  return [x, 0.5 - Math.log((1+s)/(1-s)) / (4*Math.PI)];
-}
+/* ---------- 片头的真地图 ----------
+   底图一点都不压暗: 要让标题读得清，就去处理标题（下方一条局部渐变
+   + 文字阴影），而不是把整张地图糊掉 —— 那样地图就不成其为地图了。
+   路线两层画: 深色粗描边打底 + 亮青细线在上，
+   任何底图（浅色街道、地形、卫星）上都跳得出来。 */
+let heroMap = null;
 
-function routeArtSvg(w, h){
-  const lines = (STORY.routes||[])
-    .map(r => decodePolyline(r.geometry, r.precision || 6))
-    .filter(pts => pts.length > 1);
-  const stops = (STORY.stops||[]).map(s => [s.lat, s.lon]);
-  const all = [].concat.apply([], lines).concat(stops);
-  if (all.length < 2) return '';
+function initHeroMap(elId, bottomPad){
+  const el = document.getElementById(elId);
+  if (!el || !window.L) return;
+  heroMap = L.map(elId, {
+    zoomControl:false, attributionControl:false,
+    dragging:false, scrollWheelZoom:false, doubleClickZoom:false,
+    boxZoom:false, keyboard:false, touchZoom:false, tap:false,
+  });
+  L.tileLayer(TILE_URL, {maxZoom:19}).addTo(heroMap);
 
-  const pad = Math.min(w, h) * 0.12;
-  const proj = all.map(p => mercXY(p[0], p[1]));
-  const xs = proj.map(p => p[0]), ys = proj.map(p => p[1]);
-  const minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
-  const minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
-  const scale = Math.min((w - pad*2) / Math.max(maxX-minX, 1e-9),
-                         (h - pad*2) / Math.max(maxY-minY, 1e-9));
-  const offX = (w - (maxX-minX)*scale) / 2;
-  const offY = (h - (maxY-minY)*scale) / 2;
-  const to = (la, lo) => {
-    const m = mercXY(la, lo);
-    return [(m[0]-minX)*scale + offX, (m[1]-minY)*scale + offY];
-  };
+  const all = [];
+  (STORY.routes||[]).forEach(r => {
+    const pts = decodePolyline(r.geometry, r.precision || 6);
+    if (pts.length < 2) return;
+    all.push.apply(all, pts);
+    L.polyline(pts, {color:'#0f1113', weight:9, opacity:.55,
+      lineCap:'round', lineJoin:'round'}).addTo(heroMap);
+    L.polyline(pts, {color:'#4fbfa8', weight:4,
+      lineCap:'round', lineJoin:'round'}).addTo(heroMap);
+  });
+  (STORY.stops||[]).forEach(st => {
+    L.circleMarker([st.lat, st.lon], {radius:4, color:'#0f1113', weight:2,
+      fillColor:'#ffffff', fillOpacity:1}).addTo(heroMap);
+    all.push([st.lat, st.lon]);
+  });
 
-  // 长路线抽稀，否则 path 长到几十 KB
-  const d = lines.map(pts => {
-    const k = Math.max(1, Math.floor(pts.length / 400));
-    return pts.filter((_, i) => i % k === 0 || i === pts.length-1)
-      .map((p, i) => {
-        const q = to(p[0], p[1]);
-        return (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1);
-      }).join(' ');
-  }).join(' ');
-
-  const dots = (STORY.stops||[]).map(s => {
-    const q = to(s.lat, s.lon);
-    return '<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="5" '
-         + 'fill="#0f1113" stroke="#4fbfa8" stroke-width="3"></circle>';
-  }).join('');
-  const last = (STORY.stops||[])[(STORY.stops||[]).length-1];
-  const endDot = last ? (function(){
-    const q = to(last.lat, last.lon);
-    return '<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="9" '
-         + 'fill="#ff8a5b" stroke="#0f1113" stroke-width="3"></circle>';
-  })() : '';
-
-  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid meet">'
-    + '<path d="'+d+'" fill="none" stroke="#1f6f63" stroke-width="16" '
-    + 'stroke-linecap="round" stroke-linejoin="round" opacity=".45"></path>'
-    + '<path class="draw" d="'+d+'" fill="none" stroke="#4fbfa8" '
-    + 'stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>'
-    + dots + endDot + '</svg>';
+  if (all.length) {
+    // 底部多留出标题的高度，路线自然被推到上半屏，不被字压住
+    heroMap.fitBounds(L.latLngBounds(all),
+      {paddingTopLeft:[40, 40], paddingBottomRight:[40, bottomPad || 40]});
+  }
+  setTimeout(() => heroMap && heroMap.invalidateSize(), 60);
 }
 
 /* ---------- 渲染 ---------- */
@@ -242,22 +238,34 @@ function render(){
   const miles = Math.round(st.distanceMeters / 1609.344);
 
   let html = '';
-  html += '<section class="hero">';
-  // 片头用路线图还是照片。manifest 里没写就是路线图 ——
-  // 一张照片谁都有，这条走过的路线只有这一趟有
-  if (STORY.coverMode !== 'photo') {
-    const art = routeArtSvg(1600, 900);
-    if (art) html += '<div class="art">'+art+'</div><div class="scrim"></div>';
-    else if (cover) html += '<img src="'+cover.web.path+'" alt="">';
-  } else if (cover) {
-    html += '<img src="'+cover.web.path+'" alt="">';
-  }
+  const mode = STORY.coverMode === 'photo' ? 'photo'
+             : STORY.coverMode === 'mapcard' ? 'mapcard' : 'map';
+
+  if (mode === 'mapcard') {
+    // 方案 B: 标题在地图外面，地图是一张干净的卡片 —— 地图一个像素没被遮
+    html += '<section class="cardhero"><h1>'+esc(STORY.title)+'</h1>';
+    if (STORY.subtitle) html += '<div class="sub">'+esc(STORY.subtitle)+'</div>';
+    html += '<div class="stats">'
+         + stat(st.days,'DAYS') + stat(st.stops,'STOPS')
+         + stat(miles,'MILES') + stat(st.photos,'PHOTOS')
+         + '</div>'
+         + '<div class="mapwrap"><div id="heromap" style="height:100%"></div>'
+         + '<div class="edge"></div></div></section>';
+  } else {
+    html += '<section class="hero">';
+    if (mode === 'map') {
+      html += '<div class="heromap" id="heromap"></div>'
+           + '<div class="scrim"></div>';
+    } else if (cover) {
+      html += '<img src="'+cover.web.path+'" alt="">';
+    }
   html += '<div class="inner"><h1>'+esc(STORY.title)+'</h1>';
   if (STORY.subtitle) html += '<div class="sub">'+esc(STORY.subtitle)+'</div>';
   html += '<div class="stats">'
        + stat(st.days,'DAYS') + stat(st.stops,'STOPS')
        + stat(miles,'MILES') + stat(st.photos,'PHOTOS')
-       + '</div></div></section>';
+         + '</div></div></section>';
+  }
 
   // ② Route: 整趟旅行的全貌。**这是产品的核心画面之一** ——
   // 右侧那张是跟着阅读走的细节地图，这里要的是"我这趟一共走了哪儿"。
@@ -311,6 +319,11 @@ function render(){
        + ' &middot; 由 TravelView 生成</footer>';
 
   document.getElementById('app').innerHTML = html;
+
+  // 片头地图要等 DOM 落地之后才能初始化
+  if (mode !== 'photo') {
+    initHeroMap('heromap', mode === 'map' ? 260 : 40);
+  }
 }
 function stat(n,k){return '<div><span class="n">'+n+'</span><span class="k">'+k+'</span></div>';}
 function big(n,k){return '<div><div class="n">'+n+'</div><div class="k">'+k+'</div></div>';}

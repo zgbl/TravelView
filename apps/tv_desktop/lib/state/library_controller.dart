@@ -716,13 +716,18 @@ class LibraryController extends ChangeNotifier {
   String get coverPhotoId => currentProject?.coverPhotoId ?? _tmpCover;
   String _tmpCover = '';
 
-  /// 片头用路线图还是照片。**默认路线图** ——
+  /// 片头用什么。**默认整屏地图** ——
   /// 一张照片谁都有，这条真实走过的路线只有这一趟有。
+  ///   map     整屏真地图，标题压在下方的渐变里
+  ///   mapcard 标题在地图外面，地图是一张干净的卡片
+  ///   photo   一张照片
   String get coverMode => currentProject?.coverMode ?? _tmpCoverMode;
   String _tmpCoverMode = 'map';
 
+  static const coverModes = ['map', 'mapcard', 'photo'];
+
   Future<void> setCoverMode(String mode) async {
-    _tmpCoverMode = mode == 'photo' ? 'photo' : 'map';
+    _tmpCoverMode = coverModes.contains(mode) ? mode : 'map';
     final proj = currentProject;
     if (proj != null) {
       proj.coverMode = _tmpCoverMode;
