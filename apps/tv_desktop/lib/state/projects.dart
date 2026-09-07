@@ -22,6 +22,9 @@ class Project {
   /// 上次发布到网站后服务器给的 Story id。
   /// 有它就说明这份草稿在网上已经有一篇了，再次发布是**更新那一篇**，
   /// 链接不变、也不会再扣一次额度。
+  /// 用户选定的片头封面照片 id。空 = 用自动挑的那张
+  String coverPhotoId;
+
   String publishedStoryId;
   String publishedUrl;
 
@@ -35,6 +38,7 @@ class Project {
     this.clusterPreset = 'road',
     this.view = 0,
     this.note = '',
+    this.coverPhotoId = '',
     this.publishedStoryId = '',
     this.publishedUrl = '',
     DateTime? updatedAt,
@@ -48,6 +52,7 @@ class Project {
         'clusterPreset': clusterPreset,
         'view': view,
         'note': note,
+        'coverPhotoId': coverPhotoId,
         'publishedStoryId': publishedStoryId,
         'publishedUrl': publishedUrl,
         'updatedAt': updatedAt.toIso8601String(),
@@ -61,6 +66,7 @@ class Project {
         clusterPreset: j['clusterPreset'] as String? ?? 'road',
         view: (j['view'] as num?)?.toInt() ?? 0,
         note: j['note'] as String? ?? '',
+        coverPhotoId: j['coverPhotoId'] as String? ?? '',
         publishedStoryId: j['publishedStoryId'] as String? ?? '',
         publishedUrl: j['publishedUrl'] as String? ?? '',
         updatedAt: _dt(j['updatedAt']) ?? DateTime.now(),

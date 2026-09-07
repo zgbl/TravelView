@@ -317,6 +317,10 @@ class StoryBuilder {
     required Map<String, PhotoRecord> recordsById,
     required Set<String> selectedIds,
     required Map<int, String?> heroByStopSeq,
+    /// 用户指定的片头封面。**这是整篇 Story 第一眼看到的那张**，
+    /// 也是分享到社交平台时的缩略图，不该由"第一站的第一张"决定。
+    /// 传空或者这张没被选进 Story 时，回落到第一站的首图。
+    String? coverPhotoId,
     required List<RouteLeg> legs,
     required String Function(PhotoRecord) webPathOf,
     String Function(PhotoRecord)? thumbPathOf,
@@ -383,7 +387,10 @@ class StoryBuilder {
     // 而人是真的开过去了。所以把被跳过的站之间的路段**首尾拼成一段**。
     final routes = _stitchRoutes(trip, stops, legs);
 
-    final cover = stops.isEmpty ? null : stops.first.heroPhotoId;
+    final picked = photos.any((p) => p.id == coverPhotoId);
+    final cover = picked
+        ? coverPhotoId
+        : (stops.isEmpty ? null : stops.first.heroPhotoId);
 
     return Story(
       id: id,

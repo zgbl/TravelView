@@ -509,6 +509,7 @@ class LibraryController extends ChangeNotifier {
   Future<ExportResult?> exportStory({
     required TripRoute trip,
     required Map<int, String?> heroByStopSeq,
+    String? coverPhotoId,
     required String title,
     String? subtitle,
     required TripRoute tripForNotes,
@@ -562,6 +563,7 @@ class LibraryController extends ChangeNotifier {
         trip: trip,
         selectedIds: selected,
         heroByStopSeq: heroByStopSeq,
+        coverPhotoId: coverPhotoId,
         legs: legs,
         title: title,
         subtitle: subtitle,
@@ -670,6 +672,25 @@ class LibraryController extends ChangeNotifier {
     }
   }
 
+  // ---- 片头封面 ----
+
+  /// 用户选定的片头封面。**没选过就是空**，由 StoryBuilder 回落到自动挑的那张。
+  /// 存在草稿里 —— 一个库里每趟行程各有各的封面。
+  String get coverPhotoId => currentProject?.coverPhotoId ?? _tmpCover;
+  String _tmpCover = '';
+
+  Future<void> setCoverPhoto(String photoId) async {
+    final proj = currentProject;
+    // 还没保存过草稿时先记在内存里，保存时会一起写进去
+    _tmpCover = photoId;
+    if (proj != null) {
+      proj.coverPhotoId = photoId;
+      proj.updatedAt = DateTime.now();
+      await _store?.save(projects);
+    }
+    notifyListeners();
+  }
+
   /// 把服务器返回的 story id 记在当前草稿上。
   /// **记在草稿里而不是全局设置里** —— 一个照片库里有很多趟行程，
   /// 每一趟在网站上是各自独立的一篇。
@@ -767,6 +788,9 @@ class LibraryController extends ChangeNotifier {
       clusterPreset: clusterPreset,
       view: view,
       note: note,
+      coverPhotoId: _tmpCover.isNotEmpty
+          ? _tmpCover
+          : (old?.coverPhotoId ?? ''),
       publishedStoryId: old?.publishedStoryId ?? '',
       publishedUrl: old?.publishedUrl ?? '',
     );
@@ -797,6 +821,7 @@ class LibraryController extends ChangeNotifier {
   String get publishedUrl => currentProject?.publishedUrl ?? '';
 
   Future<void> openProject(Project proj) async {
+    _tmpCover = proj.coverPhotoId;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;
     pickAlbum = proj.pickAlbum;

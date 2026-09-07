@@ -175,6 +175,7 @@ class _StoryPageState extends State<StoryPage> {
     }
 
     final title = widget.c.currentProjectName ?? '我的旅行';
+    final cover = widget.c.coverPhotoId;
     // **只数真正进 Story 的站。** 副标题写 22 站、统计栏写 7 站，
     // 用户第一眼就会觉得数据是错的 —— 事实上错的是副标题。
     final shownStops =
@@ -185,6 +186,7 @@ class _StoryPageState extends State<StoryPage> {
     final res = await widget.c.exportStory(
       trip: r,
       heroByStopSeq: heroes,
+      coverPhotoId: cover.isEmpty ? null : cover,
       title: title,
       subtitle: sub,
       tripForNotes: r,
@@ -343,6 +345,31 @@ class _StoryPageState extends State<StoryPage> {
             icon: const Icon(Icons.cloud_upload_outlined, size: 15),
             label: const Text('发布', style: TextStyle(fontSize: 12)),
           ),
+          const SizedBox(width: 8),
+          // 片头封面的状态。没选过就是自动挑的那张，明说出来，
+          // 别让用户以为"封面是随机的"
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(
+              widget.c.coverPhotoId.isEmpty ? Icons.star_border : Icons.star,
+              size: 15,
+              color: widget.c.coverPhotoId.isEmpty
+                  ? scheme.onSurfaceVariant
+                  : const Color(0xFFE0A800),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              widget.c.coverPhotoId.isEmpty ? '片头封面：自动' : '片头封面：已指定',
+              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
+            ),
+            if (widget.c.coverPhotoId.isNotEmpty)
+              TextButton(
+                onPressed: () => widget.c.setCoverPhoto(''),
+                style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    minimumSize: Size.zero),
+                child: const Text('改回自动', style: TextStyle(fontSize: 11)),
+              ),
+          ]),
           const SizedBox(width: 4),
           IconButton(
             tooltip: 'AI 文案设置',
@@ -541,6 +568,36 @@ class _StoryPageState extends State<StoryPage> {
               onTap: () => _openViewer(stop, viewerScope, r),
               onToggleSelect: () => _toggle(r),
             ),
+            // 片头封面: 整篇 Story 的第一张，也是分享出去的缩略图。
+            // **必须让用户自己指定** —— 自动挑的那张几乎不会是他最想给人看的那张
+            Positioned(
+              right: 10,
+              top: 4,
+              child: GestureDetector(
+                onTap: () => widget.c.setCoverPhoto(r.id),
+                child: Tooltip(
+                  message: widget.c.coverPhotoId == r.id
+                      ? '这是片头封面'
+                      : '设为片头封面',
+                  child: Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Icon(
+                      widget.c.coverPhotoId == r.id
+                          ? Icons.star
+                          : Icons.star_border,
+                      size: 15,
+                      color: widget.c.coverPhotoId == r.id
+                          ? const Color(0xFFFFC94D)
+                          : Colors.white70,
+                    ),
+                  ),
+                ),
+              ),
+            ),
             if (r.id == heroId)
               Positioned(
                 left: 4,
@@ -552,7 +609,7 @@ class _StoryPageState extends State<StoryPage> {
                     color: scheme.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text('封面',
+                  child: const Text('本站首图',
                       style: TextStyle(fontSize: 9, color: Colors.white)),
                 ),
               ),
