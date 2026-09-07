@@ -49,19 +49,64 @@ export default function StoryMap({
    * 存 localStorage: 这是这台设备上这个读者的偏好，不是作品的一部分。
    */
   const [pinScale, setPinScale] = useState(1);
+  /// 定位点长什么样: 'dot' 橙色圆点 / 'car' 小车。也是读者的偏好
+  const [pinShape, setPinShape] = useState<'dot' | 'car'>('dot');
+  /// 控件是命令式建出来的（maplibre 的 IControl），
+  /// 用 ref 把回调和那个示例小圆点接回 React 状态
+  const pinDotRef = useRef<HTMLSpanElement | null>(null);
+  const pinShapeBtnRef = useRef<HTMLButtonElement | null>(null);
+  const changePinRef = useRef<(d: number) => void>(() => {});
   useEffect(() => {
     try {
       const v = Number(localStorage.getItem('tv.pinScale'));
       if (v >= 0.6 && v <= 3) setPinScale(v);
+      if (localStorage.getItem('tv.pinShape') === 'car') setPinShape('car');
     } catch {
       // 隐私模式 / 禁用了站点数据: 用默认值，不该因此报错
     }
   }, []);
-  const changePin = (v: number) => {
-    const n = Math.round(Math.max(0.6, Math.min(3, v)) * 10) / 10;
-    setPinScale(n);
-    try { localStorage.setItem('tv.pinScale', String(n)); } catch { /* 同上 */ }
+  const changePin = (delta: number) => {
+    setPinScale((prev) => {
+      const n = Math.round(Math.max(0.6, Math.min(3, prev + delta)) * 10) / 10;
+      try { localStorage.setItem('tv.pinScale', String(n)); } catch { /* 同上 */ }
+      return n;
+    });
   };
+  changePinRef.current = changePin;
+
+  const togglePinShape = () => {
+    setPinShape((prev) => {
+      const next = prev === 'dot' ? 'car' : 'dot';
+      try { localStorage.setItem('tv.pinShape', next); } catch { /* 同上 */ }
+      return next;
+    });
+  };
+  const toggleShapeRef = useRef<() => void>(() => {});
+  toggleShapeRef.current = togglePinShape;
+
+  // 控件里那个示例小圆点跟着变
+  useEffect(() => {
+    const dot = pinDotRef.current;
+    if (dot) {
+      const px = Math.round(10 * pinScale);
+      if (pinShape === 'car') {
+        // 控件里的预览也跟着变，用户按下去之前就知道会得到什么
+        dot.style.cssText =
+          'display:inline-block;margin:0 2px;flex:none;line-height:1';
+        dot.textContent = '🚗';
+        dot.style.fontSize = `${Math.round(13 * pinScale)}px`;
+      } else {
+        dot.textContent = '';
+        dot.style.cssText =
+          'display:inline-block;border-radius:999px;background:#ff8a5b;' +
+          'border:2px solid #fff;margin:0 2px;flex:none';
+        dot.style.width = `${px}px`;
+        dot.style.height = `${px}px`;
+      }
+    }
+    const btn = pinShapeBtnRef.current;
+    if (btn) btn.textContent = pinShape === 'car' ? '●' : '🚗';
+  }, [pinScale, pinShape]);
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -129,6 +174,40 @@ export default function StoryMap({
     map.addControl({
       onAdd: () => back,
       onRemove: () => back.remove(),
+    } as maplibregl.IControl, 'top-right');
+
+    // 定位点大小。**必须和其它地图控件排在一起** ——
+    // 之前放在左下角，被固定在视口底部的分享条整个盖住了，
+    // 用户根本看不见。地图的操作按钮就该在地图的控件区里
+    const pin = document.createElement('div');
+    pin.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    pin.style.display = 'flex';
+    pin.style.alignItems = 'center';
+    const mk = (label: string, title: string, d: number) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.title = title;
+      b.textContent = label;
+      b.style.fontSize = '15px';
+      b.onclick = () => changePinRef.current(d);
+      return b;
+    };
+    const dot = document.createElement('span');
+    dot.style.cssText =
+      'display:inline-block;border-radius:999px;background:#ff8a5b;' +
+      'border:2px solid #fff;margin:0 2px;flex:none';
+    pinDotRef.current = dot;
+    const shape = document.createElement('button');
+    shape.type = 'button';
+    shape.title = '换成小车 / 圆点';
+    shape.style.fontSize = '13px';
+    shape.onclick = () => toggleShapeRef.current();
+    pinShapeBtnRef.current = shape;
+    pin.append(mk('−', '定位点调小', -0.3), dot, mk('+', '定位点调大', 0.3),
+      shape);
+    map.addControl({
+      onAdd: () => pin,
+      onRemove: () => pin.remove(),
     } as maplibregl.IControl, 'top-right');
 
     map.on('load', () => {
@@ -332,15 +411,21 @@ export default function StoryMap({
     }
     const size = Math.round(16 * pinScale);
     if (!pinRef.current) {
-      const el = document.createElement('div');
-      el.className = 'rounded-full border-2 border-white bg-[#ff8a5b] shadow';
-      pinRef.current = new maplibregl.Marker({ element: el })
-        .setLngLat([ph.lon, ph.lat])
-        .addTo(map);
+      pinRef.current = new maplibregl.Marker({
+        element: document.createElement('div'),
+      }).setLngLat([ph.lon, ph.lat]).addTo(map);
     }
+    // 圆点还是小车。**每次都重设样式**，因为读者可以随时切换形状
     const el = pinRef.current.getElement();
-    el.style.width = `${size}px`;
-    el.style.height = `${size}px`;
+    if (pinShape === 'car') {
+      el.className = 'leading-none drop-shadow';
+      el.textContent = '🚗';
+      el.style.cssText = `font-size:${Math.round(22 * pinScale)}px`;
+    } else {
+      el.textContent = '';
+      el.className = 'rounded-full border-2 border-white bg-[#ff8a5b] shadow';
+      el.style.cssText = `width:${size}px;height:${size}px`;
+    }
     pinRef.current.setLngLat([ph.lon, ph.lat]);
 
     /**
@@ -361,7 +446,7 @@ export default function StoryMap({
     if (!inside) {
       map.easeTo({ center: [ph.lon, ph.lat], duration: 600 });
     }
-  }, [activePhoto, story.photos, pinScale]);
+  }, [activePhoto, story.photos, pinScale, pinShape]);
 
   // 滚到某一站，地图轻轻跟过去
   useEffect(() => {
@@ -379,40 +464,8 @@ export default function StoryMap({
     if (!inside) map.easeTo({ center: [s.lon, s.lat], duration: 900 });
   }, [activeStop, story.stops]);
 
-  return (
-    <div className="relative h-full w-full">
-      <div ref={ref} className="h-full w-full bg-[#0c0e10]" />
-      {/* 定位点大小。放左下角: 右上是地图自己的控件，右下是分享条 */}
-      <div className="absolute bottom-3 left-3 flex items-center gap-1
-        rounded-full bg-ink/80 px-2 py-1 text-xs text-muted backdrop-blur">
-        <span className="px-1">定位点</span>
-        <button
-          onClick={() => changePin(pinScale - 0.3)}
-          aria-label="调小"
-          className="h-6 w-6 rounded-full hover:bg-white/10"
-        >
-          −
-        </button>
-        <span
-          className="inline-block rounded-full border-2 border-white
-            bg-[#ff8a5b]"
-          style={{
-            width: Math.round(10 * pinScale),
-            height: Math.round(10 * pinScale),
-          }}
-        />
-        <button
-          onClick={() => changePin(pinScale + 0.3)}
-          aria-label="调大"
-          className="h-6 w-6 rounded-full hover:bg-white/10"
-        >
-          +
-        </button>
-      </div>
-    </div>
-  );
+  return <div ref={ref} className="h-full w-full bg-[#0c0e10]" />;
 }
-
 function haversine(a: [number, number], b: [number, number]) {
   const R = 6371008.8;
   const r = Math.PI / 180;
