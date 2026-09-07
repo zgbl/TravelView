@@ -37,6 +37,10 @@ export default function StoryMap({
   /// 每一站在路线上的里程位置（沿路线的累计距离）
   const stopDistRef = useRef<number[]>([]);
   const pinRef = useRef<maplibregl.Marker | null>(null);
+  /// 读者自己缩放/拖动过地图了吗。true 之后不再自动跟随镜头
+  const userMovedRef = useRef(false);
+  /// 把镜头拉回整条路线。建图时装上，"回到路线"按钮用
+  const fitAllRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -61,9 +65,50 @@ export default function StoryMap({
       center: [story.stops[0]?.lon ?? 0, story.stops[0]?.lat ?? 0],
       zoom: 4,
       attributionControl: false,
+      // **滚轮不缩放**: 地图占了半屏，滚轮如果被地图吃掉，
+      // 读者就滚不动这篇故事了。缩放走按钮、双击和双指手势 ——
+      // 这三种都是明确的"我想操作地图"，不会和阅读冲突。
       scrollZoom: false,
+      doubleClickZoom: true,
+      touchZoomRotate: true,
+      dragPan: true,
+      keyboard: false,
     });
     mapRef.current = map;
+
+    // 右下角的 +/- 和指北针。放右下是因为左上那块留给了故事内容，
+    // 而且移动端右下角最好按
+    map.addControl(
+      new maplibregl.NavigationControl({ showCompass: true, showZoom: true }),
+      'bottom-right');
+
+    // 读者自己动过地图之后，就别再把镜头抢回去了 ——
+    // 正在放大看某条街，结果一滚动就被拽走，是最恼人的体验
+    const markUserMoved = () => { userMovedRef.current = true; };
+    map.on('dragstart', markUserMoved);
+    map.on('zoomstart', (e) => {
+      // 只认用户自己的操作，程序调用 easeTo 触发的不算
+      if ((e as { originalEvent?: unknown }).originalEvent) markUserMoved();
+    });
+
+    // "回到路线": 自己缩放过之后，得有一条明确的路回到跟随模式，
+    // 否则读者只能刷新页面。双击已经被用来放大了，所以做成一个按钮
+    const back = document.createElement('div');
+    back.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.title = '回到路线';
+    btn.style.fontSize = '15px';
+    btn.textContent = '⤢';
+    btn.onclick = () => {
+      userMovedRef.current = false;
+      fitAllRef.current?.();
+    };
+    back.appendChild(btn);
+    map.addControl({
+      onAdd: () => back,
+      onRemove: () => back.remove(),
+    } as maplibregl.IControl, 'bottom-right');
 
     map.on('load', () => {
       // 全部路线，浅色
@@ -167,6 +212,8 @@ export default function StoryMap({
             [all[0][1], all[0][0]],
           ),
         );
+        fitAllRef.current = () =>
+          map.fitBounds(bounds, { padding: 60, duration: 600 });
         map.fitBounds(bounds, { padding: 60, duration: 0 });
       }
     });
@@ -272,7 +319,9 @@ export default function StoryMap({
     } else {
       pinRef.current.setLngLat([ph.lon, ph.lat]);
     }
-    map.easeTo({ center: [ph.lon, ph.lat], duration: 500 });
+    if (!userMovedRef.current) {
+      map.easeTo({ center: [ph.lon, ph.lat], duration: 500 });
+    }
   }, [activePhoto, story.photos]);
 
   // 滚到某一站，地图轻轻跟过去
@@ -280,7 +329,9 @@ export default function StoryMap({
     const map = mapRef.current;
     if (!map || !activeStop) return;
     const s = story.stops.find((x) => x.id === activeStop);
-    if (s) map.easeTo({ center: [s.lon, s.lat], duration: 900 });
+    if (s && !userMovedRef.current) {
+      map.easeTo({ center: [s.lon, s.lat], duration: 900 });
+    }
   }, [activeStop, story.stops]);
 
   return <div ref={ref} className="h-full w-full bg-[#0c0e10]" />;
