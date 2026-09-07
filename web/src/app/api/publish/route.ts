@@ -114,9 +114,16 @@ export async function POST(req: Request) {
   let existing: { id: string; slug: string; media_prefix: string | null;
     manifest: any } | null = null;
   if (storyId) {
-    existing = await one(
-      `select id, slug, media_prefix, manifest from stories
-        where id = $1 and user_id = $2`, [storyId, userId]);
+    try {
+      existing = await one(
+        `select id, slug, media_prefix, manifest from stories
+          where id = $1 and user_id = $2`, [storyId, userId]);
+    } catch {
+      // 008 迁移没跑时没有 media_prefix 列
+      existing = await one(
+        `select id, slug, null::text as media_prefix, manifest from stories
+          where id = $1 and user_id = $2`, [storyId, userId]);
+    }
   }
 
   if (existing) {
@@ -166,19 +173,39 @@ export async function POST(req: Request) {
   // ── 新建 ──
   const slug = randomBytes(5).toString('hex'); // 不可猜测的公开地址
   // 按用户和年月分目录: 单个用户几万张图时目录还翻得动，也方便整体迁移
-  const prefix = mediaPrefixFor(userId, slug);
-  const story = await one<{ id: string }>(
-    `insert into stories
-       (user_id, slug, title, subtitle, cover_path, manifest, media_prefix,
-        start_date, end_date, day_count, stop_count, photo_count,
-        distance_meters, visibility, published_at)
-     values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
-     returning id`,
-    [userId, slug, manifest.title, manifest.subtitle ?? null,
-     manifest.cover ?? null, manifest, prefix,
-     manifest.start.slice(0, 10), manifest.end.slice(0, 10),
-     manifest.stats.days, manifest.stats.stops, manifest.stats.photos,
-     Math.round(manifest.stats.distanceMeters), visibility]);
+  let prefix = mediaPrefixFor(userId, slug);
+  const common = [
+    userId, slug, manifest.title, manifest.subtitle ?? null,
+    manifest.cover ?? null, manifest,
+    manifest.start.slice(0, 10), manifest.end.slice(0, 10),
+    manifest.stats.days, manifest.stats.stops, manifest.stats.photos,
+    Math.round(manifest.stats.distanceMeters), visibility,
+  ];
+
+  let story: { id: string } | null = null;
+  try {
+    story = await one<{ id: string }>(
+      `insert into stories
+         (user_id, slug, title, subtitle, cover_path, manifest,
+          start_date, end_date, day_count, stop_count, photo_count,
+          distance_meters, visibility, media_prefix, published_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
+       returning id`,
+      [...common, prefix]);
+  } catch {
+    // 008 迁移还没跑（没有 media_prefix 列）时退回老布局 s/<slug>。
+    // 发布是用户花过钱的动作，**绝不能因为少一列就整个 500** ——
+    // 老布局照样能正常渲染和删除，读的时候本来就有这条回落
+    prefix = `s/${slug}`;
+    story = await one<{ id: string }>(
+      `insert into stories
+         (user_id, slug, title, subtitle, cover_path, manifest,
+          start_date, end_date, day_count, stop_count, photo_count,
+          distance_meters, visibility, published_at)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
+       returning id`,
+      common);
+  }
 
   if (ent.consumesCredit) {
     await one(

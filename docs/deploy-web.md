@@ -395,7 +395,10 @@ invoice.payment_failed
 再跑一次幂等表的迁移：
 
 ```bash
-psql "$DATABASE_URL" -f /opt/travelview/src/web/db/migrations/005_stripe_events.sql
+cd /opt/travelview/src/web
+set -a; . /etc/travelview/env; set +a
+npm run db:migrate           # 先看还差哪几条
+npm run db:migrate:apply     # 再真的跑
 ```
 
 ### B.4 为什么这么设计
