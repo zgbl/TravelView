@@ -44,6 +44,11 @@ const _template = r'''<!doctype html>
     filter:brightness(.62)}
   /* 片头的真地图。**底图一点都不压暗** —— 只有下方一条渐变托住标题 */
   .hero .heromap{position:absolute;inset:0}
+  /* 暗角: 摄影里把视线收进画面中心的手法。压的是四角，不是整张图 */
+  .vignette{position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(120% 85% at 50% 42%,rgba(0,0,0,0) 55%,
+      rgba(12,14,16,.55) 100%)}
+  .hero, .cardhero .mapwrap{user-select:none}
   .hero .scrim{position:absolute;left:0;right:0;bottom:0;height:58%;
     background:linear-gradient(to top,#0f1113 0%,rgba(15,17,19,.75) 45%,
       rgba(15,17,19,0) 100%);pointer-events:none}
@@ -190,14 +195,16 @@ function fmtTime(iso){
   return d.toTimeString().slice(0,5);
 }
 
-/* ---------- 片头的真地图 ----------
+/* ---------- Story Cover: 这本作品的封面画布 ----------
+   **地图在这里不是一个 UI 组件，是封面画。**
+   所以: 没有控件、不能交互、没有角标，路线是画上去的笔触而不是数据图层。
    底图一点都不压暗: 要让标题读得清，就去处理标题（下方一条局部渐变
    + 文字阴影），而不是把整张地图糊掉 —— 那样地图就不成其为地图了。
    路线两层画: 深色粗描边打底 + 亮青细线在上，
    任何底图（浅色街道、地形、卫星）上都跳得出来。 */
 let heroMap = null;
 
-function initHeroMap(elId, bottomPad){
+function initStoryCover(elId, bottomPad){
   const el = document.getElementById(elId);
   if (!el || !window.L) return;
   heroMap = L.map(elId, {
@@ -238,8 +245,16 @@ function render(){
   const miles = Math.round(st.distanceMeters / 1609.344);
 
   let html = '';
+  /* Story Cover 的形态。默认由**内容**决定: 有路线就地图封面，
+     没有就照片封面 —— 以后生日 / 婚礼 / 演唱会没有路线，
+     封面引擎该自己退回照片，而不是画一张空地图。 */
+  const hasRoute = (STORY.routes||[]).length > 0
+                || (STORY.stops||[]).length > 1;
   const mode = STORY.coverMode === 'photo' ? 'photo'
+             : !hasRoute ? 'photo'
              : STORY.coverMode === 'mapcard' ? 'mapcard' : 'map';
+  // 封面已经是地图了，下面就不该再来一张大地图
+  const showOverview = (mode === 'photo');
 
   if (mode === 'mapcard') {
     // 方案 B: 标题在地图外面，地图是一张干净的卡片 —— 地图一个像素没被遮
@@ -250,12 +265,13 @@ function render(){
          + stat(miles,'MILES') + stat(st.photos,'PHOTOS')
          + '</div>'
          + '<div class="mapwrap"><div id="heromap" style="height:100%"></div>'
-         + '<div class="edge"></div></div></section>';
+         + '<div class="vignette"></div><div class="edge"></div>'
+         + '</div></section>';
   } else {
     html += '<section class="hero">';
     if (mode === 'map') {
       html += '<div class="heromap" id="heromap"></div>'
-           + '<div class="scrim"></div>';
+           + '<div class="vignette"></div><div class="scrim"></div>';
     } else if (cover) {
       html += '<img src="'+cover.web.path+'" alt="">';
     }
@@ -267,14 +283,17 @@ function render(){
          + '</div></div></section>';
   }
 
-  // ② Route: 整趟旅行的全貌。**这是产品的核心画面之一** ——
-  // 右侧那张是跟着阅读走的细节地图，这里要的是"我这趟一共走了哪儿"。
-  html += '<section class="routemap">';
-  html += '<h2>行程全览</h2>';
-  html += '<div class="rm-sub">'+st.stops+' 站 &middot; '+miles
-       +' 英里 &middot; 点地图上的站可以跳到对应的照片</div>';
-  html += '<div id="omap"></div>';
-  html += '</section>';
+  // ② 行程全览。**封面已经是地图时不显示** ——
+  // 同一页两张大地图，第二张会把封面的分量整个稀释掉。
+  // 读者要动手看地图，右侧那张跟着阅读走的就是。
+  if (showOverview) {
+    html += '<section class="routemap">';
+    html += '<h2>行程全览</h2>';
+    html += '<div class="rm-sub">'+st.stops+' 站 &middot; '+miles
+         +' 英里 &middot; 点地图上的站可以跳到对应的照片</div>';
+    html += '<div id="omap"></div>';
+    html += '</section>';
+  }
 
   html += '<div class="layout"><div class="content">';
   STORY.days.forEach((day, di) => {
@@ -322,7 +341,7 @@ function render(){
 
   // 片头地图要等 DOM 落地之后才能初始化
   if (mode !== 'photo') {
-    initHeroMap('heromap', mode === 'map' ? 260 : 40);
+    initStoryCover('heromap', mode === 'map' ? 260 : 40);
   }
 }
 function stat(n,k){return '<div><span class="n">'+n+'</span><span class="k">'+k+'</span></div>';}

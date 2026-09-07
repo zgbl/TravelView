@@ -718,16 +718,20 @@ class LibraryController extends ChangeNotifier {
 
   /// 片头用什么。**默认整屏地图** ——
   /// 一张照片谁都有，这条真实走过的路线只有这一趟有。
+  ///   auto    由内容决定: 有路线用地图，没有用照片（**默认**）
   ///   map     整屏真地图，标题压在下方的渐变里
   ///   mapcard 标题在地图外面，地图是一张干净的卡片
   ///   photo   一张照片
+  ///
+  /// 叫 Story Cover 而不是 Travel Map Cover: 这个产品以后不只有旅行，
+  /// 生日 / 婚礼 / 演唱会都没有路线，封面引擎要能自己退回照片。
   String get coverMode => currentProject?.coverMode ?? _tmpCoverMode;
-  String _tmpCoverMode = 'map';
+  String _tmpCoverMode = 'auto';
 
-  static const coverModes = ['map', 'mapcard', 'photo'];
+  static const coverModes = ['auto', 'map', 'mapcard', 'photo'];
 
   Future<void> setCoverMode(String mode) async {
-    _tmpCoverMode = coverModes.contains(mode) ? mode : 'map';
+    _tmpCoverMode = coverModes.contains(mode) ? mode : 'auto';
     final proj = currentProject;
     if (proj != null) {
       proj.coverMode = _tmpCoverMode;

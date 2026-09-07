@@ -5,7 +5,11 @@ import maplibregl from 'maplibre-gl';
 import { decodePolyline, type Story } from '@/lib/story';
 
 /**
- * 片头的**真地图**。
+ * Story Cover —— 这本作品的封面画布。
+ *
+ * **地图在这里不是一个 UI 组件，是封面画。**
+ * 所以: 没有控件、不能交互、没有角标，路线是画上去的笔触而不是数据图层，
+ * 构图上主动给标题留白。想操作地图的读者，往下滚有那张真正的工具地图。
  *
  * 关键决定: 底图一点都不压暗。要让标题读得清，就去处理标题
  * （下方一条局部渐变 + 文字阴影），而不是把整张地图糊掉 ——
@@ -18,7 +22,7 @@ import { decodePolyline, type Story } from '@/lib/story';
  * 不可交互（不缩放、不拖动）: 它是封面，不是工具。
  * 想动手的读者往下滚一屏就有那张能操作的「行程全览」。
  */
-export default function HeroMap({
+export default function StoryCover({
   story,
   /// 底部给标题留出的空间（像素）。路线会被推到上半屏，不被字压住
   bottomPad = 260,
@@ -136,5 +140,19 @@ export default function HeroMap({
     };
   }, [story, bottomPad]);
 
-  return <div ref={ref} className="h-full w-full bg-[#0c0e10]" />;
+  return (
+    <div className="relative h-full w-full select-none">
+      <div ref={ref} className="h-full w-full bg-[#0c0e10]" />
+      {/* 暗角。摄影里用来把视线收进画面中心的手法 ——
+          它压的是四角，不是整张图，地图本身该亮的地方一点没暗 */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background:
+            'radial-gradient(120% 85% at 50% 42%, rgba(0,0,0,0) 55%,' +
+            ' rgba(12,14,16,.55) 100%)',
+        }}
+      />
+    </div>
+  );
 }

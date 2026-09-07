@@ -5,7 +5,7 @@ import { mediaUrl, miles, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
 import PhotoLightbox from './PhotoLightbox';
-import HeroMap from './HeroMap';
+import StoryCover from './StoryCover';
 import { t, type Locale } from '@/lib/i18n';
 
 /**
@@ -93,9 +93,23 @@ export default function StoryRenderer({
   const cover = story.cover ? photoById[story.cover] : undefined;
   // manifest 里没写就是地图 —— 老故事也一并换成地图片头，
   // 它们的封面本来就是"第一站的第一张"，没有任何人挑过
+  /**
+   * Story Cover 的形态。
+   *
+   * 'auto'（默认）= **由内容决定**: 有路线就用地图封面，没有就用照片封面。
+   * 这个产品以后不只有旅行 —— 生日、婚礼、演唱会都没有路线，
+   * 那时候封面引擎该自己退回照片，而不是画一张空地图。
+   */
   const rawMode = (story as unknown as { coverMode?: string }).coverMode;
+  const hasRoute = story.routes.length > 0 || story.stops.length > 1;
   const coverMode: 'map' | 'mapcard' | 'photo' =
-    rawMode === 'photo' ? 'photo' : rawMode === 'mapcard' ? 'mapcard' : 'map';
+    rawMode === 'photo' ? 'photo'
+      : !hasRoute ? 'photo'                      // 没有路线一律照片封面
+      : rawMode === 'mapcard' ? 'mapcard'
+      : 'map';                                   // auto / map 都是整屏地图
+  /// 封面已经是地图了，下面就不该再来一张大地图 ——
+  /// 同一页两张大地图，第二张只会把第一张的分量稀释掉
+  const showOverviewMap = coverMode === 'photo';
 
   return (
     <div className="bg-ink text-paper">
@@ -120,7 +134,7 @@ export default function StoryRenderer({
             <Stat n={story.stats.photos} k="PHOTOS" />
           </div>
           <div className="relative mt-8 h-[62vh] overflow-hidden rounded-3xl">
-            <HeroMap story={story} bottomPad={70} />
+            <StoryCover story={story} bottomPad={70} />
             {/* 只在四周收一圈内阴影，中间完全干净 */}
             <div className="pointer-events-none absolute inset-0 rounded-3xl
               shadow-[inset_0_0_90px_rgba(15,17,19,.55)]" />
@@ -134,7 +148,7 @@ export default function StoryRenderer({
               所以在任何底图上都跳得出来。 */}
           {coverMode === 'map' ? (
             <div className="absolute inset-0">
-              <HeroMap story={story} />
+              <StoryCover story={story} />
               <div className="pointer-events-none absolute inset-x-0 bottom-0
                 h-[58%] bg-gradient-to-t from-ink via-ink/75 to-transparent" />
             </div>
@@ -169,19 +183,23 @@ export default function StoryRenderer({
         </section>
       )}
 
-      {/* ② Route: 整趟旅行的全貌，分享出去第一眼想看的就是它 */}
-      <section className="px-[6vw] pb-[4vh] pt-[8vh]">
-        <h2 className="text-[clamp(22px,3vw,32px)] font-semibold tracking-tight">
-          {t(locale, 'story.overview')}
-        </h2>
-        <p className="mb-6 text-sm text-muted">
-          {t(locale, 'story.overview.sub', {
-            stops: story.stats.stops,
-            miles: miles(story.stats.distanceMeters),
-          })}
-        </p>
-        <StoryOverviewMap story={story} />
-      </section>
+      {/* ② 行程全览。**封面已经是地图时不显示** ——
+          同一页两张大地图，第二张会把封面的分量整个稀释掉。
+          读者要动手看地图，右侧那张跟着阅读走的就是。 */}
+      {showOverviewMap && (
+        <section className="px-[6vw] pb-[4vh] pt-[8vh]">
+          <h2 className="text-[clamp(22px,3vw,32px)] font-semibold tracking-tight">
+            {t(locale, 'story.overview')}
+          </h2>
+          <p className="mb-6 text-sm text-muted">
+            {t(locale, 'story.overview.sub', {
+              stops: story.stats.stops,
+              miles: miles(story.stats.distanceMeters),
+            })}
+          </p>
+          <StoryOverviewMap story={story} />
+        </section>
+      )}
 
       {/* 正文 + 固定地图 */}
       <div className="grid lg:grid-cols-[minmax(0,1fr)_46vw]">

@@ -349,11 +349,14 @@ class _StoryPageState extends State<StoryPage> {
           ),
           const SizedBox(width: 8),
           // 片头用什么。默认路线图 —— 它是这趟旅行独一无二的那张图
-          const Text('片头', style: TextStyle(fontSize: 12)),
+          const Text('封面', style: TextStyle(fontSize: 12)),
           const SizedBox(width: 6),
           SegmentedButton<String>(
             style: const ButtonStyle(visualDensity: VisualDensity.compact),
             segments: const [
+              ButtonSegment(
+                  value: 'auto',
+                  label: Text('自动', style: TextStyle(fontSize: 11))),
               ButtonSegment(
                   value: 'map',
                   label: Text('整屏地图', style: TextStyle(fontSize: 11))),
@@ -380,7 +383,7 @@ class _StoryPageState extends State<StoryPage> {
             ),
             const SizedBox(width: 4),
             Text(
-              widget.c.coverPhotoId.isEmpty ? '片头封面：自动' : '片头封面：已指定',
+              widget.c.coverPhotoId.isEmpty ? '封面照片：自动' : '封面照片：已指定',
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
             if (widget.c.coverPhotoId.isNotEmpty)
@@ -600,8 +603,8 @@ class _StoryPageState extends State<StoryPage> {
                 onTap: () => widget.c.setCoverPhoto(r.id),
                 child: Tooltip(
                   message: widget.c.coverPhotoId == r.id
-                      ? '这是片头封面'
-                      : '设为片头封面',
+                      ? '这是封面照片'
+                      : '设为封面照片',
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
