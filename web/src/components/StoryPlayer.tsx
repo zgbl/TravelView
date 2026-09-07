@@ -119,16 +119,15 @@ export default function StoryPlayer({
     }
   }, []);
 
-  // 打开播放器就直接进全屏 —— 点"播放"这个手势足以让浏览器放行
-  useEffect(() => {
-    const el = rootRef.current;
-    if (!el || document.fullscreenElement) return;
-    void el.requestFullscreen?.().catch(() => {
-      /* 浏览器不给就算了，不是错误 */
-    });
-    return () => {
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
-    };
+  // **绝对不要自动进全屏。**
+  // 在 macOS 上网页全屏和绿钮全屏是同一套机制: 系统会把窗口挪进一个新的
+  // Space，画面向右滑走。用户没要求，画面就"跑丢"了，而全屏之后
+  // 那个退出按钮他根本没机会去点 —— 屏幕已经不在眼前了。
+  // 全屏只能由用户明确要求（F 键或右下角按钮），且必须随时能退出来。
+
+  // 播放器关闭时一定要退出全屏，不能把浏览器留在全屏状态里
+  useEffect(() => () => {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -153,9 +152,14 @@ export default function StoryPlayer({
   // ── 键盘 ──
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      // 全屏时 Esc 由浏览器接管（退出全屏），播放器不该跟着一起关 ——
-      // 用户按 Esc 的意思通常是"退出全屏"，不是"别看了"
-      if (e.key === 'Escape' && !document.fullscreenElement) onClose();
+      // **Esc 永远是出口，没有例外。**
+      // 之前写成"全屏时 Esc 只退全屏、不关播放器"，结果是用户在一个
+      // 已经滑走的窗口里按 Esc，什么都没发生 —— 一个逃不出去的界面
+      // 是最糟的界面。现在 Esc 一次退到底: 退全屏，并关掉播放器。
+      if (e.key === 'Escape') {
+        if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+        onClose();
+      }
       if (e.key === 'f' || e.key === 'F') toggleFull();
       if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(1); }
       if (e.key === 'ArrowLeft') go(-1);
