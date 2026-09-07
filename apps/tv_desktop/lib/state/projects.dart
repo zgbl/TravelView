@@ -28,6 +28,13 @@ class Project {
   String publishedStoryId;
   String publishedUrl;
 
+  /// 上次发布的那份产物的指纹（见 ExportResult.storyKey）。
+  /// 和当前要发的对不上，就说明这是另一趟行程，**不能更新，只能新发一篇**。
+  String publishedKey;
+
+  /// 上次发布时的标题，让用户知道"更新"会覆盖掉哪一篇
+  String publishedTitle;
+
   DateTime updatedAt;
 
   Project({
@@ -41,6 +48,8 @@ class Project {
     this.coverPhotoId = '',
     this.publishedStoryId = '',
     this.publishedUrl = '',
+    this.publishedKey = '',
+    this.publishedTitle = '',
     DateTime? updatedAt,
   }) : updatedAt = updatedAt ?? DateTime.now();
 
@@ -55,6 +64,8 @@ class Project {
         'coverPhotoId': coverPhotoId,
         'publishedStoryId': publishedStoryId,
         'publishedUrl': publishedUrl,
+        'publishedKey': publishedKey,
+        'publishedTitle': publishedTitle,
         'updatedAt': updatedAt.toIso8601String(),
       };
 
@@ -69,6 +80,8 @@ class Project {
         coverPhotoId: j['coverPhotoId'] as String? ?? '',
         publishedStoryId: j['publishedStoryId'] as String? ?? '',
         publishedUrl: j['publishedUrl'] as String? ?? '',
+        publishedKey: j['publishedKey'] as String? ?? '',
+        publishedTitle: j['publishedTitle'] as String? ?? '',
         updatedAt: _dt(j['updatedAt']) ?? DateTime.now(),
       );
 

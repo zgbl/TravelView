@@ -14,12 +14,21 @@ class ExportResult {
   final int totalBytes;
   final List<String> warnings;
 
+  /// **这一份产物是哪一趟行程**的指纹: 起止日期 + 站数 + 照片数。
+  ///
+  /// 发布时把它记在草稿上。下次要判断"这次发的还是不是网站上那一篇"，
+  /// 靠它来比，**不能靠草稿的名字** —— 用户在同一个草稿里换个时间范围
+  /// 做的就是另一趟行程了，名字却一点没变。
+  /// 认错了的代价是把上一篇直接覆盖掉，所以这里宁可判成"不是同一篇"。
+  final String storyKey;
+
   const ExportResult({
     required this.dir,
     required this.indexHtml,
     required this.photoCount,
     required this.totalBytes,
     required this.warnings,
+    this.storyKey = '',
   });
 }
 
@@ -202,6 +211,12 @@ class StoryExporter {
       photoCount: finalStory.photoCount,
       totalBytes: totalBytes,
       warnings: warnings,
+      storyKey: [
+        finalStory.start.toIso8601String().substring(0, 10),
+        finalStory.end.toIso8601String().substring(0, 10),
+        finalStory.stops.length,
+        finalStory.photos.length,
+      ].join('|'),
     );
   }
 

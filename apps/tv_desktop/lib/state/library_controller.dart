@@ -638,8 +638,11 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 这趟行程发过一次就原地更新那一篇: 链接不变、不再扣额度
-      final existingId = currentProject?.publishedStoryId ?? '';
+      // **只有用户明确勾了"更新那一篇"、而且内容确实是同一趟行程**，
+      // 才带上 storyId。其余一切情况都是新发一篇。
+      final existingId = (updateExisting && canUpdatePublished)
+          ? (currentProject?.publishedStoryId ?? '')
+          : '';
       final res = await Publisher(publishConfig).publish(
         export.dir,
         visibility: visibility,
@@ -699,7 +702,11 @@ class LibraryController extends ChangeNotifier {
     if (proj == null || res.storyId.isEmpty) return;
     proj.publishedStoryId = res.storyId;
     proj.publishedUrl = res.publicUrl;
+    // 指纹一起记下来。没有它，下次就没法判断"还是不是同一趟行程"
+    proj.publishedKey = lastExport?.storyKey ?? '';
+    proj.publishedTitle = currentProjectName ?? '';
     proj.updatedAt = DateTime.now();
+    updateExisting = false;
     await _store?.save(projects);
   }
 
@@ -710,6 +717,9 @@ class LibraryController extends ChangeNotifier {
     if (proj == null) return;
     proj.publishedStoryId = '';
     proj.publishedUrl = '';
+    proj.publishedKey = '';
+    proj.publishedTitle = '';
+    updateExisting = false;
     await _store?.save(projects);
     notifyListeners();
   }
@@ -814,13 +824,48 @@ class LibraryController extends ChangeNotifier {
     return null;
   }
 
-  /// 这趟行程在网站上已经有一篇了吗
-  bool get hasPublished =>
-      (currentProject?.publishedStoryId ?? '').isNotEmpty;
+  /**
+   * 这次要发的**就是网站上那一篇**吗。
+   *
+   * 判定必须同时满足两条:
+   *   1. 当前草稿记着一个 story id
+   *   2. 这次导出的指纹和上次发布时**完全一致**
+   *
+   * 只看第一条是危险的: 用户在同一个草稿里换个时间范围，做的就是
+   * 另一趟行程了，草稿名字却没变。这时候"更新"等于**把上一篇整个覆盖掉**，
+   * 而上一篇的链接可能已经发给别人了。宁可让他多发一篇，
+   * 也绝不能默默替换掉他发出去的东西。
+   */
+  bool get canUpdatePublished {
+    final proj = currentProject;
+    final key = lastExport?.storyKey ?? '';
+    if (proj == null || proj.publishedStoryId.isEmpty) return false;
+    if (key.isEmpty || proj.publishedKey.isEmpty) return false;
+    return proj.publishedKey == key;
+  }
+
+  /// 草稿上挂着一篇已发布的，但**内容对不上**（换了行程）。
+  /// UI 要据此明确告诉用户: 这次是新的一篇，不会动那一篇。
+  bool get publishedIsDifferentTrip {
+    final proj = currentProject;
+    if (proj == null || proj.publishedStoryId.isEmpty) return false;
+    return !canUpdatePublished;
+  }
 
   String get publishedUrl => currentProject?.publishedUrl ?? '';
+  String get publishedTitle => currentProject?.publishedTitle ?? '';
+
+  /// 用户明确选择"更新那一篇"时才置 true。**默认永远是发新的一篇。**
+  bool updateExisting = false;
+
+  void setUpdateExisting(bool v) {
+    updateExisting = v && canUpdatePublished;
+    notifyListeners();
+  }
 
   Future<void> openProject(Project proj) async {
+    // 换了草稿，"更新那一篇"的勾选必须清掉 —— 它属于上一个草稿
+    updateExisting = false;
     _tmpCover = proj.coverPhotoId;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;

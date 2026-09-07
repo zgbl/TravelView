@@ -55,6 +55,31 @@ class _PublishDialogState extends State<PublishDialog> {
   }
 
   Future<void> _publish() async {
+    // 覆盖是不可撤销的，而且被覆盖的链接可能已经发给别人了。
+    // 这一步问一次，代价是一次点击，省掉的是"我的游记没了"
+    if (widget.c.updateExisting) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('覆盖已发布的那一篇？'),
+          content: Text(
+            '${widget.c.publishedUrl}\n\n'
+            '这个地址上现在的内容会被这次的内容替换掉，无法撤销。'
+            '已经分享出去的链接仍然有效，但别人看到的会是新内容。',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('取消')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('确认覆盖')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
     await widget.c.publishStory(visibility: visibility);
   }
 
@@ -104,27 +129,66 @@ class _PublishDialogState extends State<PublishDialog> {
                 onSelectionChanged: (v) =>
                     setState(() => visibility = v.first),
               ),
-              if (c.hasPublished && done == null) ...[
-                const SizedBox(height: 12),
-                Row(children: [
-                  Icon(Icons.sync, size: 14, color: scheme.primary),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: Text(
-                      '这趟行程已经发布过。再次发布是更新那一篇: '
-                      '链接不变，也不会再扣一次额度。',
-                      style: TextStyle(fontSize: 11, color: scheme.outline),
-                    ),
+              // ── 这次是发新的一篇，还是更新已有的那一篇 ──
+              //
+              // **默认永远是发新的一篇。** "更新"会覆盖掉一个可能已经
+              // 分享给别人的链接，这种破坏性动作不该是默认值，
+              // 更不该在内容根本不是同一趟行程时出现。
+              if (c.publishedIsDifferentTrip) ...[
+                const SizedBox(height: 14),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: scheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
                   ),
-                  TextButton(
-                    onPressed: c.publishing ? null : c.forgetPublished,
-                    style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        minimumSize: Size.zero),
-                    child: const Text('改为新建一篇',
-                        style: TextStyle(fontSize: 11)),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '这是一趟新的行程，会发布成新的一篇。',
+                        style: const TextStyle(
+                            fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '这个草稿之前发布过另一份内容（日期或照片都不一样），'
+                        '那一篇不会被改动。想替换它的话，去网站上删掉再发。',
+                        style:
+                            TextStyle(fontSize: 11, color: scheme.outline),
+                      ),
+                      if (c.publishedUrl.isNotEmpty)
+                        TextButton(
+                          onPressed: () => _open(c.publishedUrl),
+                          style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              minimumSize: Size.zero),
+                          child: const Text('看看之前那一篇',
+                              style: TextStyle(fontSize: 11)),
+                        ),
+                    ],
                   ),
-                ]),
+                ),
+              ] else if (c.canUpdatePublished && done == null) ...[
+                const SizedBox(height: 14),
+                CheckboxListTile(
+                  value: c.updateExisting,
+                  onChanged: c.publishing
+                      ? null
+                      : (v) => c.setUpdateExisting(v ?? false),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text('更新已发布的那一篇（不新发）',
+                      style: TextStyle(fontSize: 12)),
+                  subtitle: Text(
+                    c.updateExisting
+                        ? '会覆盖 ${c.publishedUrl} 的内容，链接不变，不扣额度'
+                        : '不勾就是发新的一篇，之前那一篇不受影响',
+                    style: TextStyle(fontSize: 11, color: scheme.outline),
+                  ),
+                ),
               ],
               if (c.publishing) ...[
                 const SizedBox(height: 18),
@@ -237,7 +301,7 @@ class _PublishDialogState extends State<PublishDialog> {
           onPressed: (c.publishing || export == null || !c.isLinked)
               ? null
               : _publish,
-          child: Text(c.hasPublished || done != null ? '更新' : '发布'),
+          child: Text(c.updateExisting ? '更新那一篇' : '发布新的一篇'),
         ),
       ],
     );
