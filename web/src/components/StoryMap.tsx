@@ -16,12 +16,14 @@ import { decodePolyline, type Story } from '@/lib/story';
  */
 export default function StoryMap({
   story,
-  progress,
+  stopAt,
   activeStop,
   activePhoto,
 }: {
   story: Story;
-  progress: number;
+  /// 读者正在看第几站、这一站滚过了多少（0-1）。
+  /// **不要传"页面滚动百分比"** —— 见下面 stopDist 那段注释。
+  stopAt: { index: number; frac: number };
   activeStop?: string | null;
   /// 读者正在看的那张照片。指出它拍摄的位置 ——
   /// "这张是在哪拍的"是看游记时最常冒出来的问题。
@@ -32,6 +34,8 @@ export default function StoryMap({
   const carRef = useRef<maplibregl.Marker | null>(null);
   const pointsRef = useRef<[number, number][]>([]);
   const cumRef = useRef<number[]>([]);
+  /// 每一站在路线上的里程位置（沿路线的累计距离）
+  const stopDistRef = useRef<number[]>([]);
   const pinRef = useRef<maplibregl.Marker | null>(null);
 
   useEffect(() => {
@@ -173,15 +177,54 @@ export default function StoryMap({
     };
   }, [story]);
 
-  // 进度 -> 小车位置 + 已走路线
+  /**
+   * 把"第几站 + 段内比例"换算成路线上的里程。
+   *
+   * 每一站先找出它在路线折线上最近的那个点，记下该点的累计里程；
+   * 小车就在相邻两站的里程之间插值。这样**小车永远停在读者正在看的那一站**。
+   *
+   * 之前是拿页面滚动百分比直接乘总里程 —— 一个有二十几张照片的城市
+   * 要滚很久却只走了几英里，一段几百英里的高速可能一屏就过去了，
+   * 两者对不上，车就飘到别的地方去了。
+   */
+  useEffect(() => {
+    const all = pointsRef.current;
+    const cum = cumRef.current;
+    if (all.length < 2) return;
+    stopDistRef.current = story.stops.map((st) => {
+      let best = 0;
+      let bestD = Infinity;
+      for (let i = 0; i < all.length; i++) {
+        const dLat = all[i][0] - st.lat;
+        const dLon = (all[i][1] - st.lon) *
+          Math.cos((st.lat * Math.PI) / 180);
+        const d = dLat * dLat + dLon * dLon;
+        if (d < bestD) { bestD = d; best = i; }
+      }
+      return cum[best];
+    });
+  }, [story]);
+
+  // 当前站 -> 小车位置 + 已走路线
   useEffect(() => {
     const map = mapRef.current;
     const all = pointsRef.current;
     const cum = cumRef.current;
+    const stopDist = stopDistRef.current;
     if (!map || !map.isStyleLoaded() || all.length < 2) return;
 
     const total = cum[cum.length - 1];
-    const target = total * Math.max(0, Math.min(1, progress));
+    let target: number;
+    if (stopDist.length === 0) {
+      target = 0;
+    } else {
+      const i = Math.max(0, Math.min(stopDist.length - 1, stopAt.index));
+      const here = stopDist[i];
+      // 最后一站之后没有"下一站"，就停在终点
+      const next = i + 1 < stopDist.length ? stopDist[i + 1] : total;
+      const f = Math.max(0, Math.min(1, stopAt.frac));
+      target = here + (next - here) * f;
+    }
     let i = 1;
     while (i < cum.length - 1 && cum[i] < target) i++;
     const segLen = cum[i] - cum[i - 1];
@@ -207,7 +250,7 @@ export default function StoryMap({
       // 车头跟着道路方向转，不是横着滑
       el.style.transform += ` rotate(${bearing(all[i - 1], all[i]) - 90}deg)`;
     }
-  }, [progress]);
+  }, [stopAt, story.stops]);
 
   // 指出当前这张照片拍摄的位置
   useEffect(() => {

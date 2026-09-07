@@ -27,23 +27,48 @@ export default function StoryRenderer({
   /** 图片在存储里的前缀（stories.media_prefix）。示例故事不传。 */
   prefix?: string | null;
 }) {
-  const [progress, setProgress] = useState(0);
+  const [stopAt, setStopAt] = useState({ index: 0, frac: 0 });
   const [activeStop, setActiveStop] = useState<string | null>(null);
   const [activePhoto, setActivePhoto] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * 小车的位置**按站算，不按滚动条算**。
+   *
+   * 原来是"页面滚了百分之几，小车就在总里程的百分之几"——
+   * 这两件事没有任何关系: 一个二十几张照片的城市要滚很久却只走几英里，
+   * 一段几百英里的高速可能一屏就过去了。结果就是你在读芝加哥，
+   * 小车已经跑到密歇根湖南岸。
+   *
+   * 现在报给地图的是"第几站 + 这一站滚过了多少"，
+   * 由地图把它换算成路线上的位置 —— 小车永远停在你正在看的那一站。
+   */
   useEffect(() => {
     const onScroll = () => {
-      const el = contentRef.current;
-      if (!el) return;
-      const rect = el.getBoundingClientRect();
-      const span = rect.height - window.innerHeight;
-      setProgress(span > 0 ? Math.max(0, Math.min(1, -rect.top / span)) : 0);
+      const sections = Array.from(
+        document.querySelectorAll<HTMLElement>('[data-stop]'));
+      if (sections.length === 0) return;
+
+      const mid = window.innerHeight / 2;
+      let idx = 0;
+      let frac = 0;
+      for (let i = 0; i < sections.length; i++) {
+        const r = sections[i].getBoundingClientRect();
+        if (r.bottom < mid) { idx = i; frac = 1; continue; }
+        if (r.top > mid) break;
+        // 视口中线落在这一段里
+        idx = i;
+        frac = r.height > 0
+          ? Math.max(0, Math.min(1, (mid - r.top) / r.height))
+          : 0;
+        break;
+      }
+      setStopAt({ index: idx, frac });
     };
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     return () => window.removeEventListener('scroll', onScroll);
-  }, []);
+  }, [story]);
 
   useEffect(() => {
     const obs = new IntersectionObserver(
@@ -191,7 +216,7 @@ export default function StoryRenderer({
         <div className="sticky top-0 hidden h-screen lg:block">
           <StoryMap
             story={story}
-            progress={progress}
+            stopAt={stopAt}
             activeStop={activeStop}
             activePhoto={activePhoto}
           />
