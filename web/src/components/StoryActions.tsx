@@ -23,9 +23,14 @@ export default function StoryActions({
 
   async function remove() {
     if (!confirm('删除这篇故事？服务器上的图片也会一并删除，无法恢复。\n' +
-      '你电脑上的原图不受影响。')) return;
+      '你电脑上的原图不受影响。\n\n' +
+      '如果这是重复发布的一篇（还有另一篇日期重叠的在线上），' +
+      '当时扣的额度会退回来。')) return;
     setBusy(true);
-    await fetch(`/api/stories/${id}`, { method: 'DELETE' });
+    const res = await fetch(`/api/stories/${id}`, { method: 'DELETE' });
+    const j = await res.json().catch(() => ({}));
+    // 退了额度就明说 —— 用户删掉重复的那篇时最想确认的就是这件事
+    if (j.refunded) alert('已删除，重复发布扣掉的 1 篇额度已经退回你的账户。');
     router.push('/stories');
     router.refresh();
   }

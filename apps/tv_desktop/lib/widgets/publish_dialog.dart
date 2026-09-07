@@ -133,6 +133,33 @@ class _PublishDialogState extends State<PublishDialog> {
         ),
       );
       if (ok != true) return;
+    } else if (widget.c.updateCandidates.isNotEmpty) {
+      // 明知发过还要再发一篇是他的自由，但**代价必须先说清楚**:
+      // 重复的那一篇会实实在在再扣一次额度
+      final n = widget.c.updateCandidates.length;
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('这趟行程已经发布过'),
+          content: Text(
+            '网站上已经有 $n 篇日期重叠的故事。\n\n'
+            '继续发新的一篇：再扣 1 次发布额度，'
+            '线上会同时存在两篇几乎一样的内容。\n'
+            '改成更新已有的那一篇：不扣额度，公开链接也不变。\n\n'
+            '想更新的话，回去点那一篇后面的「更新这一篇」。',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('回去选一篇更新')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('确认再发一篇')),
+          ],
+        ),
+      );
+      if (ok != true) return;
     }
     await widget.c.publishStory(visibility: visibility);
   }
@@ -221,6 +248,9 @@ class _PublishDialogState extends State<PublishDialog> {
                         Text(c.pickedStoryUrl,
                             style: TextStyle(
                                 fontSize: 11, color: scheme.onSurfaceVariant)),
+                        const SizedBox(height: 4),
+                        const Text('更新不扣额度，公开链接也不变。',
+                            style: TextStyle(fontSize: 11)),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
@@ -237,27 +267,11 @@ class _PublishDialogState extends State<PublishDialog> {
                       ],
                     ),
                   )
-                else if (c.canUpdatePublished)
-                  CheckboxListTile(
-                    value: c.updateExisting,
-                    onChanged: c.publishing
-                        ? null
-                        : (v) => c.setUpdateExisting(v ?? false),
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    controlAffinity: ListTileControlAffinity.leading,
-                    title: const Text('更新已发布的那一篇（不新发）',
-                        style: TextStyle(fontSize: 12)),
-                    subtitle: Text(
-                      c.updateExisting
-                          ? '会覆盖 ${c.publishedUrl} 的内容，链接不变，不扣额度'
-                          : '不勾就是发新的一篇，之前那一篇不受影响',
-                      style: TextStyle(fontSize: 11, color: scheme.outline),
-                    ),
-                  )
-                else if (c.updateCandidates.isNotEmpty) ...[
-                  // 日期有重叠 = 很可能就是同一趟行程的另一个版本。
-                  // **只提示，不替用户选** —— 覆盖不可撤销，猜错代价太大
+                else if (c.updateCandidates.isNotEmpty)
+                  // **把所有日期重叠的都列出来，一篇不漏。**
+                  // 之前这里分了两条路: 草稿里有记录就只显示那一篇的勾选框，
+                  // 结果用户根本不知道自己重复发过 —— 而这一屏正是他唯一
+                  // 有机会发现的地方。
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
@@ -269,22 +283,46 @@ class _PublishDialogState extends State<PublishDialog> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          '你之前发布过日期重叠的 ${c.updateCandidates.length} 篇，'
-                          '这次可能是想更新它？',
+                          c.updateCandidates.length > 1
+                              ? '这趟行程在网站上已经有 '
+                                  '${c.updateCandidates.length} 篇'
+                                  '（日期重叠）—— 可能是重复发布了'
+                              : '这趟行程已经发布过，要更新它吗？',
                           style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w600),
                         ),
-                        const SizedBox(height: 6),
-                        ...c.updateCandidates.take(3).map((st) => Padding(
+                        if (c.updateCandidates.length > 1)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2, bottom: 6),
+                            child: Text(
+                              '在网站的「我的故事」里删掉多余的那篇，'
+                              '当时扣的额度会退回来。',
+                              style: TextStyle(
+                                  fontSize: 11, color: scheme.outline),
+                            ),
+                          ),
+                        const SizedBox(height: 4),
+                        ...c.updateCandidates.map((st) => Padding(
                               padding: const EdgeInsets.only(bottom: 4),
                               child: Row(children: [
                                 Expanded(
                                   child: Text(
                                     '${st.title}   ${st.start ?? ''} - '
-                                    '${st.end ?? ''} · ${st.photos} 张',
+                                    '${st.end ?? ''} · ${st.stops} 站 · '
+                                    '${st.photos} 张'
+                                    '${st.id == (c.currentProject?.publishedStoryId ?? '') ? '   ← 上次发的' : ''}',
                                     style: const TextStyle(fontSize: 12),
                                     overflow: TextOverflow.ellipsis,
                                   ),
+                                ),
+                                TextButton(
+                                  onPressed: () => _open(st.url),
+                                  style: TextButton.styleFrom(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6),
+                                      minimumSize: Size.zero),
+                                  child: const Text('看看',
+                                      style: TextStyle(fontSize: 11)),
                                 ),
                                 TextButton(
                                   onPressed: c.publishing
@@ -299,13 +337,23 @@ class _PublishDialogState extends State<PublishDialog> {
                                 ),
                               ]),
                             )),
-                        Text('不选的话就是发新的一篇，那些都不会被改动。',
-                            style: TextStyle(
-                                fontSize: 11, color: scheme.outline)),
+                        // **代价要在按下去之前说清楚**，不能等扣完了才知道
+                        Row(children: [
+                          Icon(Icons.info_outline, size: 13,
+                              color: scheme.tertiary),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              '「更新这一篇」不扣额度，链接也不变；'
+                              '不选就是再发一篇新的，会再扣 1 次发布额度。',
+                              style: TextStyle(
+                                  fontSize: 11, color: scheme.tertiary),
+                            ),
+                          ),
+                        ]),
                       ],
                     ),
-                  ),
-                ]
+                  )
                 else
                   Text('会发布成新的一篇。',
                       style: TextStyle(fontSize: 12, color: scheme.outline)),
