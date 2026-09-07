@@ -36,9 +36,18 @@ class _StoryPageState extends State<StoryPage> {
   int targetPerStop = 0; // 0 = 自动
   String _sig = '';
 
+  /// 标题和副标题。**它们是发布出去给读者看的那两行字**，
+  /// 和左边那个"工作进度"的名字不是一回事
+  late final TextEditingController _title;
+  late final TextEditingController _subtitle;
+  final _titleFocus = FocusNode();
+  final _subtitleFocus = FocusNode();
+
   @override
   void initState() {
     super.initState();
+    _title = TextEditingController(text: widget.c.storyTitle);
+    _subtitle = TextEditingController(text: widget.c.storySubtitle);
     widget.c.addListener(_onChanged);
     _recompute();
   }
@@ -46,6 +55,10 @@ class _StoryPageState extends State<StoryPage> {
   @override
   void dispose() {
     widget.c.removeListener(_onChanged);
+    _title.dispose();
+    _subtitle.dispose();
+    _titleFocus.dispose();
+    _subtitleFocus.dispose();
     super.dispose();
   }
 
@@ -54,6 +67,15 @@ class _StoryPageState extends State<StoryPage> {
       '|${widget.c.clusterPreset}';
 
   void _onChanged() {
+    // 换了草稿，标题输入框要跟着换 —— 但不能在用户正打字时抢走光标
+    if (!_titleFocus.hasFocus && !_subtitleFocus.hasFocus) {
+      if (_title.text != widget.c.storyTitle) {
+        _title.text = widget.c.storyTitle;
+      }
+      if (_subtitle.text != widget.c.storySubtitle) {
+        _subtitle.text = widget.c.storySubtitle;
+      }
+    }
     if (_signature != _sig) {
       _recompute();
     } else if (mounted) {
@@ -174,15 +196,21 @@ class _StoryPageState extends State<StoryPage> {
           : selected.first.id;
     }
 
-    final title = widget.c.currentProjectName ?? '我的旅行';
+    // 标题优先用用户自己填的那个。**草稿名不是标题** ——
+    // 草稿名是给自己找东西用的，标题是读者唯一看得到的那行字
+    final title = widget.c.storyTitle.isNotEmpty
+        ? widget.c.storyTitle
+        : (widget.c.currentProjectName ?? '我的旅行');
     final cover = widget.c.coverPhotoId;
     final coverMode = widget.c.coverMode;
     // **只数真正进 Story 的站。** 副标题写 22 站、统计栏写 7 站，
     // 用户第一眼就会觉得数据是错的 —— 事实上错的是副标题。
     final shownStops =
         r.stays.where((s) => _selectedOf(s).isNotEmpty).length;
-    final sub = '${_dateOnly(r.start)} - ${_dateOnly(r.end)}'
-        ' · ${r.dayCount} 天 · $shownStops 站';
+    final sub = widget.c.storySubtitle.isNotEmpty
+        ? widget.c.storySubtitle
+        : '${_dateOnly(r.start)} - ${_dateOnly(r.end)}'
+            ' · ${r.dayCount} 天 · $shownStops 站';
 
     final res = await widget.c.exportStory(
       trip: r,
@@ -252,178 +280,233 @@ class _StoryPageState extends State<StoryPage> {
 
   Widget _toolbar(BuildContext context, TripRoute r) {
     final scheme = Theme.of(context).colorScheme;
-    final totalSelected = r.stays.fold<int>(0, (a, s) => a + _selectedOf(s).length);
+    final totalSelected =
+        r.stays.fold<int>(0, (a, s) => a + _selectedOf(s).length);
     final totalPhotos =
         suggestions.values.fold<int>(0, (a, s) => a + s.totalPhotos);
     final ready = widget.c.signalReadyCount;
     final all = widget.c.photoCount;
 
-    // 工具栏必须能横向滚动。按钮数量是会长的，窗口宽度是用户说了算的，
-    // 固定成一行迟早 overflow —— 之前那条黄黑斜线就是这么来的。
+    // **两排，不是一排。** 按钮只会越来越多，挤在一行里迟早溢出，
+    // 而且"设置"和"动作"混在一起，用户每次都得从头扫一遍。
+    //   第一排 = 这篇东西是什么（标题、副标题、统计）
+    //   第二排 = 拿它做什么（精选、导出、发布）+ 怎么呈现（封面）
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 10, 20, 10),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-          Text('${r.stays.length} 站 · ${r.dayCount} 天 · '
-              '${r.totalMiles.round()} mi',
-              style: const TextStyle(fontWeight: FontWeight.w600)),
-          const SizedBox(width: 20),
-          Text('精选 $totalSelected / $totalPhotos 张',
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
-          const SizedBox(width: 20),
-          const Text('每站', style: TextStyle(fontSize: 12)),
-          const SizedBox(width: 6),
-          DropdownButton<int>(
-            value: targetPerStop,
-            underline: const SizedBox.shrink(),
-            style: const TextStyle(fontSize: 12),
-            items: const [
-              DropdownMenuItem(value: 0, child: Text('自动')),
-              DropdownMenuItem(value: 3, child: Text('3 张')),
-              DropdownMenuItem(value: 5, child: Text('5 张')),
-              DropdownMenuItem(value: 8, child: Text('8 张')),
-              DropdownMenuItem(value: 12, child: Text('12 张')),
-            ],
-            onChanged: (v) {
-              if (v == null) return;
-              targetPerStop = v;
-              _recompute();
-            },
-          ),
-          const SizedBox(width: 12),
-          FilledButton.tonalIcon(
-            onPressed: _recompute,
-            icon: const Icon(Icons.refresh, size: 15),
-            label: const Text('重算建议', style: TextStyle(fontSize: 12)),
-          ),
-          const SizedBox(width: 8),
-          FilledButton.icon(
-            onPressed: _applyAll,
-            icon: const Icon(Icons.auto_awesome, size: 15),
-            label: const Text('自动精选全部站', style: TextStyle(fontSize: 12)),
-          ),
-          const SizedBox(width: 8),
-          widget.c.exporting
-              ? Row(children: [
-                  const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2)),
-                  const SizedBox(width: 8),
-                  Text('${widget.c.exportDone}/${widget.c.exportTotal}',
-                      style: const TextStyle(fontSize: 12)),
-                ])
-              : FilledButton.icon(
-                  onPressed: totalSelected == 0 ? null : _export,
-                  icon: const Icon(Icons.ios_share, size: 15),
-                  label: const Text('导出 Story 网页',
-                      style: TextStyle(fontSize: 12)),
+          // ── 第一排: 标题 ──
+          Row(children: [
+            Expanded(
+              flex: 3,
+              child: TextField(
+                controller: _title,
+                focusNode: _titleFocus,
+                onChanged: (v) => widget.c.setStoryTitle(v),
+                style: const TextStyle(
+                    fontSize: 17, fontWeight: FontWeight.w600),
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText: widget.c.currentProjectName ?? '给这篇起个标题',
+                  hintStyle: TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w600,
+                      color: scheme.outline),
                 ),
-          const SizedBox(width: 8),
-          _fillingCaptions
-              ? const SizedBox(
-                  width: 14,
-                  height: 14,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : OutlinedButton.icon(
-                  onPressed: _fillCaptions,
-                  icon: const Icon(Icons.bolt, size: 15),
-                  label: const Text('自动生成全部文字',
-                      style: TextStyle(fontSize: 12)),
-                ),
-          const SizedBox(width: 8),
-          FilledButton.tonalIcon(
-            onPressed: widget.c.exporting || widget.c.publishing
-                ? null
-                : () => PublishDialog.show(context, widget.c),
-            icon: const Icon(Icons.cloud_upload_outlined, size: 15),
-            label: const Text('发布', style: TextStyle(fontSize: 12)),
-          ),
-          const SizedBox(width: 8),
-          // 片头用什么。默认路线图 —— 它是这趟旅行独一无二的那张图
-          const Text('封面', style: TextStyle(fontSize: 12)),
-          const SizedBox(width: 6),
-          SegmentedButton<String>(
-            style: const ButtonStyle(visualDensity: VisualDensity.compact),
-            segments: const [
-              ButtonSegment(
-                  value: 'auto',
-                  label: Text('自动', style: TextStyle(fontSize: 11))),
-              ButtonSegment(
-                  value: 'map',
-                  label: Text('整屏地图', style: TextStyle(fontSize: 11))),
-              ButtonSegment(
-                  value: 'mapcard',
-                  label: Text('地图卡片', style: TextStyle(fontSize: 11))),
-              ButtonSegment(
-                  value: 'photo',
-                  label: Text('照片', style: TextStyle(fontSize: 11))),
-            ],
-            selected: {widget.c.coverMode},
-            onSelectionChanged: (v) => widget.c.setCoverMode(v.first),
-          ),
-          const SizedBox(width: 8),
-          // 选了"照片"才需要指定是哪一张
-          if (widget.c.coverMode == 'photo')
-          Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(
-              widget.c.coverPhotoId.isEmpty ? Icons.star_border : Icons.star,
-              size: 15,
-              color: widget.c.coverPhotoId.isEmpty
-                  ? scheme.onSurfaceVariant
-                  : const Color(0xFFE0A800),
-            ),
-            const SizedBox(width: 4),
-            Text(
-              widget.c.coverPhotoId.isEmpty ? '封面照片：自动' : '封面照片：已指定',
-              style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
-            ),
-            if (widget.c.coverPhotoId.isNotEmpty)
-              TextButton(
-                onPressed: () => widget.c.setCoverPhoto(''),
-                style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    minimumSize: Size.zero),
-                child: const Text('改回自动', style: TextStyle(fontSize: 11)),
-              ),
-          ]),
-          const SizedBox(width: 4),
-          IconButton(
-            tooltip: 'AI 文案设置',
-            onPressed: () => AiSettingsDialog.show(context, widget.c),
-            icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
-          ),
-                ],
               ),
             ),
-          ),
-          if (ready < all)
-
-            Tooltip(
-              message: '还在后台计算去重信号（清晰度、感知哈希、人脸）。\n'
-                  '算完之前，去重只能靠拍摄时间兜底，重复照片会偏多。',
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, size: 15),
-                  const SizedBox(width: 6),
-                  Text('去重信号 $ready / $all',
+            const SizedBox(width: 16),
+            Expanded(
+              flex: 2,
+              child: TextField(
+                controller: _subtitle,
+                focusNode: _subtitleFocus,
+                onChanged: (v) =>
+                    widget.c.setStoryTitle(_title.text, subtitle: v),
+                style: const TextStyle(fontSize: 12),
+                decoration: InputDecoration(
+                  isDense: true,
+                  border: InputBorder.none,
+                  hintText: '${_dateOnly(r.start)} - ${_dateOnly(r.end)}'
+                      ' · ${r.dayCount} 天 · ${r.stays.length} 站',
+                  hintStyle:
+                      TextStyle(fontSize: 12, color: scheme.outline),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Text('${r.stays.length} 站 · ${r.dayCount} 天 · '
+                '${r.totalMiles.round()} mi · 精选 $totalSelected/$totalPhotos',
+                style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+            if (ready < all) ...[
+              const SizedBox(width: 12),
+              Tooltip(
+                message: '还在后台计算去重信号（清晰度、感知哈希、人脸）。\n'
+                    '算完之前，去重只能靠拍摄时间兜底，重复照片会偏多。',
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.info_outline, size: 14),
+                  const SizedBox(width: 4),
+                  Text('$ready/$all',
                       style: TextStyle(
                           fontSize: 12, color: scheme.onSurfaceVariant)),
-                ],
+                ]),
               ),
-            ),
+            ],
+          ]),
+
+          const SizedBox(height: 10),
+
+          // ── 第二排: 动作 + 呈现 ──
+          // 仍然可横向滚动兜底，但正常窗口宽度下不需要滚
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              const Text('每站', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              DropdownButton<int>(
+                value: targetPerStop,
+                underline: const SizedBox.shrink(),
+                style: const TextStyle(fontSize: 12),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('自动')),
+                  DropdownMenuItem(value: 3, child: Text('3 张')),
+                  DropdownMenuItem(value: 5, child: Text('5 张')),
+                  DropdownMenuItem(value: 8, child: Text('8 张')),
+                  DropdownMenuItem(value: 12, child: Text('12 张')),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  targetPerStop = v;
+                  _recompute();
+                },
+              ),
+              const SizedBox(width: 10),
+              FilledButton.tonalIcon(
+                onPressed: _recompute,
+                icon: const Icon(Icons.refresh, size: 15),
+                label: const Text('重算建议', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: _applyAll,
+                icon: const Icon(Icons.auto_awesome, size: 15),
+                label:
+                    const Text('自动精选全部站', style: TextStyle(fontSize: 12)),
+              ),
+              const SizedBox(width: 8),
+              _fillingCaptions
+                  ? const SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(strokeWidth: 2))
+                  : OutlinedButton.icon(
+                      onPressed: _fillCaptions,
+                      icon: const Icon(Icons.bolt, size: 15),
+                      label: const Text('自动生成全部文字',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+              const SizedBox(width: 8),
+              IconButton(
+                tooltip: 'AI 文案设置',
+                onPressed: () => AiSettingsDialog.show(context, widget.c),
+                icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
+              ),
+
+              _sep(scheme),
+
+              const Text('封面', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              SegmentedButton<String>(
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: const [
+                  ButtonSegment(
+                      value: 'auto',
+                      label: Text('自动', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(
+                      value: 'map',
+                      label: Text('整屏地图', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(
+                      value: 'mapcard',
+                      label: Text('地图卡片', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(
+                      value: 'photo',
+                      label: Text('照片', style: TextStyle(fontSize: 11))),
+                ],
+                selected: {widget.c.coverMode},
+                onSelectionChanged: (v) => widget.c.setCoverMode(v.first),
+              ),
+              if (widget.c.coverMode == 'photo') ...[
+                const SizedBox(width: 8),
+                Icon(
+                  widget.c.coverPhotoId.isEmpty
+                      ? Icons.star_border
+                      : Icons.star,
+                  size: 15,
+                  color: widget.c.coverPhotoId.isEmpty
+                      ? scheme.onSurfaceVariant
+                      : const Color(0xFFE0A800),
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  widget.c.coverPhotoId.isEmpty ? '自动' : '已指定',
+                  style: TextStyle(
+                      fontSize: 12, color: scheme.onSurfaceVariant),
+                ),
+                if (widget.c.coverPhotoId.isNotEmpty)
+                  TextButton(
+                    onPressed: () => widget.c.setCoverPhoto(''),
+                    style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        minimumSize: Size.zero),
+                    child:
+                        const Text('改回自动', style: TextStyle(fontSize: 11)),
+                  ),
+              ],
+
+              _sep(scheme),
+
+              // 交付动作放最后、也最重
+              widget.c.exporting
+                  ? Row(children: [
+                      const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2)),
+                      const SizedBox(width: 8),
+                      Text('${widget.c.exportDone}/${widget.c.exportTotal}',
+                          style: const TextStyle(fontSize: 12)),
+                    ])
+                  : OutlinedButton.icon(
+                      onPressed: totalSelected == 0 ? null : _export,
+                      icon: const Icon(Icons.ios_share, size: 15),
+                      label: const Text('导出网页',
+                          style: TextStyle(fontSize: 12)),
+                    ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: widget.c.exporting || widget.c.publishing
+                    ? null
+                    : () => PublishDialog.show(context, widget.c),
+                icon: const Icon(Icons.cloud_upload_outlined, size: 15),
+                label: const Text('发布', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
+          ),
         ],
       ),
     );
   }
+
+  /// 两组之间的竖线。视觉上把"处理照片"和"怎么呈现"分开
+  Widget _sep(ColorScheme scheme) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        child: Container(width: 1, height: 20, color: scheme.outlineVariant),
+      );
 
   Widget _stopCard(BuildContext context, Stop stop, int index) {
     final scheme = Theme.of(context).colorScheme;

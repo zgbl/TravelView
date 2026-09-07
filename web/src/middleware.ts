@@ -30,7 +30,13 @@ export function middleware(req: NextRequest) {
     const rest = pathname.slice(seg.length + 1) || '/';
     const url = req.nextUrl.clone();
     url.pathname = rest;
-    const res = NextResponse.rewrite(url);
+    // **路径要塞进请求头**，不是响应头 ——
+    // 服务端组件读的是请求头，写在响应上它看不到
+    const reqHeaders = new Headers(req.headers);
+    reqHeaders.set('x-locale', seg);
+    reqHeaders.set('x-pathname', rest);
+    const res = NextResponse.rewrite(url, { request: { headers: reqHeaders } });
+    // 响应头也留一份: 原来只写响应头，改动时两边都留着最稳
     res.headers.set('x-locale', seg);
     // 记住选择，下次访问裸链接直接给他熟悉的那一版
     res.cookies.set('locale', seg, { maxAge: 60 * 60 * 24 * 365, path: '/' });

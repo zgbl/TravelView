@@ -229,7 +229,8 @@ class _Sidebar extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.travel_explore, color: scheme.primary, size: 22),
+              // 品牌标记，和网站、图标是同一枚
+              Image.asset('assets/logo.png', width: 24, height: 24),
               const SizedBox(width: 8),
               Text('TravelView',
                   style: Theme.of(context)

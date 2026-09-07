@@ -674,7 +674,7 @@ class LibraryController extends ChangeNotifier {
         onProgress: (d, t, label) {
           publishDone = d;
           publishTotal = t;
-          status = '正在发布 $d/$t  $label';
+          status = '正在发布 $d/$t 个文件  $label';
           notifyListeners();
         },
       );
@@ -729,6 +729,32 @@ class LibraryController extends ChangeNotifier {
   String _tmpCoverMode = 'auto';
 
   static const coverModes = ['auto', 'map', 'mapcard', 'photo'];
+
+  /// 封面上最大的那行字。空就用草稿名兜底。
+  String get storyTitle =>
+      currentProject?.storyTitle.isNotEmpty == true
+          ? currentProject!.storyTitle
+          : _tmpTitle;
+  String _tmpTitle = '';
+
+  String get storySubtitle =>
+      currentProject?.storySubtitle.isNotEmpty == true
+          ? currentProject!.storySubtitle
+          : _tmpSubtitle;
+  String _tmpSubtitle = '';
+
+  Future<void> setStoryTitle(String title, {String? subtitle}) async {
+    _tmpTitle = title.trim();
+    if (subtitle != null) _tmpSubtitle = subtitle.trim();
+    final proj = currentProject;
+    if (proj != null) {
+      proj.storyTitle = _tmpTitle;
+      if (subtitle != null) proj.storySubtitle = _tmpSubtitle;
+      proj.updatedAt = DateTime.now();
+      await _store?.save(projects);
+    }
+    notifyListeners();
+  }
 
   Future<void> setCoverMode(String mode) async {
     _tmpCoverMode = coverModes.contains(mode) ? mode : 'auto';
@@ -861,6 +887,8 @@ class LibraryController extends ChangeNotifier {
           ? _tmpCover
           : (old?.coverPhotoId ?? ''),
       coverMode: _tmpCoverMode,
+      storyTitle: _tmpTitle,
+      storySubtitle: _tmpSubtitle,
       publishedStoryId: old?.publishedStoryId ?? '',
       publishedUrl: old?.publishedUrl ?? '',
     );
@@ -927,6 +955,8 @@ class LibraryController extends ChangeNotifier {
     // 换了草稿，"更新那一篇"的勾选必须清掉 —— 它属于上一个草稿
     updateExisting = false;
     _tmpCover = proj.coverPhotoId;
+    _tmpTitle = proj.storyTitle;
+    _tmpSubtitle = proj.storySubtitle;
     _tmpCoverMode = proj.coverMode;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;

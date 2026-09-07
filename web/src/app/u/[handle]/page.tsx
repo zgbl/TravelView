@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import { one, query } from '@/lib/db';
 import { requireUser } from '@/lib/auth';
-import { mediaUrl, miles, type Story } from '@/lib/story';
+import { miles, thumbUrl, type Story } from '@/lib/story';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
 import { siteUrl } from '@/lib/stripe';
@@ -118,7 +118,7 @@ export default async function Profile(
                     {cover && (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={mediaUrl(cover.web.path, prefix)}
+                        src={thumbUrl(cover, prefix)}
                         alt=""
                         loading="lazy"
                         className="h-full w-full object-cover transition

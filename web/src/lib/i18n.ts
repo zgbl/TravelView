@@ -182,6 +182,10 @@ export const dict: Dict = {
     en: 'Use 3-20 lowercase letters, numbers or underscore',
   },
 
+  'story.madewith': {
+    zh: '用 TravelView 制作你自己的',
+    en: 'Make your own with TravelView',
+  },
   'billing.title': { zh: '订阅与额度', en: 'Plan & credits' },
   'billing.back': { zh: '返回账户', en: 'Back to account' },
   'billing.manage': { zh: '管理订阅', en: 'Manage plan' },

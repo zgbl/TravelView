@@ -101,6 +101,21 @@ export function decodePolyline(str: string, precision = 6): [number, number][] {
  * 这样同一份 manifest 在本地预览、在导出包里、在服务器上都成立，
  * 前缀由发布时决定并记在 stories.media_prefix 里。
  */
+/**
+ * 列表和网格里该用哪张图。
+ *
+ * **缩略图（480px）优先。** 网格里一张图显示出来也就两三百像素宽，
+ * 拿 1600px 的原图去填等于让每个访客白下几十兆 ——
+ * 一篇 166 张照片的游记，网格全用大图就是 80MB 的首屏。
+ * 点开大图时才换成 1600px 那张。
+ */
+export function thumbUrl(
+  p: { web: { path: string }; thumb?: string },
+  prefix?: string | null,
+) {
+  return mediaUrl(p.thumb ?? p.web.path, prefix);
+}
+
 export function mediaUrl(path: string, prefix?: string | null) {
   const base = (process.env.NEXT_PUBLIC_MEDIA_BASE ?? '').replace(/\/$/, '');
   const rel = path.replace(/^\//, '');

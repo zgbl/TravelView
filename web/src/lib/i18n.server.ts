@@ -11,3 +11,13 @@ export async function getLocale(): Promise<Locale> {
   const h = await headers();
   return h.get('x-locale') === 'en' ? 'en' : 'zh';
 }
+
+/**
+ * 当前请求的路径（不含语言前缀），由 middleware 塞在请求头里。
+ * 布局用它决定挂不挂导航栏 —— 服务端组件拿不到 usePathname。
+ */
+export async function getPathname(): Promise<string> {
+  const { headers } = await import('next/headers');
+  const h = await headers();
+  return h.get('x-pathname') ?? '/';
+}

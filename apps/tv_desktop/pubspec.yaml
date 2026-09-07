@@ -24,6 +24,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/logo.png
 
 # Windows 打包配置: flutter build windows --release && dart run msix:create
 msix_config:

@@ -28,6 +28,13 @@ class Project {
   /// Story Cover 的形态: auto（默认，由内容决定）/ map / mapcard / photo
   String coverMode;
 
+  /// 发布出去的标题。**和草稿名字是两回事** ——
+  /// 草稿名是给自己找东西用的（"横穿美国-第二版"），
+  /// 标题是封面上最大的那行字、也是分享卡片的第一行，读者只看得到它。
+  /// 空 = 用草稿名兜底。
+  String storyTitle;
+  String storySubtitle;
+
   String publishedStoryId;
   String publishedUrl;
 
@@ -50,6 +57,8 @@ class Project {
     this.note = '',
     this.coverPhotoId = '',
     this.coverMode = 'auto',
+    this.storyTitle = '',
+    this.storySubtitle = '',
     this.publishedStoryId = '',
     this.publishedUrl = '',
     this.publishedKey = '',
@@ -67,6 +76,8 @@ class Project {
         'note': note,
         'coverPhotoId': coverPhotoId,
         'coverMode': coverMode,
+        'storyTitle': storyTitle,
+        'storySubtitle': storySubtitle,
         'publishedStoryId': publishedStoryId,
         'publishedUrl': publishedUrl,
         'publishedKey': publishedKey,
@@ -84,6 +95,8 @@ class Project {
         note: j['note'] as String? ?? '',
         coverPhotoId: j['coverPhotoId'] as String? ?? '',
         coverMode: j['coverMode'] as String? ?? 'auto',
+        storyTitle: j['storyTitle'] as String? ?? '',
+        storySubtitle: j['storySubtitle'] as String? ?? '',
         publishedStoryId: j['publishedStoryId'] as String? ?? '',
         publishedUrl: j['publishedUrl'] as String? ?? '',
         publishedKey: j['publishedKey'] as String? ?? '',

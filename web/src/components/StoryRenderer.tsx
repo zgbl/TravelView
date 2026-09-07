@@ -1,11 +1,12 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { mediaUrl, miles, type Story } from '@/lib/story';
+import { mediaUrl, miles, thumbUrl, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
 import PhotoLightbox from './PhotoLightbox';
 import StoryCover from './StoryCover';
+import Logo from './Logo';
 import { t, type Locale } from '@/lib/i18n';
 
 /**
@@ -258,7 +259,7 @@ export default function StoryRenderer({
                             // eslint-disable-next-line @next/next/no-img-element
                             <img
                               key={pid}
-                              src={mediaUrl(ph.web.path, prefix)}
+                              src={thumbUrl(ph, prefix)}
                               alt=""
                               loading="lazy"
                               onMouseEnter={() => setActivePhoto(ph.id)}
@@ -329,7 +330,14 @@ export default function StoryRenderer({
               <Big n={story.stats.photos} k="张照片" />
             </div>
           </div>
-          <p className="mt-10 text-xs text-muted">
+          {/* 作品页顶上不挂导航，所以回家的那条路在这里。
+              每一篇被分享出去的 Story 都是一个入口 —— 这一行是增长回路 */}
+          <a href="/" className="mt-10 inline-flex items-center gap-2
+            text-sm text-muted transition-colors hover:text-paper">
+            <Logo size={20} />
+            {t(locale, 'story.madewith')}
+          </a>
+          <p className="mt-6 text-xs text-muted">
             路线根据照片位置推算 &middot; 地图数据 &copy; OpenStreetMap 贡献者
           </p>
         </section>

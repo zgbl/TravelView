@@ -106,9 +106,14 @@ class _PublishDialogState extends State<PublishDialog> {
                 _hint(scheme,
                     '还没有导出。先点「导出 Story 网页」，发布上传的就是那份产物。')
               else
+                // 说清楚"张"和"个文件"不是一回事。
+                // 进度条数的是文件数（每张照片一张大图 + 一张缩略图），
+                // 这里只写"张"的话，用户会以为我们在偷偷传三倍的东西
                 _hint(scheme,
-                    '将上传 ${export.photoCount} 张网页用图'
-                    '（${(export.totalBytes / 1024 / 1024).toStringAsFixed(1)} MB）。'
+                    '将上传 ${export.photoCount} 张照片'
+                    '（每张一份 1600px 网页图 + 一份 480px 缩略图，'
+                    '共 ${export.photoCount * 2 + 1} 个文件，'
+                    '${(export.totalBytes / 1024 / 1024).toStringAsFixed(1)} MB）。'
                     '原图一张都不会离开这台电脑。'),
               const SizedBox(height: 16),
               const SizedBox(height: 12),
@@ -198,6 +203,8 @@ class _PublishDialogState extends State<PublishDialog> {
                         : c.publishDone / c.publishTotal),
                 const SizedBox(height: 8),
                 Text(c.status, style: const TextStyle(fontSize: 12)),
+                Text('进度按文件数算，不是照片数',
+                    style: TextStyle(fontSize: 11, color: scheme.outline)),
               ],
               if (done != null) ...[
                 const SizedBox(height: 18),

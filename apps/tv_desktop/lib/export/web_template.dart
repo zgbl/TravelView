@@ -316,7 +316,12 @@ function render(){
           const ph = photoById[pid];
           if (!ph) return;
           const cls = ph.web.h > ph.web.w ? ' class="portrait"' : '';
-          html += '<img'+cls+' src="'+ph.web.path
+          // 网格用 480px 的缩略图。网格里一张图显示出来也就两三百像素宽，
+          // 拿 1600px 去填等于让每个访客白下几十兆
+          // data-full 记着 1600px 那张 —— 网格显示缩略图，
+          // 点开灯箱要换成大图，否则点开还是糊的
+          html += '<img'+cls+' src="'+(ph.thumb || ph.web.path)
+               +'" data-full="'+ph.web.path
                +'" loading="lazy" alt="" data-photo="'+ph.id+'">';
         });
         html += '</div>';
@@ -593,7 +598,7 @@ function initLightbox(){
       const imgs = card
         ? Array.from(card.querySelectorAll('.hero-shot img, .grid img'))
         : [e.target];
-      lbList = imgs.map(x => x.src);
+      lbList = imgs.map(x => x.dataset.full || x.src);
       lbIds = imgs.map(x => x.dataset.photo);
       lbShow(imgs.indexOf(e.target));
     } else if (e.target.closest('.lightbox')){
