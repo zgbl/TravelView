@@ -53,8 +53,8 @@ export default function StoryMap({
   const [pinShape, setPinShape] = useState<'dot' | 'car'>('dot');
   /// 控件是命令式建出来的（maplibre 的 IControl），
   /// 用 ref 把回调和那个示例小圆点接回 React 状态
-  const pinDotRef = useRef<HTMLSpanElement | null>(null);
   const pinShapeBtnRef = useRef<HTMLButtonElement | null>(null);
+  const pinIconsRef = useRef<{ car: string; dot: string } | null>(null);
   const changePinRef = useRef<(d: number) => void>(() => {});
   useEffect(() => {
     try {
@@ -85,28 +85,14 @@ export default function StoryMap({
   toggleShapeRef.current = togglePinShape;
 
   // 控件里那个示例小圆点跟着变
+  // 形状按钮上画的是**切换之后会变成的样子**，所见即所得
   useEffect(() => {
-    const dot = pinDotRef.current;
-    if (dot) {
-      const px = Math.round(10 * pinScale);
-      if (pinShape === 'car') {
-        // 控件里的预览也跟着变，用户按下去之前就知道会得到什么
-        dot.style.cssText =
-          'display:inline-block;margin:0 2px;flex:none;line-height:1';
-        dot.textContent = '🚗';
-        dot.style.fontSize = `${Math.round(13 * pinScale)}px`;
-      } else {
-        dot.textContent = '';
-        dot.style.cssText =
-          'display:inline-block;border-radius:999px;background:#ff8a5b;' +
-          'border:2px solid #fff;margin:0 2px;flex:none';
-        dot.style.width = `${px}px`;
-        dot.style.height = `${px}px`;
-      }
-    }
     const btn = pinShapeBtnRef.current;
-    if (btn) btn.textContent = pinShape === 'car' ? '●' : '🚗';
-  }, [pinScale, pinShape]);
+    const icons = pinIconsRef.current;
+    if (btn && icons) {
+      btn.innerHTML = pinShape === 'car' ? icons.dot : icons.car;
+    }
+  }, [pinShape]);
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -157,58 +143,76 @@ export default function StoryMap({
     });
     map.on('wheel', markUserMoved);
 
-    // "回到路线": 自己缩放过之后，得有一条明确的路回到跟随模式，
-    // 否则读者只能刷新页面。双击已经被用来放大了，所以做成一个按钮
-    const back = document.createElement('div');
-    back.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.title = '回到路线';
-    btn.style.fontSize = '15px';
-    btn.textContent = '⤢';
-    btn.onclick = () => {
-      userMovedRef.current = false;
-      fitAllRef.current?.();
-    };
-    back.appendChild(btn);
-    map.addControl({
-      onAdd: () => back,
-      onRemove: () => back.remove(),
-    } as maplibregl.IControl, 'top-right');
-
-    // 定位点大小。**必须和其它地图控件排在一起** ——
-    // 之前放在左下角，被固定在视口底部的分享条整个盖住了，
-    // 用户根本看不见。地图的操作按钮就该在地图的控件区里
-    const pin = document.createElement('div');
-    pin.className = 'maplibregl-ctrl maplibregl-ctrl-group';
-    pin.style.display = 'flex';
-    pin.style.alignItems = 'center';
-    const mk = (label: string, title: string, d: number) => {
+    /**
+     * 自定义控件。
+     *
+     * **必须长得和 maplibre 自带的一模一样**: 同一列、同样 29px 见方、
+     * 竖排、深色图标。之前用横排 flex + 纯文本字符，结果既插在那一列里
+     * 错位，字符（⤢）在有些系统字体里干脆没有字形，显示成一片白。
+     * 图标一律用内联 SVG —— 不依赖任何字体。
+     */
+    const ctrlBtn = (title: string, svg: string, onClick: () => void) => {
       const b = document.createElement('button');
       b.type = 'button';
       b.title = title;
-      b.textContent = label;
-      b.style.fontSize = '15px';
-      b.onclick = () => changePinRef.current(d);
+      b.setAttribute('aria-label', title);
+      b.innerHTML = svg;
+      b.style.cssText =
+        'display:flex;align-items:center;justify-content:center;color:#33393d';
+      b.onclick = onClick;
       return b;
     };
-    const dot = document.createElement('span');
-    dot.style.cssText =
-      'display:inline-block;border-radius:999px;background:#ff8a5b;' +
-      'border:2px solid #fff;margin:0 2px;flex:none';
-    pinDotRef.current = dot;
-    const shape = document.createElement('button');
-    shape.type = 'button';
-    shape.title = '换成小车 / 圆点';
-    shape.style.fontSize = '13px';
-    shape.onclick = () => toggleShapeRef.current();
-    pinShapeBtnRef.current = shape;
-    pin.append(mk('−', '定位点调小', -0.3), dot, mk('+', '定位点调大', 0.3),
-      shape);
+
+    const group = (children: HTMLElement[]) => {
+      const g = document.createElement('div');
+      g.className = 'maplibregl-ctrl maplibregl-ctrl-group';
+      children.forEach((c) => g.appendChild(c));
+      return g;
+    };
+
+    const ICON = {
+      // 四角箭头: 回到整条路线
+      fit: '<svg width="15" height="15" viewBox="0 0 24 24" fill="none"' +
+        ' stroke="currentColor" stroke-width="2" stroke-linecap="round">' +
+        '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>',
+      bigger: '<svg width="15" height="15" viewBox="0 0 24 24">' +
+        '<circle cx="12" cy="12" r="7" fill="currentColor"/></svg>',
+      smaller: '<svg width="15" height="15" viewBox="0 0 24 24">' +
+        '<circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>',
+      car: '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">' +
+        '<path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11h.5' +
+        'a1.5 1.5 0 0 1 1.5 1.5V17h-2v1.5a1.5 1.5 0 0 1-3 0V17H8v1.5' +
+        'a1.5 1.5 0 0 1-3 0V17H3v-4.5A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1.1-3.3' +
+        'a.5.5 0 0 0-.5-.4H8.7a.5.5 0 0 0-.5.4L7.1 11zM6.5 13a1.2 1.2 0 1 0 0 2.4' +
+        ' 1.2 1.2 0 0 0 0-2.4zm11 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg>',
+      dot: '<svg width="16" height="16" viewBox="0 0 24 24">' +
+        '<circle cx="12" cy="12" r="6" fill="#ff8a5b" stroke="#fff"' +
+        ' stroke-width="2.5"/></svg>',
+    };
+
+    // 第一组: 回到整条路线
+    const backBtn = ctrlBtn('回到路线', ICON.fit, () => {
+      userMovedRef.current = false;
+      fitAllRef.current?.();
+    });
     map.addControl({
-      onAdd: () => pin,
-      onRemove: () => pin.remove(),
+      onAdd: () => group([backBtn]),
+      onRemove: () => {},
     } as maplibregl.IControl, 'top-right');
+
+    // 第二组: 定位点的大小和形状。竖排三个，和缩放那一组同宽
+    const shapeBtn = ctrlBtn('圆点 / 小车', ICON.car,
+      () => toggleShapeRef.current());
+    pinShapeBtnRef.current = shapeBtn;
+    map.addControl({
+      onAdd: () => group([
+        ctrlBtn('定位点调大', ICON.bigger, () => changePinRef.current(0.4)),
+        ctrlBtn('定位点调小', ICON.smaller, () => changePinRef.current(-0.4)),
+        shapeBtn,
+      ]),
+      onRemove: () => {},
+    } as maplibregl.IControl, 'top-right');
+    pinIconsRef.current = ICON;
 
     map.on('load', () => {
       // 全部路线，浅色
@@ -418,11 +422,18 @@ export default function StoryMap({
     // 圆点还是小车。**每次都重设样式**，因为读者可以随时切换形状
     const el = pinRef.current.getElement();
     if (pinShape === 'car') {
-      el.className = 'leading-none drop-shadow';
-      el.textContent = '🚗';
-      el.style.cssText = `font-size:${Math.round(22 * pinScale)}px`;
+      // 用 SVG 而不是 emoji: emoji 在不同系统上长得完全不一样，
+      // 而且颜色不受控，压在浅色地图上经常看不清
+      const px = Math.round(24 * pinScale);
+      el.className = '';
+      el.style.cssText =
+        `width:${px}px;height:${px}px;color:#ff8a5b;` +
+        'filter:drop-shadow(0 1px 2px rgba(0,0,0,.55))';
+      el.innerHTML = (pinIconsRef.current?.car ?? '')
+        .replace('width="16"', `width="${px}"`)
+        .replace('height="16"', `height="${px}"`);
     } else {
-      el.textContent = '';
+      el.innerHTML = '';
       el.className = 'rounded-full border-2 border-white bg-[#ff8a5b] shadow';
       el.style.cssText = `width:${size}px;height:${size}px`;
     }

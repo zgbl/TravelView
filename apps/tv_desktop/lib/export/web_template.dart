@@ -118,17 +118,19 @@ const _template = r'''<!doctype html>
   #map{width:100%;height:100%;background:#0c0e10}
   .leaflet-container{background:#0c0e10}
   #mapwrap{position:relative}
-  /* **右上角，和地图控件在一起。**
-     原来放左下角，被固定在视口底部的分享条整个盖住了 */
-  .pinsize{position:absolute;right:12px;top:12px;z-index:500;
-    display:flex;align-items:center;gap:4px;padding:4px 8px;border-radius:999px;
-    background:rgba(15,17,19,.8);backdrop-filter:blur(6px);
-    color:#8a9196;font-size:12px}
-  .pinsize button{width:22px;height:22px;border:0;border-radius:999px;
-    background:transparent;color:#faf8f5;cursor:pointer;font-size:14px}
-  .pinsize button:hover{background:rgba(255,255,255,.12)}
-  .pinsize i{display:inline-block;width:10px;height:10px;border-radius:999px;
-    background:#ff8a5b;border:2px solid #fff;font-style:normal}
+  /* 定位点控件。**长得和 Leaflet 自带的控件一样**: 右上角、竖排、
+     白底深色图标、30px 见方。混进那一列却用横排 + 浅色字，
+     结果既错位又看不清 —— 控件要么融进去，要么别放进去 */
+  .pinsize{position:absolute;right:10px;top:10px;z-index:500;
+    display:flex;flex-direction:column;
+    border-radius:4px;overflow:hidden;
+    box-shadow:0 1px 5px rgba(0,0,0,.4);background:#fff}
+  .pinsize button{width:30px;height:30px;border:0;padding:0;
+    background:#fff;color:#33393d;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    border-bottom:1px solid #ddd}
+  .pinsize button:last-child{border-bottom:0}
+  .pinsize button:hover{background:#f4f4f4}
   @media (max-width:900px){#mapwrap{height:52vh;top:0}}
 
   .car{font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
@@ -343,12 +345,13 @@ function render(){
     html += '</section>';
   });
   html += '</div><div id="mapwrap"><div id="map"></div>'
-       + '<div class="pinsize">定位点'
-       + '<button onclick="setPinScale(pinScale-0.3)" aria-label="调小">-</button>'
-       + '<i id="pindot"></i>'
-       + '<button onclick="setPinScale(pinScale+0.3)" aria-label="调大">+</button>'
+       + '<div class="pinsize">'
+       + '<button onclick="setPinScale(pinScale+0.4)" title="定位点调大">'
+       + ICON_BIG + '</button>'
+       + '<button onclick="setPinScale(pinScale-0.4)" title="定位点调小">'
+       + ICON_SMALL + '</button>'
        + '<button id="pinshape" onclick="togglePinShape()" '
-       + 'title="换成小车 / 圆点">🚗</button>'
+       + 'title="圆点 / 小车"></button>'
        + '</div></div></div>';
 
   html += '<section class="summary"><div class="card">';
@@ -596,7 +599,12 @@ function locate(photoId){
     if (pinShape === 'car') {
       const px = Math.round(22*pinScale);
       photoPin = L.marker([ph.lat, ph.lon], {icon: L.divIcon({
-        className:'', html:'<div style="font-size:'+px+'px;line-height:1">🚗</div>',
+        className:'',
+        html:'<div style="width:'+px+'px;height:'+px+'px;color:#ff8a5b;'
+          + 'filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))">'
+          + ICON_CAR.replace('width="16"','width="'+px+'"')
+                    .replace('height="16"','height="'+px+'"')
+          + '</div>',
         iconSize:[px, px], iconAnchor:[px/2, px/2],
       })}).addTo(map);
     } else {
@@ -622,6 +630,22 @@ function locate(photoId){
 
 /* 定位点大小: 手机小屏上 8px 几乎看不见，大屏上又嫌小，
    而且视力和看的距离因人而异。存在这台设备上，不属于作品本身。 */
+/* 图标一律用内联 SVG。之前用 ⤢ 这类字符，在有些系统字体里没有字形，
+   直接显示成一片空白 */
+const ICON_BIG = '<svg width="15" height="15" viewBox="0 0 24 24">'
+  + '<circle cx="12" cy="12" r="7" fill="currentColor"/></svg>';
+const ICON_SMALL = '<svg width="15" height="15" viewBox="0 0 24 24">'
+  + '<circle cx="12" cy="12" r="3.2" fill="currentColor"/></svg>';
+const ICON_CAR = '<svg width="16" height="16" viewBox="0 0 24 24" '
+  + 'fill="currentColor"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 '
+  + '1.9 1.5L19 11h.5a1.5 1.5 0 0 1 1.5 1.5V17h-2v1.5a1.5 1.5 0 0 1-3 0V17H8'
+  + 'v1.5a1.5 1.5 0 0 1-3 0V17H3v-4.5A1.5 1.5 0 0 1 4.5 11H5zm2.1 0h9.8l-1.1-3.3'
+  + 'a.5.5 0 0 0-.5-.4H8.7a.5.5 0 0 0-.5.4L7.1 11zM6.5 13a1.2 1.2 0 1 0 0 2.4 '
+  + '1.2 1.2 0 0 0 0-2.4zm11 0a1.2 1.2 0 1 0 0 2.4 1.2 1.2 0 0 0 0-2.4z"/></svg>';
+const ICON_DOT = '<svg width="16" height="16" viewBox="0 0 24 24">'
+  + '<circle cx="12" cy="12" r="6" fill="#ff8a5b" stroke="#fff" '
+  + 'stroke-width="2.5"/></svg>';
+
 let pinScale = 1;
 let pinShape = 'dot';   // 'dot' 橙色圆点 / 'car' 小车
 try {
@@ -641,22 +665,10 @@ function togglePinShape(){
   syncPinUi();
 }
 
+/* 形状按钮上画的是**切换之后会变成的样子**，所见即所得 */
 function syncPinUi(){
-  const dot = document.getElementById('pindot');
-  if (dot) {
-    if (pinShape === 'car') {
-      dot.style.cssText = 'font-size:'+Math.round(13*pinScale)+'px';
-      dot.textContent = '🚗';
-    } else {
-      dot.textContent = '';
-      dot.style.cssText = 'display:inline-block;border-radius:999px;'
-        + 'background:#ff8a5b;border:2px solid #fff;'
-        + 'width:'+Math.round(10*pinScale)+'px;'
-        + 'height:'+Math.round(10*pinScale)+'px';
-    }
-  }
   const btn = document.getElementById('pinshape');
-  if (btn) btn.textContent = pinShape === 'car' ? '●' : '🚗';
+  if (btn) btn.innerHTML = pinShape === 'car' ? ICON_DOT : ICON_CAR;
 }
 
 function setPinScale(v){
