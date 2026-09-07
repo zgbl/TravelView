@@ -269,7 +269,8 @@ class Publisher {
     // 第三步: 告诉服务器"传完了"。**额度在这一步才扣** ——
     // 图没传完就扣钱，等于用户付了钱什么都没拿到。
     onProgress?.call(total, total, '正在完成发布');
-    final done = await _complete(newId.isEmpty ? (storyId ?? '') : newId);
+    // 注意别叫 done —— 上面那个 done 是上传进度的计数器
+    final finish = await _complete(newId.isEmpty ? (storyId ?? '') : newId);
 
     return PublishResult(
       slug: created['slug'] as String,
@@ -278,8 +279,8 @@ class Publisher {
       totalBytes: bytes,
       storyId: created['storyId'] as String? ?? '',
       updated: created['updated'] == true,
-      charged: (done['charged'] as num?)?.toDouble() ?? 0,
-      updateCount: (done['updateCount'] as num?)?.toInt() ?? 0,
+      charged: (finish['charged'] as num?)?.toDouble() ?? 0,
+      updateCount: (finish['updateCount'] as num?)?.toInt() ?? 0,
     );
   }
 
