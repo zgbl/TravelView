@@ -11,8 +11,13 @@ import 'package:tv_core/tv_core.dart';
 ///   - 滚动驱动: 滚到哪一天，小车就开到哪一天
 ///   - 走过的路线逐渐画出来，未走的淡着
 ///   - 车头跟着道路方向转
-String buildStoryHtml(Story story) {
-  final data = const JsonEncoder().convert(story.toJson());
+/// [coverMode] 片头用什么: 'map' 路线图（默认）/ 'photo' 一张照片。
+/// **必须显式传进来** —— Story.toJson() 里没有这个字段，
+/// 它是导出时的展示选项，不属于行程数据本身。
+String buildStoryHtml(Story story, {String coverMode = 'map'}) {
+  final json = story.toJson();
+  json['coverMode'] = coverMode == 'photo' ? 'photo' : 'map';
+  final data = const JsonEncoder().convert(json);
   return _template.replaceFirst('__STORY_JSON__', data);
 }
 
@@ -37,6 +42,11 @@ const _template = r'''<!doctype html>
     overflow:hidden}
   .hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;
     filter:brightness(.62)}
+  .hero .art{position:absolute;inset:0}
+  .hero .art svg{width:100%;height:100%;display:block}
+  .hero .scrim{position:absolute;inset:0;
+    background:linear-gradient(to top,#0f1113 0%,rgba(15,17,19,.45) 45%,
+      rgba(15,17,19,.10) 100%)}
   .hero .inner{position:relative;padding:0 6vw 8vh;max-width:900px}
   .hero h1{font-size:clamp(34px,6vw,68px);line-height:1.1;margin:0 0 14px;
     letter-spacing:-.02em}
@@ -85,6 +95,9 @@ const _template = r'''<!doctype html>
   #mapwrap{position:sticky;top:0;height:100vh}
   #map{width:100%;height:100%;background:#0c0e10}
   .leaflet-container{background:#0c0e10}
+  .hero .art path.draw{stroke-dasharray:6000;stroke-dashoffset:6000;
+    animation:tvDraw 2.6s ease-out forwards}
+  @keyframes tvDraw{to{stroke-dashoffset:0}}
   @media (max-width:900px){#mapwrap{height:52vh;top:0}}
 
   .car{font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
@@ -160,6 +173,68 @@ function fmtTime(iso){
   return d.toTimeString().slice(0,5);
 }
 
+/* ---------- 片头的路线图 ----------
+   和网站上那份是同一套算法: Web Mercator 投影 + 等比缩放。
+   **不画地图**: 没有瓦片、没有地名，只有一个形状。
+   好处是离线打开也一样能看，而且秒开。 */
+function mercXY(lat, lon){
+  const x = (lon + 180) / 360;
+  const s = Math.sin(lat * Math.PI / 180);
+  return [x, 0.5 - Math.log((1+s)/(1-s)) / (4*Math.PI)];
+}
+
+function routeArtSvg(w, h){
+  const lines = (STORY.routes||[])
+    .map(r => decodePolyline(r.geometry, r.precision || 6))
+    .filter(pts => pts.length > 1);
+  const stops = (STORY.stops||[]).map(s => [s.lat, s.lon]);
+  const all = [].concat.apply([], lines).concat(stops);
+  if (all.length < 2) return '';
+
+  const pad = Math.min(w, h) * 0.12;
+  const proj = all.map(p => mercXY(p[0], p[1]));
+  const xs = proj.map(p => p[0]), ys = proj.map(p => p[1]);
+  const minX = Math.min.apply(null, xs), maxX = Math.max.apply(null, xs);
+  const minY = Math.min.apply(null, ys), maxY = Math.max.apply(null, ys);
+  const scale = Math.min((w - pad*2) / Math.max(maxX-minX, 1e-9),
+                         (h - pad*2) / Math.max(maxY-minY, 1e-9));
+  const offX = (w - (maxX-minX)*scale) / 2;
+  const offY = (h - (maxY-minY)*scale) / 2;
+  const to = (la, lo) => {
+    const m = mercXY(la, lo);
+    return [(m[0]-minX)*scale + offX, (m[1]-minY)*scale + offY];
+  };
+
+  // 长路线抽稀，否则 path 长到几十 KB
+  const d = lines.map(pts => {
+    const k = Math.max(1, Math.floor(pts.length / 400));
+    return pts.filter((_, i) => i % k === 0 || i === pts.length-1)
+      .map((p, i) => {
+        const q = to(p[0], p[1]);
+        return (i ? 'L' : 'M') + q[0].toFixed(1) + ' ' + q[1].toFixed(1);
+      }).join(' ');
+  }).join(' ');
+
+  const dots = (STORY.stops||[]).map(s => {
+    const q = to(s.lat, s.lon);
+    return '<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="5" '
+         + 'fill="#0f1113" stroke="#4fbfa8" stroke-width="3"></circle>';
+  }).join('');
+  const last = (STORY.stops||[])[(STORY.stops||[]).length-1];
+  const endDot = last ? (function(){
+    const q = to(last.lat, last.lon);
+    return '<circle cx="'+q[0].toFixed(1)+'" cy="'+q[1].toFixed(1)+'" r="9" '
+         + 'fill="#ff8a5b" stroke="#0f1113" stroke-width="3"></circle>';
+  })() : '';
+
+  return '<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="xMidYMid meet">'
+    + '<path d="'+d+'" fill="none" stroke="#1f6f63" stroke-width="16" '
+    + 'stroke-linecap="round" stroke-linejoin="round" opacity=".45"></path>'
+    + '<path class="draw" d="'+d+'" fill="none" stroke="#4fbfa8" '
+    + 'stroke-width="5" stroke-linecap="round" stroke-linejoin="round"></path>'
+    + dots + endDot + '</svg>';
+}
+
 /* ---------- 渲染 ---------- */
 function render(){
   const cover = photoById[STORY.cover];
@@ -168,7 +243,15 @@ function render(){
 
   let html = '';
   html += '<section class="hero">';
-  if (cover) html += '<img src="'+cover.web.path+'" alt="">';
+  // 片头用路线图还是照片。manifest 里没写就是路线图 ——
+  // 一张照片谁都有，这条走过的路线只有这一趟有
+  if (STORY.coverMode !== 'photo') {
+    const art = routeArtSvg(1600, 900);
+    if (art) html += '<div class="art">'+art+'</div><div class="scrim"></div>';
+    else if (cover) html += '<img src="'+cover.web.path+'" alt="">';
+  } else if (cover) {
+    html += '<img src="'+cover.web.path+'" alt="">';
+  }
   html += '<div class="inner"><h1>'+esc(STORY.title)+'</h1>';
   if (STORY.subtitle) html += '<div class="sub">'+esc(STORY.subtitle)+'</div>';
   html += '<div class="stats">'

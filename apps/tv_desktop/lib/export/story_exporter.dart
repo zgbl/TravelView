@@ -206,7 +206,8 @@ class StoryExporter {
         const JsonEncoder.withIndent('  ').convert(manifestJson));
 
     final indexHtml = File(p.join(dir.path, 'index.html'));
-    await indexHtml.writeAsString(buildStoryHtml(finalStory));
+    await indexHtml.writeAsString(
+        buildStoryHtml(finalStory, coverMode: coverMode));
 
     return ExportResult(
       dir: dir,
