@@ -176,6 +176,7 @@ class _StoryPageState extends State<StoryPage> {
 
     final title = widget.c.currentProjectName ?? '我的旅行';
     final cover = widget.c.coverPhotoId;
+    final coverMode = widget.c.coverMode;
     // **只数真正进 Story 的站。** 副标题写 22 站、统计栏写 7 站，
     // 用户第一眼就会觉得数据是错的 —— 事实上错的是副标题。
     final shownStops =
@@ -187,6 +188,7 @@ class _StoryPageState extends State<StoryPage> {
       trip: r,
       heroByStopSeq: heroes,
       coverPhotoId: cover.isEmpty ? null : cover,
+      coverMode: coverMode,
       title: title,
       subtitle: sub,
       tripForNotes: r,
@@ -346,8 +348,25 @@ class _StoryPageState extends State<StoryPage> {
             label: const Text('发布', style: TextStyle(fontSize: 12)),
           ),
           const SizedBox(width: 8),
-          // 片头封面的状态。没选过就是自动挑的那张，明说出来，
-          // 别让用户以为"封面是随机的"
+          // 片头用什么。默认路线图 —— 它是这趟旅行独一无二的那张图
+          const Text('片头', style: TextStyle(fontSize: 12)),
+          const SizedBox(width: 6),
+          SegmentedButton<String>(
+            style: const ButtonStyle(visualDensity: VisualDensity.compact),
+            segments: const [
+              ButtonSegment(
+                  value: 'map',
+                  label: Text('路线图', style: TextStyle(fontSize: 11))),
+              ButtonSegment(
+                  value: 'photo',
+                  label: Text('照片', style: TextStyle(fontSize: 11))),
+            ],
+            selected: {widget.c.coverMode},
+            onSelectionChanged: (v) => widget.c.setCoverMode(v.first),
+          ),
+          const SizedBox(width: 8),
+          // 选了"照片"才需要指定是哪一张
+          if (widget.c.coverMode == 'photo')
           Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(
               widget.c.coverPhotoId.isEmpty ? Icons.star_border : Icons.star,
@@ -569,7 +588,8 @@ class _StoryPageState extends State<StoryPage> {
               onToggleSelect: () => _toggle(r),
             ),
             // 片头封面: 整篇 Story 的第一张，也是分享出去的缩略图。
-            // **必须让用户自己指定** —— 自动挑的那张几乎不会是他最想给人看的那张
+            // 只在"片头用照片"时才需要这颗星
+            if (widget.c.coverMode == 'photo')
             Positioned(
               right: 10,
               top: 4,

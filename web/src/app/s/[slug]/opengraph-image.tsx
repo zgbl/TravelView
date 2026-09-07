@@ -1,6 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { one } from '@/lib/db';
 import { mediaUrl, miles, type Story } from '@/lib/story';
+import { routeArt } from '@/lib/route-art';
 
 export const alt = 'TravelView Story';
 export const size = { width: 1200, height: 630 };
@@ -43,9 +44,15 @@ export default async function Image(
   // 老数据没有 media_prefix，退回它当年用的 s/<slug>
   const prefix = row ? (row.media_prefix ?? `s/${row.slug}`) : null;
   // 只认 og.jpg。WebP 会让 satori 直接抛异常
-  const ogPath = (row?.manifest as { ogImage?: string } | undefined)?.ogImage;
-  const bg = ogPath && /\.jpe?g$/i.test(ogPath)
+  const m = row?.manifest as
+    { ogImage?: string; coverMode?: string } | undefined;
+  const wantsMap = m?.coverMode !== 'photo';   // 默认地图
+  const ogPath = m?.ogImage;
+  const photoBg = !wantsMap && ogPath && /\.jpe?g$/i.test(ogPath)
     ? mediaUrl(ogPath, prefix) : null;
+  // 路线图在服务端直接画，不拉瓦片、不会超时、不依赖任何外部服务
+  const art = row && wantsMap ? routeArt(row.manifest, size.width, size.height)
+    : null;
 
   return new ImageResponse(
     (
@@ -57,10 +64,34 @@ export default async function Image(
           fontFamily: 'sans-serif',
         }}
       >
-        {bg ? (
+        {art ? (
+          <svg
+            width={size.width}
+            height={size.height}
+            viewBox={`0 0 ${size.width} ${size.height}`}
+            style={{ position: 'absolute', inset: 0 }}
+          >
+            <rect width={size.width} height={size.height} fill="#0f1113" />
+            {/* 底下一条粗的暗线当"光晕"，上面一条亮线 —— 两条叠出发光感，
+                比 filter 稳（satori 不支持滤镜） */}
+            <path d={art.path} fill="none" stroke="#1f6f63"
+              strokeWidth={14} strokeLinecap="round" strokeLinejoin="round"
+              opacity={0.5} />
+            <path d={art.path} fill="none" stroke="#4fbfa8"
+              strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" />
+            {art.stops.map((p, i) => (
+              <circle key={i} cx={p.x} cy={p.y} r={5}
+                fill="#0f1113" stroke="#4fbfa8" strokeWidth={3} />
+            ))}
+            {art.end && (
+              <circle cx={art.end.x} cy={art.end.y} r={9}
+                fill="#ff8a5b" stroke="#0f1113" strokeWidth={3} />
+            )}
+          </svg>
+        ) : photoBg ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={bg}
+            src={photoBg}
             alt=""
             style={{
               position: 'absolute', inset: 0, width: '100%', height: '100%',

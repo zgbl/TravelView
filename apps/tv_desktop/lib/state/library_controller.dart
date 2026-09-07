@@ -510,6 +510,7 @@ class LibraryController extends ChangeNotifier {
     required TripRoute trip,
     required Map<int, String?> heroByStopSeq,
     String? coverPhotoId,
+    String coverMode = 'map',
     required String title,
     String? subtitle,
     required TripRoute tripForNotes,
@@ -564,6 +565,7 @@ class LibraryController extends ChangeNotifier {
         selectedIds: selected,
         heroByStopSeq: heroByStopSeq,
         coverPhotoId: coverPhotoId,
+        coverMode: coverMode,
         legs: legs,
         title: title,
         subtitle: subtitle,
@@ -600,6 +602,18 @@ class LibraryController extends ChangeNotifier {
   /// 额度不够时置为 true，UI 据此引导用户去网页付款，
   /// 而不是把 402 当成一个普通错误弹掉。
   bool needsPayment = false;
+
+  /// 上次发布传到一半断了，这是那篇半成品的 id。
+  /// **下次发布带上它就是接着传**: 已经传上去的图会被跳过，
+  /// 也不会又建一篇、又扣一次额度。
+  String resumeStoryId = '';
+  String _resumeKey = '';
+
+  /// 有没有一篇没传完的等着续传（而且就是当前这份产物）
+  bool get canResume =>
+      resumeStoryId.isNotEmpty &&
+      _resumeKey.isNotEmpty &&
+      _resumeKey == (lastExport?.storyKey ?? '');
 
   PublishConfig get publishConfig => PublishConfig(
         siteUrl: settings.siteUrl,
@@ -640,13 +654,23 @@ class LibraryController extends ChangeNotifier {
     try {
       // **只有用户明确勾了"更新那一篇"、而且内容确实是同一趟行程**，
       // 才带上 storyId。其余一切情况都是新发一篇。
-      final existingId = (updateExisting && canUpdatePublished)
-          ? (currentProject?.publishedStoryId ?? '')
-          : '';
+      // 续传优先: 上次断在半路的那一篇就是这次要发的东西，
+      // 接着传它，而不是留一篇残缺的在服务器上、这边再建一篇新的
+      final existingId = canResume
+          ? resumeStoryId
+          : (updateExisting && canUpdatePublished)
+              ? (currentProject?.publishedStoryId ?? '')
+              : '';
       final res = await Publisher(publishConfig).publish(
         export.dir,
         visibility: visibility,
         storyId: existingId.isEmpty ? null : existingId,
+        onCreated: (id) {
+          // Story 一建好就记下来。**传图之前记** ——
+          // 断在传图那一步时，这个 id 是能续传的唯一凭据
+          resumeStoryId = id;
+          _resumeKey = lastExport?.storyKey ?? '';
+        },
         onProgress: (d, t, label) {
           publishDone = d;
           publishTotal = t;
@@ -655,6 +679,8 @@ class LibraryController extends ChangeNotifier {
         },
       );
       lastPublish = res;
+      resumeStoryId = '';
+      _resumeKey = '';
       await _rememberPublished(res);
       status = res.updated
           ? '已更新: ${res.publicUrl}'
@@ -663,7 +689,15 @@ class LibraryController extends ChangeNotifier {
     } on PublishException catch (e) {
       needsPayment = e.needsPayment;
       lastError = e.message;
-      status = e.needsPayment ? '还没有可用的发布额度' : '发布失败';
+      if ((e.storyId ?? '').isNotEmpty) {
+        resumeStoryId = e.storyId!;
+        _resumeKey = lastExport?.storyKey ?? '';
+      }
+      status = e.needsPayment
+          ? '还没有可用的发布额度'
+          : canResume
+              ? '传到一半断了，再点一次「继续上传」接着传'
+              : '发布失败';
       return null;
     } catch (e) {
       lastError = '$e';
@@ -681,6 +715,22 @@ class LibraryController extends ChangeNotifier {
   /// 存在草稿里 —— 一个库里每趟行程各有各的封面。
   String get coverPhotoId => currentProject?.coverPhotoId ?? _tmpCover;
   String _tmpCover = '';
+
+  /// 片头用路线图还是照片。**默认路线图** ——
+  /// 一张照片谁都有，这条真实走过的路线只有这一趟有。
+  String get coverMode => currentProject?.coverMode ?? _tmpCoverMode;
+  String _tmpCoverMode = 'map';
+
+  Future<void> setCoverMode(String mode) async {
+    _tmpCoverMode = mode == 'photo' ? 'photo' : 'map';
+    final proj = currentProject;
+    if (proj != null) {
+      proj.coverMode = _tmpCoverMode;
+      proj.updatedAt = DateTime.now();
+      await _store?.save(projects);
+    }
+    notifyListeners();
+  }
 
   Future<void> setCoverPhoto(String photoId) async {
     final proj = currentProject;
@@ -801,6 +851,7 @@ class LibraryController extends ChangeNotifier {
       coverPhotoId: _tmpCover.isNotEmpty
           ? _tmpCover
           : (old?.coverPhotoId ?? ''),
+      coverMode: _tmpCoverMode,
       publishedStoryId: old?.publishedStoryId ?? '',
       publishedUrl: old?.publishedUrl ?? '',
     );
@@ -867,6 +918,7 @@ class LibraryController extends ChangeNotifier {
     // 换了草稿，"更新那一篇"的勾选必须清掉 —— 它属于上一个草稿
     updateExisting = false;
     _tmpCover = proj.coverPhotoId;
+    _tmpCoverMode = proj.coverMode;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;
     pickAlbum = proj.pickAlbum;

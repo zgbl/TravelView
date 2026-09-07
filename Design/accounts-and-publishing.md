@@ -49,6 +49,21 @@ title: 账号、主页与再次发布
 
 返回体多了 `updated: true|false`，桌面端据此决定提示语。
 
+## 3.5 发布是两段式的
+
+```
+POST /api/publish            建 Story、返回上传地址   ← 不扣额度
+     PUT × N（可跳过、可重试）  传图
+POST /api/publish/complete   点一遍文件、正式上线      ← 在这里扣额度
+```
+
+- **额度只在最后一步扣**，而且靠 `stories.credit_consumed` 保证只扣一次。
+  一次发布上百张图，断一次是常态；在第一步就扣，等于用户付了钱却什么都没拿到。
+- `published_at is null` 的 Story = 还没传完，**公开页、主页、embed 全都看不到**。
+  上线一篇图裂的游记，比让用户再点一次重试糟糕得多。
+- 续传靠三件事: 建 Story 时立刻把 storyId 交给客户端（`onCreated`）、
+  上传口支持 `HEAD` 让客户端跳过已传的、单张 PUT 自己重试三次。
+
 ## 4. 图片的存放
 
 文件系统，不入库。数据库里只有 manifest（JSON）和路径。

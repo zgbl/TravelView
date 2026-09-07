@@ -56,6 +56,7 @@ class StoryExporter {
     required Set<String> selectedIds,
     required Map<int, String?> heroByStopSeq,
     String? coverPhotoId,
+    String coverMode = 'map',
     required List<RouteLeg> legs,
     required String title,
     String? subtitle,
@@ -199,6 +200,8 @@ class StoryExporter {
     final manifest = File(p.join(dir.path, 'story.json'));
     final manifestJson = finalStory.toJson();
     if (ogImage != null) manifestJson['ogImage'] = ogImage;
+    // 片头用路线图还是照片。网页和分享预览图都看这个字段
+    manifestJson['coverMode'] = coverMode == 'photo' ? 'photo' : 'map';
     await manifest.writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifestJson));
 

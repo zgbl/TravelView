@@ -287,6 +287,14 @@ class _PublishDialogState extends State<PublishDialog> {
                 const SizedBox(height: 14),
                 Text(c.lastError!,
                     style: TextStyle(fontSize: 12, color: scheme.error)),
+                if (c.canResume) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    '已经传上去的照片不会重传，点「继续上传」只补没传完的那些。'
+                    '不会再建一篇，也不会再扣一次额度。',
+                    style: TextStyle(fontSize: 11, color: scheme.outline),
+                  ),
+                ],
               ],
             ],
           ),
@@ -301,7 +309,11 @@ class _PublishDialogState extends State<PublishDialog> {
           onPressed: (c.publishing || export == null || !c.isLinked)
               ? null
               : _publish,
-          child: Text(c.updateExisting ? '更新那一篇' : '发布新的一篇'),
+          child: Text(c.canResume
+              ? '继续上传'
+              : c.updateExisting
+                  ? '更新那一篇'
+                  : '发布新的一篇'),
         ),
       ],
     );

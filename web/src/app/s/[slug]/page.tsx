@@ -19,7 +19,9 @@ type Row = {
 async function load(slug: string) {
   return one<Row>(
     `select slug, media_prefix, title, subtitle, cover_path, manifest, visibility
-       from stories where slug = $1 and visibility <> 'private'`,
+       from stories
+      where slug = $1 and visibility <> 'private'
+        and published_at is not null`,
     [slug],
   );
 }

@@ -25,6 +25,9 @@ class Project {
   /// 用户选定的片头封面照片 id。空 = 用自动挑的那张
   String coverPhotoId;
 
+  /// 片头用什么: 'map' 路线图（默认）/ 'photo' 一张照片
+  String coverMode;
+
   String publishedStoryId;
   String publishedUrl;
 
@@ -46,6 +49,7 @@ class Project {
     this.view = 0,
     this.note = '',
     this.coverPhotoId = '',
+    this.coverMode = 'map',
     this.publishedStoryId = '',
     this.publishedUrl = '',
     this.publishedKey = '',
@@ -62,6 +66,7 @@ class Project {
         'view': view,
         'note': note,
         'coverPhotoId': coverPhotoId,
+        'coverMode': coverMode,
         'publishedStoryId': publishedStoryId,
         'publishedUrl': publishedUrl,
         'publishedKey': publishedKey,
@@ -78,6 +83,7 @@ class Project {
         view: (j['view'] as num?)?.toInt() ?? 0,
         note: j['note'] as String? ?? '',
         coverPhotoId: j['coverPhotoId'] as String? ?? '',
+        coverMode: j['coverMode'] as String? ?? 'map',
         publishedStoryId: j['publishedStoryId'] as String? ?? '',
         publishedUrl: j['publishedUrl'] as String? ?? '',
         publishedKey: j['publishedKey'] as String? ?? '',

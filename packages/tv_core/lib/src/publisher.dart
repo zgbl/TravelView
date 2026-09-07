@@ -31,10 +31,15 @@ class PublishException implements Exception {
   final String message;
   final int? statusCode;
 
+  /// Story 已经在服务器上建好了，只是图没传完。
+  /// **调用方必须把它存下来** —— 重试时带上它就是接着传那一篇，
+  /// 而不是又建一篇、又扣一次额度。
+  final String? storyId;
+
   /// 额度不够。桌面端据此引导用户去网页付款，而不是弹一个干巴巴的错误。
   bool get needsPayment => statusCode == 402;
 
-  const PublishException(this.message, {this.statusCode});
+  const PublishException(this.message, {this.statusCode, this.storyId});
 
   @override
   String toString() =>
@@ -91,6 +96,10 @@ class Publisher {
   });
 
   /// [exportDir] 就是 StoryExporter 产出的那个目录。
+  /// [onCreated] 在 Story 建好、开始传图之前回调一次。
+  /// 传图可能断，**这一步的 storyId 必须立刻落到调用方手里**，
+  /// 否则重试只能重新建一篇。
+  ///
   /// [storyId] 传了就是**原地更新那一篇**: 公开链接不变、不再扣额度。
   /// 服务器找不到这个 id（用户删了那篇、或换了账号）时会当作新建，
   /// 不会报错把人卡住 —— 照片都已经导出好了。
@@ -98,6 +107,7 @@ class Publisher {
     Directory exportDir, {
     String visibility = 'public',
     String? storyId,
+    void Function(String storyId)? onCreated,
     void Function(int done, int total, String label)? onProgress,
   }) async {
     if (!config.isConfigured) {
@@ -119,6 +129,9 @@ class Publisher {
         storyId == null ? '正在创建 Story' : '正在更新 Story');
     final created = await _createStory(manifest, files, visibility, storyId);
 
+    final newId = created['storyId'] as String? ?? '';
+    if (newId.isNotEmpty) onCreated?.call(newId);
+
     final uploads = (created['uploads'] as List)
         .cast<Map<String, dynamic>>()
         .map((e) => (
@@ -130,6 +143,7 @@ class Publisher {
 
     var done = 1;
     var bytes = 0;
+    var skipped = 0;
     final total = files.length + 1;
 
     // 简单的固定并发池：完成一个补一个，不做整批等待
@@ -139,17 +153,43 @@ class Publisher {
         final u = queue.removeAt(0);
         final f = byPath[u.path];
         if (f == null) continue;
+        final uri = Uri.parse(u.url);
+        final len = await f.file.length();
+
+        // 断点续传第一步: 这张已经在服务器上、而且大小一致，就跳过。
+        // 一次发布上百张图，断一次重来全传是不可接受的
+        if (await _alreadyThere(uri, len)) {
+          skipped++;
+          done++;
+          onProgress?.call(done, total, '${u.path}（已传过）');
+          continue;
+        }
+
         final data = await f.file.readAsBytes();
-        await _put(Uri.parse(u.url), data, f.contentType);
+        // 断点续传第二步: 单张自己重试几次。
+        // 家用上行断一下是常态，不该让整篇发布跟着失败
+        await _putWithRetry(uri, data, f.contentType, u.path);
         bytes += data.length;
         done++;
         onProgress?.call(done, total, u.path);
       }
     }
 
-    await Future.wait([
-      for (var i = 0; i < concurrency && i < uploads.length; i++) worker(),
-    ]);
+    try {
+      await Future.wait([
+        for (var i = 0; i < concurrency && i < uploads.length; i++) worker(),
+      ]);
+    } on PublishException catch (e) {
+      // 把 storyId 带出去，调用方据此续传
+      throw PublishException(e.message,
+          statusCode: e.statusCode,
+          storyId: newId.isEmpty ? storyId : newId);
+    }
+
+    // 第三步: 告诉服务器"传完了"。**额度在这一步才扣** ——
+    // 图没传完就扣钱，等于用户付了钱什么都没拿到。
+    onProgress?.call(total, total, '正在完成发布');
+    await _complete(newId.isEmpty ? (storyId ?? '') : newId);
 
     return PublishResult(
       slug: created['slug'] as String,
@@ -230,6 +270,80 @@ class Publisher {
       throw const PublishException('服务器没有响应（超时）');
     } finally {
       client.close(force: true);
+    }
+  }
+
+  /// 收尾: 服务器点一遍文件，确认没缺，然后正式上线并扣额度。
+  Future<void> _complete(String id) async {
+    if (id.isEmpty) return;
+    final client = HttpClient()..connectionTimeout = timeout;
+    try {
+      final req = await client
+          .postUrl(Uri.parse('$_completeUri'))
+          .timeout(timeout);
+      req.headers.set('Authorization', 'Bearer ${config.token.trim()}');
+      req.headers.contentType =
+          ContentType('application', 'json', charset: 'utf-8');
+      req.write(jsonEncode({'storyId': id}));
+      final res = await req.close().timeout(timeout);
+      final body = await utf8.decoder.bind(res).join();
+      if (res.statusCode >= 400) {
+        throw PublishException(_errorOf(body, res.statusCode),
+            statusCode: res.statusCode, storyId: id);
+      }
+    } on SocketException catch (e) {
+      throw PublishException('收尾时断开: ${e.message}', storyId: id);
+    } on TimeoutException {
+      throw PublishException('收尾超时', storyId: id);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  String get _completeUri =>
+      '${config.siteUrl.trim().replaceAll(RegExp(r"/+\$"), "")}'
+      '/api/publish/complete';
+
+  /// 传过了吗。问不出来（服务器不支持 HEAD、网络抖）就当没传过 ——
+  /// 重传一张的代价远小于漏传一张
+  Future<bool> _alreadyThere(Uri url, int bytes) async {
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15);
+    try {
+      final req = await client.openUrl('HEAD', url)
+          .timeout(const Duration(seconds: 15));
+      final res = await req.close().timeout(const Duration(seconds: 15));
+      await res.drain<void>();
+      if (res.statusCode != 200) return false;
+      final len = res.headers.contentLength;
+      return len <= 0 || len == bytes;
+    } catch (_) {
+      return false;
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// 单张重试。只重试**网络层**的失败;
+  /// 403/413/415 这种是内容或票据不对，重试多少次都一样，直接抛。
+  Future<void> _putWithRetry(
+      Uri url, List<int> data, String contentType, String label) async {
+    const delays = [
+      Duration(seconds: 1),
+      Duration(seconds: 3),
+      Duration(seconds: 8),
+    ];
+    for (var attempt = 0; ; attempt++) {
+      try {
+        await _put(url, data, contentType);
+        return;
+      } on PublishException catch (e) {
+        final code = e.statusCode;
+        final retriable = code == null || code >= 500 || code == 408 ||
+            code == 429;
+        if (!retriable || attempt >= delays.length) rethrow;
+        await Future<void>.delayed(delays[attempt]);
+      }
     }
   }
 

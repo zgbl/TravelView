@@ -36,6 +36,7 @@ async function load(handle: string) {
             stop_count, photo_count, distance_meters, published_at
        from stories
       where user_id = $1 and visibility = 'public'
+        and published_at is not null
       order by coalesce(published_at, created_at) desc`,
     [owner.id]);
   return { owner, stories };

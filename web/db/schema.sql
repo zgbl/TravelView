@@ -91,7 +91,11 @@ create table if not exists stories (
   distance_meters bigint not null default 0,
 
   visibility  text not null default 'public',  -- public | unlisted | private
+
+  -- published_at is null = 图还没传完，不对外显示。
+  -- 全部传完时才写上时间并扣额度 —— 钱只在东西真的交付之后收
   published_at timestamptz,
+  credit_consumed boolean not null default false,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
 

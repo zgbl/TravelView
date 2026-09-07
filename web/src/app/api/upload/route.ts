@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
+import { stat } from 'fs/promises';
 import {
-  isLocal, maxUploadBytes, safeKey, verifyUpload, writeLocal,
+  isLocal, localPathFor, maxUploadBytes, safeKey, verifyUpload, writeLocal,
 } from '@/lib/storage';
 
 /**
@@ -13,6 +14,36 @@ import {
  * 只收 WebP 且有大小上限。任何一道不过就直接拒。
  */
 export const runtime = 'nodejs';
+
+/**
+ * 这个文件传过了吗。
+ *
+ * 断点续传靠它: 客户端拿着同一张上传票据先 HEAD 一下，
+ * 已经在服务器上、而且字节数一致的就直接跳过。
+ * **不需要额外的鉴权设计** —— 票据本身就是这个 key 的授权，
+ * 能 PUT 的人当然能问"传过没有"。
+ */
+export async function HEAD(req: Request) {
+  if (!isLocal) return new Response(null, { status: 404 });
+
+  const url = new URL(req.url);
+  const key = safeKey(url.searchParams.get('key') ?? '');
+  const exp = url.searchParams.get('exp') ?? '';
+  const sig = url.searchParams.get('sig') ?? '';
+  if (!key || !verifyUpload(key, exp, sig)) {
+    return new Response(null, { status: 403 });
+  }
+
+  try {
+    const st = await stat(localPathFor(key));
+    return new Response(null, {
+      status: 200,
+      headers: { 'content-length': String(st.size) },
+    });
+  } catch {
+    return new Response(null, { status: 404 });
+  }
+}
 
 export async function PUT(req: Request) {
   if (!isLocal) {

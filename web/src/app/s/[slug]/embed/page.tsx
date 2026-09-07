@@ -10,7 +10,8 @@ export default async function Embed(
   const { slug } = await params;
   const row = await one<{ manifest: Story; media_prefix: string | null }>(
     `select manifest, media_prefix from stories
-      where slug = $1 and visibility = 'public'`,
+      where slug = $1 and visibility = 'public'
+        and published_at is not null`,
     [slug],
   );
   if (!row) notFound();

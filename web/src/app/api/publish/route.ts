@@ -101,6 +101,8 @@ export async function POST(req: Request) {
   }
 
   const beta = await betaState();
+  // 这一步只是**先看看有没有资格**，避免让没额度的人白传 80MB。
+  // 真正扣款在 complete 那一步
   const ent = entitlementOf(user ?? null, beta);
   if (!ent.allowed) {
     return NextResponse.json(
@@ -188,8 +190,8 @@ export async function POST(req: Request) {
       `insert into stories
          (user_id, slug, title, subtitle, cover_path, manifest,
           start_date, end_date, day_count, stop_count, photo_count,
-          distance_meters, visibility, media_prefix, published_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14, now())
+          distance_meters, visibility, media_prefix)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        returning id`,
       [...common, prefix]);
   } catch {
@@ -201,17 +203,15 @@ export async function POST(req: Request) {
       `insert into stories
          (user_id, slug, title, subtitle, cover_path, manifest,
           start_date, end_date, day_count, stop_count, photo_count,
-          distance_meters, visibility, published_at)
-       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now())
+          distance_meters, visibility)
+       values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)
        returning id`,
       common);
   }
 
-  if (ent.consumesCredit) {
-    await one(
-      'update users set story_credits = story_credits - 1 where id = $1',
-      [userId]);
-  }
+  // **这里不扣额度。** 图还一张没传呢 ——
+  // 传到一半断了却把额度扣掉，等于用户付了钱什么都没拿到。
+  // 额度在 /api/publish/complete 里扣，那时候东西才真的交付了。
   await one('update publish_tokens set last_used_at = now() where token = $1',
     [token]);
 

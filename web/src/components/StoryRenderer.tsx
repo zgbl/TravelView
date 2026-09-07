@@ -5,6 +5,7 @@ import { mediaUrl, miles, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
 import PhotoLightbox from './PhotoLightbox';
+import RouteArtwork from './RouteArtwork';
 import { t, type Locale } from '@/lib/i18n';
 
 /**
@@ -90,19 +91,34 @@ export default function StoryRenderer({
   const photoById = Object.fromEntries(story.photos.map((p) => [p.id, p]));
   const stopById = Object.fromEntries(story.stops.map((s) => [s.id, s]));
   const cover = story.cover ? photoById[story.cover] : undefined;
+  // manifest 里没写就是地图 —— 老故事也一并换成地图片头，
+  // 它们的封面本来就是"第一站的第一张"，没有任何人挑过
+  const coverMode =
+    (story as unknown as { coverMode?: string }).coverMode === 'photo'
+      ? 'photo' : 'map';
 
   return (
     <div className="bg-ink text-paper">
       {/* Hero */}
       <section className="relative flex h-[88vh] items-end overflow-hidden">
-        {cover && (
+        {/* 片头用路线图还是照片。默认路线图 ——
+            一张照片谁都有，这条真实走过的路线只有这一趟有，
+            它才是这篇东西第一眼该给人看的东西。 */}
+        {coverMode === 'map' ? (
+          <div className="absolute inset-0">
+            <RouteArtwork story={story} />
+            {/* 底部压暗，保证标题永远读得清 */}
+            <div className="absolute inset-0 bg-gradient-to-t
+              from-ink via-ink/45 to-ink/10" />
+          </div>
+        ) : cover ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={mediaUrl(cover.web.path, prefix)}
             alt=""
             className="absolute inset-0 h-full w-full object-cover brightness-[.6]"
           />
-        )}
+        ) : null}
         <div className="relative max-w-3xl px-[6vw] pb-[8vh]">
           <h1 className="text-[clamp(34px,6vw,68px)] font-semibold leading-[1.08] tracking-tight">
             {story.title}
