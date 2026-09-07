@@ -41,7 +41,15 @@ export default async function ManageStory(
         </a>
       </div>
 
-      <StoryActions id={row.id} slug={row.slug} visibility={row.visibility} />
+      <StoryActions
+        id={row.id}
+        slug={row.slug}
+        visibility={row.visibility}
+        title={row.title}
+        views={Number(row.view_count)}
+        stats={`${st.days} 天 · ${st.stops} 站 · ${
+          miles(st.distanceMeters)} mi · ${st.photos} 张`}
+      />
     </main>
   );
 }

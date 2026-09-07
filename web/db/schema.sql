@@ -27,6 +27,9 @@ create table if not exists users (
   --   story_credits > 0        每发布一篇扣一个
   --   subscription_status='active'  不限篇数
   story_credits      int not null default 0,
+  -- 欠下的半篇额度(0/1)。更新超过免费次数时按 0.5 篇计，
+  -- 凑满一篇再从 story_credits 扣 1 —— 整数记账，不引入浮点
+  credit_half        int not null default 0,
   subscription_status text,
   subscription_until  timestamptz,
 
@@ -99,7 +102,10 @@ create table if not exists stories (
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now(),
 
-  view_count  bigint not null default 0
+  view_count  bigint not null default 0,
+
+  -- 更新过几次。前 5 次免费，之后每次 0.5 篇
+  update_count int not null default 0
 );
 
 create index if not exists stories_user_idx on stories(user_id, created_at desc);

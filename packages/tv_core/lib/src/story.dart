@@ -132,6 +132,10 @@ class StoryStop {
   final int seq;
   final String? name; // 站点标题: 用户写的，或反查到的地名
   final String? note; // 这一站的说明文字
+  /// 英文版。**网页是双语的**，英文读者看到的不该是中文正文。
+  /// 没有译文时前端回落到 name/note。
+  final String? nameEn;
+  final String? noteEn;
   final double lat;
   final double lon;
   final DateTime arrive;
@@ -144,6 +148,8 @@ class StoryStop {
     required this.seq,
     this.name,
     this.note,
+    this.nameEn,
+    this.noteEn,
     required this.lat,
     required this.lon,
     required this.arrive,
@@ -157,6 +163,8 @@ class StoryStop {
         'seq': seq,
         if (name != null) 'name': name,
         if (note != null && note!.isNotEmpty) 'note': note,
+        if (nameEn != null && nameEn!.isNotEmpty) 'nameEn': nameEn,
+        if (noteEn != null && noteEn!.isNotEmpty) 'noteEn': noteEn,
         'lat': lat,
         'lon': lon,
         'arrive': arrive.toIso8601String(),
@@ -170,6 +178,8 @@ class StoryStop {
         seq: (j['seq'] as num).toInt(),
         name: j['name'] as String?,
         note: j['note'] as String?,
+        nameEn: j['nameEn'] as String?,
+        noteEn: j['noteEn'] as String?,
         lat: (j['lat'] as num).toDouble(),
         lon: (j['lon'] as num).toDouble(),
         arrive: DateTime.parse(j['arrive'] as String),
@@ -326,6 +336,8 @@ class StoryBuilder {
     String Function(PhotoRecord)? thumbPathOf,
     Map<int, String>? stopNames,
     Map<int, String>? stopNotes,
+    Map<int, String>? stopNamesEn,
+    Map<int, String>? stopNotesEn,
   }) {
     String stopId(int seq) => 'stop-$seq';
 
@@ -360,6 +372,8 @@ class StoryBuilder {
         seq: stop.seq,
         name: stopNames?[stop.seq],
         note: stopNotes?[stop.seq],
+        nameEn: stopNamesEn?[stop.seq],
+        noteEn: stopNotesEn?[stop.seq],
         lat: stop.lat,
         lon: stop.lon,
         arrive: stop.arrive,

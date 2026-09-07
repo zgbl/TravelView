@@ -56,6 +56,34 @@ export async function betaState(): Promise<BetaState> {
   };
 }
 
+/**
+ * 更新计费: **每 5 次更新收一次 0.5 篇**，不是超过 5 次之后次次收。
+ *
+ *   第 1-5 次   免费
+ *   第 6 次     扣 0.5 篇，然后重新计
+ *   第 7-10 次  免费
+ *   第 11 次    扣 0.5 篇
+ *   ...
+ *
+ * 更新是正当且高频的动作: 改错别字、换封面、删掉一张不该发的照片。
+ * 次次收钱等于惩罚"把东西做好"，用户就会宁可留着一篇有瑕疵的。
+ * 但它确实有成本（重传照片、重写文件），所以按批收一点点。
+ */
+export const FREE_UPDATES = 5;
+
+/// 这是第几次更新，要不要收费
+export function updateCharged(updateCount: number) {
+  return updateCount >= FREE_UPDATES + 1 &&
+    (updateCount - (FREE_UPDATES + 1)) % FREE_UPDATES === 0;
+}
+
+/// 下一次收费还差几次更新（0 = 这次就要收）
+export function updatesUntilCharge(updateCount: number) {
+  let n = updateCount + 1;
+  while (!updateCharged(n)) n++;
+  return n - updateCount - 1;
+}
+
 export type Entitlement = {
   allowed: boolean;
   reason: 'beta' | 'subscription' | 'credits' | 'need_payment';

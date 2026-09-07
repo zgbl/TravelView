@@ -43,6 +43,11 @@ class RouteLeg {
   final double distanceMeters;
   final Duration? duration;
 
+  /// 这一段主要走了哪几条路，按里程排序，例如 ['I 40', 'US 285']。
+  /// **给文案用的**: "从阿尔伯克基开过来"和"沿 40 号州际公路开过来"
+  /// 是两句话，后者才像一个真的走过这条路的人写的。
+  final List<String> roads;
+
   const RouteLeg({
     required this.fromStopId,
     required this.toStopId,
@@ -52,6 +57,7 @@ class RouteLeg {
     required this.geometry,
     required this.distanceMeters,
     this.duration,
+    this.roads = const [],
   });
 
   Map<String, dynamic> toJson() => {
@@ -59,6 +65,7 @@ class RouteLeg {
         'to': toStopId,
         'mode': mode.name,
         'source': source.name,
+        if (roads.isNotEmpty) 'roads': roads,
         'provider': provider,
         'distanceMeters': distanceMeters,
         if (duration != null) 'durationSeconds': duration!.inSeconds,

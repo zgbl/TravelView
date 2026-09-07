@@ -65,6 +65,8 @@ class StoryExporter {
     String? subtitle,
     Map<int, String>? stopNames,
     Map<int, String>? stopNotes,
+    Map<int, String>? stopNamesEn,
+    Map<int, String>? stopNotesEn,
     String slug = '',
     int webMaxPixels = 1600,
     int thumbMaxPixels = 480,
@@ -147,6 +149,8 @@ class StoryExporter {
       thumbPathOf: (r) => thumbs[r.id] ?? 'thumbs/${r.id}.webp',
       stopNames: stopNames,
       stopNotes: stopNotes,
+      stopNamesEn: stopNamesEn,
+      stopNotesEn: stopNotesEn,
     );
 
     // 派生图的真实宽高要覆盖回 manifest，否则网页布局会跳

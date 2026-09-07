@@ -177,6 +177,19 @@ const STORY = __STORY_JSON__;
 // 照片和文字照常能看 —— 这是刻意的取舍
 const TILE_URL = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
 
+/* 导出的这一份是单语的（跟着导出时的界面语言走），
+   但 manifest 里两种语言都有。浏览器是英文环境就显示英文 ——
+   一份 HTML 发给谁都读得懂，比逼用户选语言实在 */
+const LANG = (navigator.language || 'zh').toLowerCase().startsWith('en')
+  ? 'en' : 'zh';
+function stopName(s, i){
+  const v = LANG === 'en' ? (s.nameEn || s.name) : s.name;
+  return v || (LANG === 'en' ? ('Stop ' + (i + 1)) : ('第 ' + (i+1) + ' 站'));
+}
+function stopNote(s){
+  return (LANG === 'en' ? (s.noteEn || s.note) : s.note) || '';
+}
+
 /* ---------- polyline6 解码：和 Dart 端是同一套算法 ---------- */
 function decodePolyline(str, precision){
   const factor = Math.pow(10, precision || 6);
@@ -318,10 +331,11 @@ function render(){
       const hero = photoById[s.hero];
       const rest = s.photos.filter(pid => pid !== s.hero);
       html += '<article class="stop" id="'+s.id+'" data-stop="'+s.id+'">';
-      html += '<h3>'+esc(s.name || ('第 '+(s.seq+1)+' 站'))+'</h3>';
+      html += '<h3>'+esc(stopName(s, s.seq))+'</h3>';
       html += '<div class="meta">'+fmtTime(s.arrive)+' - '+fmtTime(s.leave)
            +' &middot; 选了 '+s.photos.length+' 张</div>';
-      if (s.note) html += '<p class="note">'+esc(s.note).replace(/\n/g,'<br>')+'</p>';
+      const _n = stopNote(s);
+      if (_n) html += '<p class="note">'+esc(_n).replace(/\n/g,'<br>')+'</p>';
       if (hero) html += '<div class="hero-shot"><img src="'+hero.web.path
            +'" loading="lazy" alt="" data-photo="'+hero.id+'"></div>';
       if (rest.length){
@@ -409,7 +423,7 @@ function initMap(){
   STORY.stops.forEach((s, i) => {
     const m = L.circleMarker([s.lat, s.lon], {radius:5, color:'#ffffff',
       weight:2, fillColor:'#4fbfa8', fillOpacity:1}).addTo(map).bindTooltip(
-        (s.name || ('第 '+(i+1)+' 站')), {direction:'top'});
+        stopName(s, i), {direction:'top'});
     // 地图和正文是同一件事的两个视图，点哪边都该带着另一边走
     m.on('click', () => {
       const el = document.getElementById(s.id);
@@ -473,7 +487,7 @@ function initOverview(){
     const m = L.marker([s.lat, s.lon], {icon: L.divIcon({
       className:'', html:'<div class="pin">'+(i+1)+'</div>',
       iconSize:[26,26], iconAnchor:[13,13]})}).addTo(omap);
-    m.bindTooltip(s.name || ('第 '+(i+1)+' 站'), {direction:'top'});
+    m.bindTooltip(stopName(s, i), {direction:'top'});
     m.on('click', () => {
       const card = document.getElementById(s.id);
       if (card) card.scrollIntoView({behavior:'smooth', block:'center'});

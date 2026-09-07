@@ -22,6 +22,11 @@ class StopFacts {
   final double? legMeters;
   final String? legMode;
 
+  /// 这一段主要走了哪几条路（'I 40' 之类）。
+  /// "沿 40 号州际公路开过来"比"开了 136 公里"具体得多，
+  /// 而且这是**地图给的事实**，不是编的。
+  final List<String> viaRoads;
+
   const StopFacts({
     required this.index,
     required this.total,
@@ -35,6 +40,7 @@ class StopFacts {
     this.arrivedFrom,
     this.legMeters,
     this.legMode,
+    this.viaRoads = const [],
   });
 
   Duration get duration => leave.difference(arrive);
@@ -47,6 +53,7 @@ class StopFacts {
     List<String> landmarks = const [],
     String? arrivedFrom,
     Leg? incomingLeg,
+    List<String> viaRoads = const [],
   }) =>
       StopFacts(
         index: index,
@@ -61,6 +68,7 @@ class StopFacts {
         arrivedFrom: arrivedFrom,
         legMeters: incomingLeg?.meters,
         legMode: incomingLeg?.mode.name,
+        viaRoads: viaRoads,
       );
 }
 
@@ -110,6 +118,10 @@ class PromptBuilder {
           ? ''
           : '，约 ${(f.legMeters! / 1000).round()} 公里';
       b.writeln('- 从「${f.arrivedFrom}」过来$km');
+    }
+    if (f.viaRoads.isNotEmpty) {
+      b.writeln('- 这段路主要走的是: ${f.viaRoads.join('、')}'
+          '（地图给的路名/路号，可以直接写进文字里）');
     }
     if (userHint != null && userHint.trim().isNotEmpty) {
       b.writeln();

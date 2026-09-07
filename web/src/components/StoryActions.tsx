@@ -2,13 +2,16 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import DeleteStory from './DeleteStory';
 
 export default function StoryActions({
-  id, slug, visibility,
-}: { id: string; slug: string; visibility: string }) {
+  id, slug, visibility, title, stats, views,
+}: {
+  id: string; slug: string; visibility: string;
+  title: string; stats: string; views: number;
+}) {
   const router = useRouter();
   const [vis, setVis] = useState(visibility);
-  const [busy, setBusy] = useState(false);
   const url = `${process.env.NEXT_PUBLIC_SITE_URL ?? ''}/s/${slug}`;
 
   async function setVisibility(v: string) {
@@ -18,20 +21,6 @@ export default function StoryActions({
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ visibility: v }),
     });
-    router.refresh();
-  }
-
-  async function remove() {
-    if (!confirm('删除这篇故事？服务器上的图片也会一并删除，无法恢复。\n' +
-      '你电脑上的原图不受影响。\n\n' +
-      '如果这是重复发布的一篇（还有另一篇日期重叠的在线上），' +
-      '当时扣的额度会退回来。')) return;
-    setBusy(true);
-    const res = await fetch(`/api/stories/${id}`, { method: 'DELETE' });
-    const j = await res.json().catch(() => ({}));
-    // 退了额度就明说 —— 用户删掉重复的那篇时最想确认的就是这件事
-    if (j.refunded) alert('已删除，重复发布扣掉的 1 篇额度已经退回你的账户。');
-    router.push('/stories');
     router.refresh();
   }
 
@@ -76,13 +65,15 @@ export default function StoryActions({
         </button>
       </div>
 
-      <button
-        onClick={remove}
-        disabled={busy}
-        className="text-sm text-red-400 hover:underline disabled:opacity-50"
-      >
-        删除这篇故事
-      </button>
+      {/* 删除走带确认框的组件: 它会把标题、网址、浏览次数摆出来。
+          **不能只弹一句"确定吗"** —— 删掉的是一个可能已经发给别人的链接 */}
+      <DeleteStory
+        id={id}
+        title={title}
+        url={url}
+        stats={stats}
+        views={views}
+      />
     </div>
   );
 }

@@ -17,19 +17,39 @@ class StopNote {
   final String source;
   final DateTime updatedAt;
 
+  /// 英文版的标题和正文。
+  ///
+  /// **发布出去的网页是中英双语的**，读者按 /zh /en 看到不同的版本；
+  /// 文字只有一种语言，等于英文读者看到的是中文正文。
+  /// 事实型文案（FactCaption）两种语言都能直接生成，所以默认两份都存。
+  /// 用户手写/AI 写的内容没有对应译文时，英文页回落到原文。
+  final String titleEn;
+  final String noteEn;
+
   const StopNote({
     this.title = '',
     this.note = '',
     this.source = 'user',
+    this.titleEn = '',
+    this.noteEn = '',
     required this.updatedAt,
   });
 
   bool get isEmpty => title.trim().isEmpty && note.trim().isEmpty;
 
-  StopNote copyWith({String? title, String? note, String? source}) => StopNote(
+  StopNote copyWith({
+    String? title,
+    String? note,
+    String? source,
+    String? titleEn,
+    String? noteEn,
+  }) =>
+      StopNote(
         title: title ?? this.title,
         note: note ?? this.note,
         source: source ?? this.source,
+        titleEn: titleEn ?? this.titleEn,
+        noteEn: noteEn ?? this.noteEn,
         updatedAt: DateTime.now(),
       );
 
@@ -37,6 +57,8 @@ class StopNote {
         'title': title,
         'note': note,
         'source': source,
+        if (titleEn.isNotEmpty) 'titleEn': titleEn,
+        if (noteEn.isNotEmpty) 'noteEn': noteEn,
         'updatedAt': updatedAt.toIso8601String(),
       };
 
@@ -44,6 +66,8 @@ class StopNote {
         title: j['title'] as String? ?? '',
         note: j['note'] as String? ?? '',
         source: j['source'] as String? ?? 'user',
+        titleEn: j['titleEn'] as String? ?? '',
+        noteEn: j['noteEn'] as String? ?? '',
         updatedAt: DateTime.tryParse(j['updatedAt'] as String? ?? '') ??
             DateTime.now(),
       );

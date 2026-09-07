@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -415,6 +416,15 @@ class LibraryController extends ChangeNotifier {
       final prev = trip.stays[idx - 1];
       from = placeOf(prev)?.primary ?? noteOf(prev)?.title;
     }
+    // 这一段走了哪几条路: 从算好的道路路线里取。
+    // 没算过真实路线（直线兜底）时就是空的，文案里自然也不会提路名
+    final roads = idx > 0
+        ? (roadLegs
+                .where((l) => l.toStopId == 'stop-${stop.seq}')
+                .map((l) => l.roads)
+                .firstWhere((r) => r.isNotEmpty, orElse: () => const []))
+        : const <String>[];
+
     return StopFacts.fromStop(
       stop,
       index: idx < 0 ? 0 : idx,
@@ -423,6 +433,7 @@ class LibraryController extends ChangeNotifier {
       landmarks: place?.landmarks ?? const [],
       arrivedFrom: from,
       incomingLeg: idx > 0 ? incoming : null,
+      viaRoads: roads,
     );
   }
 
@@ -441,9 +452,9 @@ class LibraryController extends ChangeNotifier {
   /// 只把已知信息写成一句话，不做任何推测，所以可以放心地批量自动填。
   /// [lookup] 为 true 时先查地名（会联网，且有 1 秒多的节流）。
   Future<FactCaption> factCaption(Stop stop, TripRoute trip,
-      {bool lookup = true}) async {
+      {bool lookup = true, String lang = 'zh'}) async {
     if (lookup) await lookupPlace(stop);
-    return FactCaption.forStop(_factsOf(stop, trip));
+    return FactCaption.forStop(_factsOf(stop, trip), lang: lang);
   }
 
   /// 给还没有写过文字的站批量生成。**已经写过的一律不碰** ——
@@ -456,7 +467,10 @@ class LibraryController extends ChangeNotifier {
         .toList();
     for (var i = 0; i < targets.length; i++) {
       final stop = targets[i];
+      // 中英各生成一份。事实型文案是拼出来的、不调模型，
+      // 所以"顺手多生成一种语言"几乎不花任何代价
       final cap = await factCaption(stop, trip);
+      final capEn = await factCaption(stop, trip, lookup: false, lang: 'en');
       final old = noteOf(stop);
       await saveNote(
         stop,
@@ -465,6 +479,8 @@ class LibraryController extends ChangeNotifier {
               ? old!.title
               : cap.title,
           note: cap.text,
+          titleEn: capEn.title,
+          noteEn: capEn.text,
           source: 'facts',
           updatedAt: DateTime.now(),
         ),
@@ -540,6 +556,8 @@ class LibraryController extends ChangeNotifier {
       // 站点标题优先用用户写的，其次是反查到的地名
       final names = <int, String>{};
       final notesMap = <int, String>{};
+      final namesEn = <int, String>{};
+      final notesEn = <int, String>{};
       for (final stop in tripForNotes.stays) {
         final n = noteOf(stop);
         final place = placeOf(stop);
@@ -549,6 +567,14 @@ class LibraryController extends ChangeNotifier {
         if (t != null && t.isNotEmpty) names[stop.seq] = t;
         if ((n?.note.trim().isNotEmpty ?? false)) {
           notesMap[stop.seq] = n!.note.trim();
+        }
+        // 英文版。**网页是双语的**，英文读者不该看到中文正文。
+        // 没存过英文的（用户手写、AI 写的）就留空，前端回落到原文
+        if ((n?.titleEn.trim().isNotEmpty ?? false)) {
+          namesEn[stop.seq] = n!.titleEn.trim();
+        }
+        if ((n?.noteEn.trim().isNotEmpty ?? false)) {
+          notesEn[stop.seq] = n!.noteEn.trim();
         }
       }
 
@@ -561,6 +587,8 @@ class LibraryController extends ChangeNotifier {
       final res = await exporter.export(
         stopNames: names,
         stopNotes: notesMap,
+        stopNamesEn: namesEn,
+        stopNotesEn: notesEn,
         trip: trip,
         selectedIds: selected,
         heroByStopSeq: heroByStopSeq,
@@ -684,11 +712,19 @@ class LibraryController extends ChangeNotifier {
       lastPublish = res;
       resumeStoryId = '';
       _resumeKey = '';
-      // 挑过一次之后，这个草稿就和那一篇绑上了，下次不用再挑
-      pickedStoryId = '';
-      pickedStoryTitle = '';
-      pickedStoryUrl = '';
+      // **发完之后仍然停在"更新这一篇"上。**
+      // 更新是会反复做的事: 改完错别字发一次，换了封面再发一次。
+      // 发完就把绑定清掉、按钮变回"发布新的一篇"，
+      // 下一次手一快就多出一篇重复的。
+      pickedStoryId = res.storyId;
+      pickedStoryTitle = pickedStoryTitle.isNotEmpty
+          ? pickedStoryTitle
+          : (currentProjectName ?? '');
+      pickedStoryUrl = res.publicUrl;
+      updateExisting = true;
       await _rememberPublished(res);
+      // 更新次数变了，把列表刷一下，好显示"还剩几次免费更新"
+      unawaited(loadRemoteStories());
       status = res.updated
           ? '已更新: ${res.publicUrl}'
           : '发布成功: ${res.publicUrl}';
@@ -798,7 +834,6 @@ class LibraryController extends ChangeNotifier {
     proj.publishedKey = lastExport?.storyKey ?? '';
     proj.publishedTitle = currentProjectName ?? '';
     proj.updatedAt = DateTime.now();
-    updateExisting = false;
     await _store?.save(projects);
   }
 

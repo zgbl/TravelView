@@ -24,9 +24,9 @@ export async function GET(req: Request) {
   const rows = await query<{
     id: string; slug: string; title: string; start_date: string | null;
     end_date: string | null; photo_count: number; stop_count: number;
-    published_at: string | null;
+    published_at: string | null; update_count: number;
   }>(`select id, slug, title, start_date, end_date, photo_count, stop_count,
-             published_at
+             published_at, coalesce(update_count, 0) as update_count
         from stories where user_id = $1
        order by coalesce(published_at, created_at) desc limit 50`,
     [owner.user_id]);
@@ -42,6 +42,7 @@ export async function GET(req: Request) {
       photos: r.photo_count,
       stops: r.stop_count,
       published: !!r.published_at,
+      updates: r.update_count,
       url: `${site}/s/${r.slug}`,
     })),
   });

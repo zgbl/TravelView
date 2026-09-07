@@ -164,6 +164,32 @@ class _PublishDialogState extends State<PublishDialog> {
     await widget.c.publishStory(visibility: visibility);
   }
 
+  /// 更新的代价。**每 5 次收一次 0.5 篇**（第 6、11、16... 次），
+  /// 要在他按下去之前就知道，不能等扣完了才发现
+  String _updateCostHint(LibraryController c) {
+    const free = 5;
+    bool charged(int n) => n >= free + 1 && (n - (free + 1)) % free == 0;
+
+    final st = c.remoteStories
+        .where((e) => e.id == c.pickedStoryId)
+        .cast<RemoteStory?>()
+        .firstWhere((e) => true, orElse: () => null);
+    final used = st?.updates ?? 0;
+    final next = used + 1;
+
+    if (charged(next)) {
+      return '公开链接不变。这将是第 $next 次更新 —— '
+          '每 $free 次更新收 0.5 篇额度，这次要扣。';
+    }
+    // 还差几次到收费那一次
+    var n = next;
+    while (!charged(n)) {
+      n++;
+    }
+    return '更新不扣额度，公开链接也不变'
+        '（再更新 ${n - next} 次之后会扣 0.5 篇）。';
+  }
+
   String get _base =>
       widget.c.settings.siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
 
@@ -217,16 +243,14 @@ class _PublishDialogState extends State<PublishDialog> {
               ),
               // ── 这次是发新的一篇，还是更新已有的那一篇 ──
               //
-              // **默认永远是发新的一篇。** "更新"会覆盖掉一个可能已经
-              // 分享给别人的链接，这种破坏性动作不该是默认值，
-              // 更不该在内容根本不是同一趟行程时出现。
-              // ── 这次是发新的一篇，还是更新已有的那一篇 ──
+              // 首次发布时默认是"发新的一篇"——覆盖是破坏性动作，
+              // 不该是默认值。但发完之后绑定要**留着**:
+              // 更新是会反复做的事，发完就清掉、按钮变回"发布新的一篇"，
+              // 下一次手一快就多出一篇重复的。
               //
-              // **默认永远是发新的一篇。** "更新"会覆盖掉一个可能已经
-              // 分享给别人的链接，这种破坏性动作不该是默认值。
-              // 但**必须永远有一条路能更新** —— 草稿里那条记录会断，
+              // 而且**必须永远有一条路能更新** —— 草稿里那条记录会断，
               // 断了还不给挑，用户就只能重发一篇、旧链接烂在外面。
-              if (done == null) ...[
+              ...[
                 const SizedBox(height: 14),
                 if (c.pickedStoryId.isNotEmpty)
                   Container(
@@ -249,8 +273,8 @@ class _PublishDialogState extends State<PublishDialog> {
                             style: TextStyle(
                                 fontSize: 11, color: scheme.onSurfaceVariant)),
                         const SizedBox(height: 4),
-                        const Text('更新不扣额度，公开链接也不变。',
-                            style: TextStyle(fontSize: 11)),
+                        Text(_updateCostHint(c),
+                            style: const TextStyle(fontSize: 11)),
                         Align(
                           alignment: Alignment.centerRight,
                           child: TextButton(
@@ -405,6 +429,14 @@ class _PublishDialogState extends State<PublishDialog> {
                       const SizedBox(height: 6),
                       SelectableText(done.publicUrl,
                           style: const TextStyle(fontSize: 13)),
+                      if (done.updated)
+                        Text(
+                          done.charged > 0
+                              ? '第 ${done.updateCount} 次更新，扣了 '
+                                  '${done.charged} 篇额度'
+                              : '第 ${done.updateCount} 次更新，没有扣额度',
+                          style: const TextStyle(fontSize: 11),
+                        ),
                       const SizedBox(height: 8),
                       Row(children: [
                         TextButton.icon(
@@ -497,7 +529,7 @@ class _PublishDialogState extends State<PublishDialog> {
           child: Text(c.canResume
               ? '继续上传'
               : c.updateExisting
-                  ? '更新那一篇'
+                  ? (done == null ? '更新那一篇' : '再更新一次')
                   : '发布新的一篇'),
         ),
       ],

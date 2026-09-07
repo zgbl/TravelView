@@ -51,7 +51,8 @@ class OsrmRouteProvider implements RouteProvider {
   }) async {
     final url = Uri.parse('$baseUrl/route/v1/${_profile(mode)}/'
         '${from.lon},${from.lat};${to.lon},${to.lat}'
-        '?overview=full&geometries=geojson');
+        // steps=true 才有每一步的路名和路号（I 40 之类）
+        '?overview=full&geometries=geojson&steps=true');
     final j = await _getJson(url, timeout: timeout, provider: name);
 
     final routes = j['routes'] as List?;
@@ -73,8 +74,41 @@ class OsrmRouteProvider implements RouteProvider {
       duration: r['duration'] == null
           ? null
           : Duration(seconds: (r['duration'] as num).round()),
+      roads: _osrmRoads(r),
     );
   }
+
+  /// OSRM 的每一步里，`ref` 是路号（I 40 / US 285），`name` 是路名。
+  /// 优先要路号 —— 人说的是"走 40 号"，不是"走 Purple Heart Trail"。
+  static List<String> _osrmRoads(Map<String, dynamic> r) {
+    final by = <String, double>{};
+    for (final leg in (r['legs'] as List? ?? const [])) {
+      for (final st in ((leg as Map)['steps'] as List? ?? const [])) {
+        final m = st as Map;
+        final ref = (m['ref'] as String?)?.trim();
+        final name = (m['name'] as String?)?.trim();
+        final key = (ref != null && ref.isNotEmpty) ? ref : name;
+        if (key == null || key.isEmpty) continue;
+        by[key] = (by[key] ?? 0) + ((m['distance'] as num?)?.toDouble() ?? 0);
+      }
+    }
+    return _topRoads(by);
+  }
+}
+
+/// 按里程取前几条，太短的忽略 —— 出发前的两个路口不该出现在文案里
+List<String> _topRoads(Map<String, double> byRoad, {int max = 3}) {
+  final total = byRoad.values.fold<double>(0, (a, b) => a + b);
+  if (total <= 0) return const [];
+  final kept = byRoad.entries
+      .where((e) => e.value / total >= 0.12)   // 至少占这段路的 12%
+      .toList()
+    ..sort((a, b) => b.value.compareTo(a.value));
+  // 路号里的分隔符不统一（I 40 / I-40 / I40），统一成 "I 40" 这种读法
+  return kept
+      .take(max)
+      .map((e) => e.key.replaceAll(RegExp(r'[;/]'), ' / ').trim())
+      .toList();
 }
 
 /// openrouteservice。托管服务，注册即有免费额度，起步最快。
@@ -108,6 +142,8 @@ class OrsRouteProvider implements RouteProvider {
         Uri.parse('$baseUrl/v2/directions/${_profile(mode)}/geojson');
     final body = jsonEncode({
       'coordinates': [from.toGeoJson(), to.toGeoJson()],
+      // 要 steps 才有路名；ORS 默认就带 instructions，这里写明白
+      'instructions': true,
     });
     if (apiKey.trim().isEmpty) {
       throw const RouteProviderException(
@@ -137,7 +173,24 @@ class OrsRouteProvider implements RouteProvider {
       duration: summary['duration'] == null
           ? null
           : Duration(seconds: (summary['duration'] as num).round()),
+      roads: _orsRoads(f),
     );
+  }
+
+  /// ORS 把每一步放在 properties.segments[].steps[]，路名在 `name`。
+  /// 没有路名时它填 '-'，那种要丢掉。
+  static List<String> _orsRoads(Map<String, dynamic> f) {
+    final by = <String, double>{};
+    final segs = (f['properties'] as Map?)?['segments'] as List? ?? const [];
+    for (final seg in segs) {
+      for (final st in ((seg as Map)['steps'] as List? ?? const [])) {
+        final m = st as Map;
+        final name = (m['name'] as String?)?.trim();
+        if (name == null || name.isEmpty || name == '-') continue;
+        by[name] = (by[name] ?? 0) + ((m['distance'] as num?)?.toDouble() ?? 0);
+      }
+    }
+    return _topRoads(by);
   }
 }
 

@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { requireUser } from '@/lib/auth';
 import { query } from '@/lib/db';
 import { miles } from '@/lib/story';
+import DeleteStory from '@/components/DeleteStory';
 
 type Row = {
   id: string; slug: string; title: string; subtitle: string | null;
@@ -31,6 +32,7 @@ export default async function MyStories() {
    * 混在列表里看着就是两条普通记录。标出来，他才有机会删掉多的那篇 ——
    * 而删掉重复的那篇会把当时扣的额度退回去。
    */
+  const site = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/+$/, '');
   const dupIds = new Set<string>();
   for (const a of rows) {
     if (!a.start_date || !a.end_date) continue;
@@ -56,8 +58,8 @@ export default async function MyStories() {
         <p className="mb-6 rounded-xl border border-amber-400/30
           bg-amber-400/5 px-5 py-4 text-sm text-muted">
           <strong className="text-amber-400">发现日期重叠的故事</strong>
-          ，可能是同一趟行程发布了两次。删掉多余的那篇，
-          当时扣的额度会退回你的账户（只要还留着至少一篇）。
+          ，可能是同一趟行程发布了两次。多余的那篇可以删掉
+          （已经用掉的额度不会退回）。
         </p>
       )}
 
@@ -77,39 +79,65 @@ export default async function MyStories() {
       ) : (
         <ul className="space-y-3">
           {rows.map((s) => (
-            <li key={s.id}>
-              <Link
-                href={`/stories/${s.id}`}
-                className="flex items-center justify-between rounded-2xl
-                  border border-white/12 px-6 py-5 hover:border-white/25"
-              >
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{s.title}</span>
-                    {dupIds.has(s.id) && (
-                      <span className="rounded-full bg-amber-400/15 px-2 py-0.5
-                        text-[10px] text-amber-400">
-                        可能重复
-                      </span>
-                    )}
-                    {!s.published_at && (
-                      <span className="rounded-full bg-white/10 px-2 py-0.5
-                        text-[10px] text-muted">
-                        没传完
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-1 text-xs text-muted">
-                    {s.day_count} 天 · {s.stop_count} 站 ·{' '}
-                    {miles(Number(s.distance_meters))} mi · {s.photo_count} 张
-                    {s.visibility !== 'public' && ` · ${s.visibility}`}
-                  </div>
+            <li
+              key={s.id}
+              className="flex items-center gap-4 rounded-2xl border
+                border-white/12 px-6 py-5 hover:border-white/25"
+            >
+              {/* 删除按钮**不能包在 Link 里** —— 点它会先跳转再弹框，
+                  而且整行可点时用户很容易误触。所以行是 flex，
+                  左边一块是链接，右边的操作各自独立 */}
+              <Link href={`/stories/${s.id}`} className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{s.title}</span>
+                  {dupIds.has(s.id) && (
+                    <span className="rounded-full bg-amber-400/15 px-2 py-0.5
+                      text-[10px] text-amber-400">
+                      可能重复
+                    </span>
+                  )}
+                  {!s.published_at && (
+                    <span className="rounded-full bg-white/10 px-2 py-0.5
+                      text-[10px] text-muted">
+                      没传完
+                    </span>
+                  )}
                 </div>
-                <div className="text-right text-xs text-muted">
-                  <div>{Number(s.view_count)} 次浏览</div>
-                  <div className="mt-1">/s/{s.slug}</div>
+                <div className="mt-1 text-xs text-muted">
+                  {s.day_count} 天 · {s.stop_count} 站 ·{' '}
+                  {miles(Number(s.distance_meters))} mi · {s.photo_count} 张
+                  {s.visibility !== 'public' && ` · ${s.visibility}`}
                 </div>
               </Link>
+
+              <Link
+                href={`/stories/${s.id}`}
+                className="shrink-0 text-right text-xs text-muted"
+              >
+                <div>{Number(s.view_count)} 次浏览</div>
+                <div className="mt-1">/s/{s.slug}</div>
+              </Link>
+
+              <div className="flex shrink-0 items-center gap-3">
+                <a
+                  href={`/s/${s.slug}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-xs text-muted hover:text-paper"
+                >
+                  打开
+                </a>
+                <DeleteStory
+                  compact
+                  id={s.id}
+                  title={s.title}
+                  subtitle={s.subtitle}
+                  url={`${site}/s/${s.slug}`}
+                  views={Number(s.view_count)}
+                  stats={`${s.day_count} 天 · ${s.stop_count} 站 · ${
+                    miles(Number(s.distance_meters))} mi · ${s.photo_count} 张`}
+                />
+              </div>
             </li>
           ))}
         </ul>

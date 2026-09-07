@@ -222,16 +222,19 @@ export default function StoryRenderer({
                     className="mb-[7vh] scroll-mt-[20vh]"
                   >
                     <h3 className="text-[clamp(22px,3vw,32px)] font-semibold tracking-tight">
-                      {s.name ?? `第 ${s.seq + 1} 站`}
+                      {/* 英文页看英文。没有译文才回落到原文 ——
+                          宁可显示中文，也不能显示空白 */}
+                      {(locale === 'en' ? s.nameEn ?? s.name : s.name) ??
+                        `第 ${s.seq + 1} 站`}
                     </h3>
                     <p className="mb-3 text-sm text-muted">
                       {hhmm(s.arrive)} - {hhmm(s.leave)} &middot;{' '}
                       {t(locale, 'story.selected', { n: s.photos.length })}
                     </p>
-                    {s.note && (
+                    {(locale === 'en' ? s.noteEn ?? s.note : s.note) && (
                       <p className="mb-4 max-w-[62ch] whitespace-pre-line
                         text-[15px] leading-relaxed text-paper/85">
-                        {s.note}
+                        {locale === 'en' ? s.noteEn ?? s.note : s.note}
                       </p>
                     )}
                     {hero && (

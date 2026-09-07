@@ -56,8 +56,14 @@ class PublishResult {
   /// 下次发布同一趟行程时带上它，就是原地更新而不是新建一篇。
   final String storyId;
 
-  /// true = 更新了已有的那一篇（链接没变、没扣额度）
+  /// true = 更新了已有的那一篇（链接没变）
   final bool updated;
+
+  /// 这次实际扣了多少篇额度: 0 / 0.5 / 1
+  final double charged;
+
+  /// 这一篇累计更新过几次
+  final int updateCount;
 
   const PublishResult({
     required this.slug,
@@ -66,6 +72,8 @@ class PublishResult {
     required this.totalBytes,
     this.storyId = '',
     this.updated = false,
+    this.charged = 0,
+    this.updateCount = 0,
   });
 }
 
@@ -81,6 +89,9 @@ class RemoteStory {
   final bool published;
   final String url;
 
+  /// 已经更新过几次。前 5 次免费，之后每次 0.5 篇额度
+  final int updates;
+
   const RemoteStory({
     required this.id,
     required this.slug,
@@ -89,6 +100,7 @@ class RemoteStory {
     required this.stops,
     required this.published,
     required this.url,
+    this.updates = 0,
     this.start,
     this.end,
   });
@@ -103,6 +115,7 @@ class RemoteStory {
         stops: (j['stops'] as num?)?.toInt() ?? 0,
         published: j['published'] == true,
         url: j['url'] as String? ?? '',
+        updates: (j['updates'] as num?)?.toInt() ?? 0,
       );
 }
 
@@ -256,7 +269,7 @@ class Publisher {
     // 第三步: 告诉服务器"传完了"。**额度在这一步才扣** ——
     // 图没传完就扣钱，等于用户付了钱什么都没拿到。
     onProgress?.call(total, total, '正在完成发布');
-    await _complete(newId.isEmpty ? (storyId ?? '') : newId);
+    final done = await _complete(newId.isEmpty ? (storyId ?? '') : newId);
 
     return PublishResult(
       slug: created['slug'] as String,
@@ -265,6 +278,8 @@ class Publisher {
       totalBytes: bytes,
       storyId: created['storyId'] as String? ?? '',
       updated: created['updated'] == true,
+      charged: (done['charged'] as num?)?.toDouble() ?? 0,
+      updateCount: (done['updateCount'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -341,8 +356,8 @@ class Publisher {
   }
 
   /// 收尾: 服务器点一遍文件，确认没缺，然后正式上线并扣额度。
-  Future<void> _complete(String id) async {
-    if (id.isEmpty) return;
+  Future<Map<String, dynamic>> _complete(String id) async {
+    if (id.isEmpty) return const {};
     final client = HttpClient()..connectionTimeout = timeout;
     try {
       final req = await client
@@ -358,6 +373,7 @@ class Publisher {
         throw PublishException(_errorOf(body, res.statusCode),
             statusCode: res.statusCode, storyId: id);
       }
+      return jsonDecode(body) as Map<String, dynamic>;
     } on SocketException catch (e) {
       throw PublishException('收尾时断开: ${e.message}', storyId: id);
     } on TimeoutException {

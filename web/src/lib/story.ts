@@ -16,6 +16,9 @@ export type StoryPhoto = {
 };
 
 export type StoryStop = {
+  /** 英文版标题和正文。没有就回落到 name/note */
+  nameEn?: string;
+  noteEn?: string;
   id: string;
   seq: number;
   name?: string;
