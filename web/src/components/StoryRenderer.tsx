@@ -179,12 +179,15 @@ export default function StoryRenderer({
                 {story.subtitle}
               </p>
             )}
-            <div className="mt-7 inline-flex flex-wrap gap-8 rounded-2xl
-              bg-black/25 px-6 py-4 backdrop-blur-sm">
-              <Stat n={story.stats.days} k="DAYS" />
-              <Stat n={story.stats.stops} k="STOPS" />
-              <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
-              <Stat n={story.stats.photos} k="PHOTOS" />
+            <div className="mt-7 flex flex-wrap items-center gap-5">
+              <div className="inline-flex flex-wrap gap-8 rounded-2xl
+                bg-black/25 px-6 py-4 backdrop-blur-sm">
+                <Stat n={story.stats.days} k="DAYS" />
+                <Stat n={story.stats.stops} k="STOPS" />
+                <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
+                <Stat n={story.stats.photos} k="PHOTOS" />
+              </div>
+              <PlayButton onClick={() => setPlaying(true)} locale={locale} />
             </div>
           </div>
         </section>
