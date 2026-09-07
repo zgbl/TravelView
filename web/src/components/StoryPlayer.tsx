@@ -158,14 +158,14 @@ export default function StoryPlayer({
   const stop = beat.kind === 'photo' || beat.kind === 'transit'
     ? story.stops[beat.stop] : undefined;
 
+  /* 点画面任意处 = 暂停/继续。
+     前后翻页交给方向键和进度条 —— 一个全屏画面上，
+     "点左边后退、点右边前进"没有任何可见提示，用户只会以为点坏了。
+     暂停才是看照片时真正想做的事。 */
   return (
     <div
       className="fixed inset-0 z-[80] select-none overflow-hidden bg-black"
-      onClick={(e) => {
-        // 左三分之一后退，其余前进 —— 手机上不用找按钮
-        const x = e.clientX / window.innerWidth;
-        go(x < 0.33 ? -1 : 1);
-      }}
+      onClick={() => setPlaying((v) => !v)}
     >
       <PlayerMap
         story={story}
@@ -248,6 +248,28 @@ export default function StoryPlayer({
         </Card>
       )}
 
+      {/* 暂停时压一层，并把「继续 / 退出」摆到正中 ——
+          暂停的人通常是想多看两眼，或者想走了，这两件事都该一眼看见 */}
+      {!playing && (
+        <div className="absolute inset-0 flex items-center justify-center
+          gap-4 bg-black/45 backdrop-blur-[2px]">
+          <button
+            onClick={(e) => { e.stopPropagation(); setPlaying(true); }}
+            className="flex items-center gap-3 rounded-full bg-white/95 px-7
+              py-3.5 text-sm font-semibold text-ink hover:bg-white"
+          >
+            <span className="text-[11px]">▶</span>{t(locale, 'player.play')}
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onClose(); }}
+            className="rounded-full border border-white/30 px-7 py-3.5
+              text-sm text-white/90 hover:bg-white/10"
+          >
+            {t(locale, 'player.exit')}
+          </button>
+        </div>
+      )}
+
       {/* ── 控件 ── 平时淡出，鼠标动一下才出来 */}
       <div className="absolute inset-x-0 top-0 flex items-center gap-3 px-5 py-4">
         <Progress beats={beats} i={i} dur={dur} playing={playing} />
@@ -280,6 +302,11 @@ function PlayerMap({
   const mapRef = useRef<maplibregl.Map | null>(null);
   const markerRef = useRef<maplibregl.Marker | null>(null);
   const rafRef = useRef<number>(0);
+  /// 整条路线的折线点（lat,lon）与逐点累计里程
+  const ptsRef = useRef<[number, number][]>([]);
+  const cumRef = useRef<number[]>([]);
+  /// 每一站落在折线上的里程 —— 小车就在相邻两站的里程之间走
+  const stopDistRef = useRef<number[]>([]);
 
   useEffect(() => {
     if (!ref.current || mapRef.current) return;
@@ -302,6 +329,33 @@ function PlayerMap({
     mapRef.current = map;
 
     map.on('load', () => {
+      // 把所有 route 段首尾接成一条折线，并算出逐点累计里程。
+      // **动画要沿真实道路走**，直线插值会让车从高速上飞过山头
+      const all: [number, number][] = [];
+      story.routes.forEach((r) => {
+        decodePolyline(r.geometry, r.precision ?? 6).forEach((pt) => {
+          const last = all[all.length - 1];
+          if (!last || last[0] !== pt[0] || last[1] !== pt[1]) all.push(pt);
+        });
+      });
+      ptsRef.current = all;
+      const cum = [0];
+      for (let k = 1; k < all.length; k++) {
+        cum.push(cum[k - 1] + haversine(all[k - 1], all[k]));
+      }
+      cumRef.current = cum;
+      // 每一站取折线上离它最近的那个点的里程
+      stopDistRef.current = story.stops.map((st) => {
+        let best = 0, bestD = Infinity;
+        for (let k = 0; k < all.length; k++) {
+          const dLat = all[k][0] - st.lat;
+          const dLon = (all[k][1] - st.lon) * Math.cos((st.lat * Math.PI) / 180);
+          const d = dLat * dLat + dLon * dLon;
+          if (d < bestD) { bestD = d; best = k; }
+        }
+        return cum[best];
+      });
+
       const feats = story.routes.map((r) => ({
         type: 'Feature' as const,
         properties: {},
@@ -325,12 +379,24 @@ function PlayerMap({
         paint: { 'line-color': '#4fbfa8', 'line-width': 4 },
       });
 
+      // 已走过的部分单独高亮 —— 看得见"走了多少、还剩多少"
+      map.addSource('traveled', {
+        type: 'geojson',
+        data: { type: 'Feature', properties: {},
+          geometry: { type: 'LineString', coordinates: [] } },
+      });
+      map.addLayer({
+        id: 'traveled', type: 'line', source: 'traveled',
+        layout: { 'line-cap': 'round', 'line-join': 'round' },
+        paint: { 'line-color': '#ff8a5b', 'line-width': 5 },
+      });
+
       const el = document.createElement('div');
-      el.style.cssText =
-        'width:18px;height:18px;border-radius:999px;background:#ff8a5b;' +
-        'border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,.5)';
+      el.className = 'text-3xl leading-none drop-shadow-lg';
+      el.textContent = '🚗';
+      const start = all[0] ?? [story.stops[0]?.lat ?? 0, story.stops[0]?.lon ?? 0];
       markerRef.current = new maplibregl.Marker({ element: el })
-        .setLngLat([story.stops[0]?.lon ?? 0, story.stops[0]?.lat ?? 0])
+        .setLngLat([start[1], start[0]])
         .addTo(map);
     });
 
@@ -358,21 +424,72 @@ function PlayerMap({
     const from = story.stops[beat.stop - 1] ?? to;
     if (!to) return;
 
-    // 先把镜头框住这一段，再让点走完它 —— 观众要先看见"要去哪"
-    const b = new maplibregl.LngLatBounds([from.lon, from.lat],
-      [from.lon, from.lat]).extend([to.lon, to.lat]);
-    map.fitBounds(b, { padding: 140, duration: 900, maxZoom: 9 });
+    const all = ptsRef.current;
+    const cum = cumRef.current;
+    const stopDist = stopDistRef.current;
+    const usePath = all.length > 1 && stopDist.length > beat.stop;
 
+    /// 里程 -> 折线上的坐标（同时给出它落在第几个点之后，好画已走的路）
+    const at = (d: number): { pos: [number, number]; idx: number } => {
+      let k = 1;
+      while (k < cum.length - 1 && cum[k] < d) k++;
+      const segLen = cum[k] - cum[k - 1];
+      const f = segLen > 0 ? (d - cum[k - 1]) / segLen : 0;
+      return {
+        pos: [
+          all[k - 1][0] + (all[k][0] - all[k - 1][0]) * f,
+          all[k - 1][1] + (all[k][1] - all[k - 1][1]) * f,
+        ],
+        idx: k,
+      };
+    };
+
+    const dFrom = usePath ? stopDist[beat.stop - 1] ?? 0 : 0;
+    const dTo = usePath ? stopDist[beat.stop] : 0;
+
+    // 先把镜头框住这一段，再让车走完它 —— 观众要先看见"要去哪"。
+    // 框的是**这一段真实路线**的范围，不是两个站点的连线:
+    // 一段绕山的路，只框两端会把大半条路甩出画面
+    let b: maplibregl.LngLatBounds;
+    if (usePath && dTo > dFrom) {
+      const a0 = at(dFrom), a1 = at(dTo);
+      b = new maplibregl.LngLatBounds(
+        [a0.pos[1], a0.pos[0]], [a0.pos[1], a0.pos[0]]);
+      for (let k = a0.idx; k <= a1.idx && k < all.length; k++) {
+        b.extend([all[k][1], all[k][0]]);
+      }
+      b.extend([a1.pos[1], a1.pos[0]]);
+    } else {
+      b = new maplibregl.LngLatBounds([from.lon, from.lat],
+        [from.lon, from.lat]).extend([to.lon, to.lat]);
+    }
+    map.fitBounds(b, { padding: 140, duration: 900, maxZoom: 11 });
+
+    const traveled = map.getSource('traveled') as
+      maplibregl.GeoJSONSource | undefined;
     const t0 = performance.now();
     const span = DUR.transit - 900;
     const tick = (now: number) => {
       const p = Math.max(0, Math.min(1, (now - t0 - 700) / span));
       // 缓入缓出，匀速看着像机器在拖
       const e = p < 0.5 ? 2 * p * p : 1 - ((-2 * p + 2) ** 2) / 2;
-      markerRef.current?.setLngLat([
-        from.lon + (to.lon - from.lon) * e,
-        from.lat + (to.lat - from.lat) * e,
-      ]);
+      if (usePath && dTo > dFrom) {
+        const { pos, idx } = at(dFrom + (dTo - dFrom) * e);
+        markerRef.current?.setLngLat([pos[1], pos[0]]);
+        traveled?.setData({
+          type: 'Feature', properties: {},
+          geometry: {
+            type: 'LineString',
+            coordinates: [...all.slice(0, idx), pos].map(([la, lo]) => [lo, la]),
+          },
+        });
+      } else {
+        // 这一段没有路线数据（比如飞过去的一程），只好直线过渡
+        markerRef.current?.setLngLat([
+          from.lon + (to.lon - from.lon) * e,
+          from.lat + (to.lat - from.lat) * e,
+        ]);
+      }
       if (p < 1) rafRef.current = requestAnimationFrame(tick);
     };
     rafRef.current = requestAnimationFrame(tick);
@@ -512,4 +629,17 @@ function Progress({
       ))}
     </div>
   );
+}
+
+
+/// 两点间的大圆距离（米）。算里程用，精度足够
+function haversine(a: [number, number], b: [number, number]) {
+  const R = 6371000;
+  const p1 = (a[0] * Math.PI) / 180;
+  const p2 = (b[0] * Math.PI) / 180;
+  const dp = p2 - p1;
+  const dl = ((b[1] - a[1]) * Math.PI) / 180;
+  const h = Math.sin(dp / 2) ** 2 +
+    Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(h));
 }
