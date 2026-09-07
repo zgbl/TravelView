@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
@@ -59,6 +60,8 @@ class _StoryPageState extends State<StoryPage> {
     _subtitle.dispose();
     _titleFocus.dispose();
     _subtitleFocus.dispose();
+    _searchCtl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -245,21 +248,98 @@ class _StoryPageState extends State<StoryPage> {
         c: widget.c, photos: list, index: i < 0 ? 0 : i);
   }
 
+  /// 站内查找的关键词。空 = 不过滤。
+  String _query = '';
+  final _searchCtl = TextEditingController();
+  final _searchFocus = FocusNode();
+
+  /// 一站能被搜到的全部文字: 地名、自己写的标题和正文、日期、照片文件名。
+  ///
+  /// **日期也算文字。** 用户记不住"第 7 站"，但记得"9月8号那天"；
+  /// 照片文件名也收进来，是因为从别处拷来的图常常带着有意义的名字。
+  String _haystack(Stop stop) {
+    final buf = StringBuffer();
+    final place = widget.c.placeOf(stop);
+    if (place != null) {
+      buf.write('${place.names.join(' ')} ${place.landmarks.join(' ')} ');
+    }
+    final note = widget.c.noteOf(stop);
+    // 中英两版都收进来 —— 用户可能用任一种语言想起那一站
+    if (note != null) {
+      buf.write('${note.title} ${note.note} '
+          '${note.titleEn} ${note.noteEn} ');
+    }
+    buf.write('${_dateOnly(stop.arrive)} ${_dateOnly(stop.leave)} ');
+    for (final ph in _photosOf(stop)) {
+      buf.write('${ph.origFilename} ');
+    }
+    return buf.toString().toLowerCase();
+  }
+
+  /// 关键词按空格拆开，**每个词都要命中**（AND，不是 OR）。
+  /// "新墨西哥 加油" 应该只剩那一站，OR 会把两组结果混在一起，等于没筛。
+  List<Stop> _visibleStops(TripRoute r) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return r.stays;
+    final words = q.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    return r.stays.where((s) {
+      final hay = _haystack(s);
+      return words.every(hay.contains);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final r = route;
     if (r == null || r.isEmpty) return _empty(context);
-    return Column(
+    final stops = _visibleStops(r);
+    // ⌘F / Ctrl+F 直接跳到查找框 —— 这是所有人手指的肌肉记忆，
+    // 让用户满屏找那个小输入框是没道理的
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+            () => _searchFocus.requestFocus(),
+        const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+            () => _searchFocus.requestFocus(),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Column(
       children: [
         _toolbar(context, r),
         Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
-            itemCount: r.stays.length,
-            itemBuilder: (context, i) => _stopCard(context, r.stays[i], i),
-          ),
+          child: stops.isEmpty
+              ? _noMatch(context)
+              : ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
+                  itemCount: stops.length,
+                  // 序号仍用它在**整条行程里**的真实位置 ——
+                  // 筛完重新从 1 数，用户会以为行程被改了
+                  itemBuilder: (context, i) =>
+                      _stopCard(context, stops[i], r.stays.indexOf(stops[i])),
+                ),
         ),
       ],
+        ),
+      ),
+    );
+  }
+
+  Widget _noMatch(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Center(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Text('没有哪一站包含「$_query」',
+            style: TextStyle(color: scheme.onSurfaceVariant)),
+        const SizedBox(height: 10),
+        TextButton(
+          onPressed: () => setState(() {
+            _query = '';
+            _searchCtl.clear();
+          }),
+          child: const Text('清除查找'),
+        ),
+      ]),
     );
   }
 
@@ -336,6 +416,39 @@ class _StoryPageState extends State<StoryPage> {
                       ' · ${r.dayCount} 天 · ${r.stays.length} 站',
                   hintStyle:
                       TextStyle(fontSize: 12, color: scheme.outline),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            SizedBox(
+              width: 200,
+              child: TextField(
+                controller: _searchCtl,
+                focusNode: _searchFocus,
+                onChanged: (v) => setState(() => _query = v),
+                style: const TextStyle(fontSize: 12),
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 16),
+                  prefixIconConstraints:
+                      const BoxConstraints(minWidth: 30, minHeight: 30),
+                  suffixIcon: _query.isEmpty
+                      ? null
+                      : IconButton(
+                          icon: const Icon(Icons.close, size: 14),
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                              minWidth: 26, minHeight: 26),
+                          onPressed: () => setState(() {
+                            _query = '';
+                            _searchCtl.clear();
+                          }),
+                        ),
+                  hintText: '查找地点、文字、日期',
+                  hintStyle: TextStyle(fontSize: 12, color: scheme.outline),
+                  border: const OutlineInputBorder(),
+                  contentPadding:
+                      const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
                 ),
               ),
             ),
