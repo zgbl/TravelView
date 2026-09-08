@@ -221,6 +221,7 @@ class _StoryPageState extends State<StoryPage> {
       coverPhotoId: cover.isEmpty ? null : cover,
       coverMode: coverMode,
       units: widget.c.units,
+      music: widget.c.music,
       title: title,
       subtitle: sub,
       tripForNotes: r,
@@ -324,6 +325,64 @@ class _StoryPageState extends State<StoryPage> {
         ),
       ),
     );
+  }
+
+  /// 让用户贴一个音频直链。
+  ///
+  /// **只收 https 的音频文件直链，不收网页地址。**
+  /// 用户很容易把 Pixabay 的页面地址贴进来 —— 那是一个 HTML 页面，
+  /// 播放器拿到它只会静静地不出声，而用户会以为是我们坏了。
+  Future<void> _askMusicUrl() async {
+    final ctl = TextEditingController(
+      text: widget.c.music.startsWith('https://') ? widget.c.music : '',
+    );
+    final url = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('自定义配乐链接'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(
+            controller: ctl,
+            autofocus: true,
+            decoration: const InputDecoration(
+              hintText: 'https://…/song.mp3',
+              helperText: '必须是 https 的音频文件直链（.mp3 / .m4a / .ogg），\n'
+                  '不是播放页面的网址',
+              helperMaxLines: 2,
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            '音乐存在对方服务器上，我们不复制也不保存。\n'
+            '好处是版权关系清楚；代价是对方一旦防盗链、改地址或删文件，\n'
+            '这篇游记就永久没有声音了，而且你不会收到任何通知。\n'
+            '要稳定，建议用上面曲库里的曲子。',
+            style: TextStyle(fontSize: 12, height: 1.6),
+          ),
+        ]),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(''),
+              child: const Text('不用配乐')),
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('取消')),
+          FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(ctl.text.trim()),
+              child: const Text('用这个')),
+        ],
+      ),
+    );
+    if (url == null) return;                     // 取消: 什么都不改
+    if (url.isEmpty) { await widget.c.setMusic(''); return; }
+    if (!url.startsWith('https://')) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('只能用 https 开头的链接 —— http 会被浏览器整页拦掉'),
+      ));
+      return;
+    }
+    await widget.c.setMusic(url);
   }
 
   Widget _noMatch(BuildContext context) {
@@ -577,6 +636,53 @@ class _StoryPageState extends State<StoryPage> {
                 selected: {widget.c.units},
                 onSelectionChanged: (v) => widget.c.setUnits(v.first),
               ),
+              _sep(scheme),
+
+              // 配乐。**默认"无"** —— 配乐是加分项不是必需品，
+              // 而一个用户没选过的曲子被自动配上去，是替他做主
+              const Text('配乐', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              DropdownButton<String>(
+                value: LibraryController.musicLibrary
+                            .containsKey(widget.c.music)
+                        ? widget.c.music
+                        : (widget.c.music.startsWith('https://')
+                            ? '__url__' : ''),
+                underline: const SizedBox.shrink(),
+                style: const TextStyle(fontSize: 12),
+                items: [
+                  const DropdownMenuItem(
+                      value: '', child: Text('无', style: TextStyle(fontSize: 12))),
+                  ...LibraryController.musicLibrary.entries.map(
+                    (e) => DropdownMenuItem(
+                      value: e.key,
+                      child: Text(e.value, style: const TextStyle(fontSize: 12)),
+                    ),
+                  ),
+                  const DropdownMenuItem(
+                      value: '__url__',
+                      child: Text('自定义链接…', style: TextStyle(fontSize: 12))),
+                ],
+                onChanged: (v) {
+                  if (v == null) return;
+                  if (v == '__url__') {
+                    _askMusicUrl();
+                  } else {
+                    widget.c.setMusic(v);
+                  }
+                },
+              ),
+              if (widget.c.music.startsWith('https://')) ...[
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: '外部链接: ${widget.c.music}\n'
+                      '注意: 对方随时可能防盗链、改地址或删掉文件，\n'
+                      '到那天这篇游记就没声音了，而且你不会收到通知。',
+                  child: Icon(Icons.link,
+                      size: 14, color: scheme.onSurfaceVariant),
+                ),
+              ],
+
               if (widget.c.units == 'auto') ...[
                 const SizedBox(width: 6),
                 Tooltip(

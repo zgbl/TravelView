@@ -75,6 +75,22 @@ export async function POST(req: Request) {
   // jpg 不在这个名单里 —— 系统编不出 WebP 时导出的就是 JPEG 派生图。
   // 真正兜住"不许传原图"的是下面这条路径形状检查 + safeKey:
   // 只有导出目录里 photos/ 和 thumbs/ 下的文件才可能被上传。
+  /**
+   * 配乐字段消毒。**在服务器上做，不能只信桌面端** ——
+   * 这个字段最后会变成页面上的 <audio src>，任何人拿到令牌都能直接
+   * POST 上来。只放行曲库 id 和 https 链接: http 会让整页变成混合内容，
+   * 而 javascript:/data: 这类根本不该出现在这里。
+   */
+  const rawMusic = (manifest as { music?: unknown }).music;
+  if (typeof rawMusic === 'string') {
+    const m = rawMusic.trim();
+    const ok = /^[a-z0-9_-]{1,32}$/i.test(m) || /^https:\/\/[^\s]{5,500}$/i.test(m);
+    if (ok) (manifest as { music?: string }).music = m;
+    else delete (manifest as { music?: string }).music;
+  } else {
+    delete (manifest as { music?: string }).music;
+  }
+
   const asText = JSON.stringify(manifest);
   if (/\.(heic|heif|dng|cr2|nef|arw|raf|orf|rw2|tif|tiff)"/i.test(asText)) {
     return NextResponse.json(

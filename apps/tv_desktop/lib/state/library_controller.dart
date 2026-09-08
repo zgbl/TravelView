@@ -529,6 +529,7 @@ class LibraryController extends ChangeNotifier {
     String? coverPhotoId,
     String coverMode = 'map',
     String units = 'auto',
+    String music = '',
     required String title,
     String? subtitle,
     required TripRoute tripForNotes,
@@ -597,6 +598,7 @@ class LibraryController extends ChangeNotifier {
         coverPhotoId: coverPhotoId,
         coverMode: coverMode,
         units: units,
+        music: music,
         legs: legs,
         title: title,
         subtitle: subtitle,
@@ -783,6 +785,37 @@ class LibraryController extends ChangeNotifier {
   String _tmpUnits = 'auto';
 
   static const unitOptions = ['auto', 'mi', 'km'];
+
+  /// 配乐。空 = 不配乐。曲库 id 或 https:// 链接。
+  ///
+  /// **只认 https**: http 会让整页变成混合内容被浏览器拦掉。
+  /// 外部链接我们不兜底 —— 对方防盗链、改地址、删文件，
+  /// 这篇游记就永久没声音了，而且发布者不会收到任何通知。
+  String get music => currentProject?.music ?? _tmpMusic;
+  String _tmpMusic = '';
+
+  /// 曲库。**和网页端 web/src/lib/music.ts 的 id 必须一一对应** ——
+  /// 数据里存的是 id，对不上就是发布出去没声音
+  static const musicLibrary = <String, String>{
+    'carefree': 'Carefree · 轻快，阳光下的公路',
+    'waterlily': 'Water Lily · 安静，水边和清晨',
+    'bittersweet': 'Bittersweet · 怀旧，回看很久以前的照片',
+    'duck': 'Fluffing a Duck · 俏皮，家人和小孩',
+  };
+
+  Future<void> setMusic(String m) async {
+    final v = m.trim();
+    // 曲库 id 或 https 链接，别的一律当作"不配乐"
+    _tmpMusic = (musicLibrary.containsKey(v) || v.startsWith('https://'))
+        ? v : '';
+    final proj = currentProject;
+    if (proj != null) {
+      proj.music = _tmpMusic;
+      proj.updatedAt = DateTime.now();
+      await _store?.save(projects);
+    }
+    notifyListeners();
+  }
 
   Future<void> setUnits(String u) async {
     _tmpUnits = unitOptions.contains(u) ? u : 'auto';
@@ -1101,6 +1134,7 @@ class LibraryController extends ChangeNotifier {
     _tmpSubtitle = proj.storySubtitle;
     _tmpCoverMode = proj.coverMode;
     _tmpUnits = proj.units;
+    _tmpMusic = proj.music;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;
     pickAlbum = proj.pickAlbum;

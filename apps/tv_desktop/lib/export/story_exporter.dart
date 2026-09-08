@@ -61,6 +61,7 @@ class StoryExporter {
     String? coverPhotoId,
     String coverMode = 'auto',
     String units = 'auto',
+    String music = '',
     required List<RouteLeg> legs,
     required String title,
     String? subtitle,
@@ -215,6 +216,8 @@ class StoryExporter {
     // 距离单位。网页上的统计数字和解说文字必须用同一个单位
     manifestJson['units'] =
         const {'auto', 'mi', 'km'}.contains(units) ? units : 'auto';
+    // 配乐: 曲库 id 或 https 链接。空就是不配乐
+    if (music.trim().isNotEmpty) manifestJson['music'] = music.trim();
     await manifest.writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifestJson));
 

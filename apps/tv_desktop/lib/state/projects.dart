@@ -33,6 +33,10 @@ class Project {
   /// 英文说 48 miles，虽然两个数都对，但读者对不上账。
   String units;
 
+  /// 配乐。空 = 没有配乐（播放器里连按钮都不出现）。
+  /// 曲库 id（'carefree'）或 https:// 开头的外部链接。
+  String music;
+
   /// 发布出去的标题。**和草稿名字是两回事** ——
   /// 草稿名是给自己找东西用的（"横穿美国-第二版"），
   /// 标题是封面上最大的那行字、也是分享卡片的第一行，读者只看得到它。
@@ -63,6 +67,7 @@ class Project {
     this.coverPhotoId = '',
     this.coverMode = 'auto',
     this.units = 'auto',
+    this.music = '',
     this.storyTitle = '',
     this.storySubtitle = '',
     this.publishedStoryId = '',
@@ -83,6 +88,7 @@ class Project {
         'coverPhotoId': coverPhotoId,
         'coverMode': coverMode,
         'units': units,
+        'music': music,
         'storyTitle': storyTitle,
         'storySubtitle': storySubtitle,
         'publishedStoryId': publishedStoryId,
@@ -103,6 +109,7 @@ class Project {
         coverPhotoId: j['coverPhotoId'] as String? ?? '',
         coverMode: j['coverMode'] as String? ?? 'auto',
         units: j['units'] as String? ?? 'auto',
+        music: j['music'] as String? ?? '',
         storyTitle: j['storyTitle'] as String? ?? '',
         storySubtitle: j['storySubtitle'] as String? ?? '',
         publishedStoryId: j['publishedStoryId'] as String? ?? '',

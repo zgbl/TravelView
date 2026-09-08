@@ -5,7 +5,8 @@ import maplibregl from 'maplibre-gl';
 import { decodePolyline, mediaUrl, dist, distUnit, distLabel, type Story }
   from '@/lib/story';
 import { t, type Locale } from '@/lib/i18n';
-import { Ambient, PLAYER_MUSIC } from '@/lib/ambient';
+import { Ambient } from '@/lib/ambient';
+import { storyTrack, trackUrl } from '@/lib/music';
 import { carSvg, bearing, smoothTurn } from '@/lib/carMarker';
 
 /**
@@ -76,33 +77,28 @@ export default function StoryPlayer({
   const [playing, setPlaying] = useState(true);
 
   // ── 配乐 ──
-  // 默认**不出声**。在办公室点开一篇游记，突然放起音乐，是会让人
-  // 立刻关掉页面的那种体验；何况浏览器本来也不允许网页自己发声。
-  // 记住用户的选择: 愿意开声音的人，不该每篇都点一次。
+  // 这篇游记选了曲子才有声音；没选就当配乐功能不存在，一个按钮都不出现。
+  const track = useMemo(() => storyTrack(story), [story]);
   const [sound, setSound] = useState(false);
   const ambientRef = useRef<Ambient | null>(null);
+
   useEffect(() => {
-    const a = new Ambient();
+    if (!track) return;
+    const a = new Ambient(trackUrl(track));
     ambientRef.current = a;
-    // 上次开过声音的人，这次直接接上。播放器是被"点播放"点开的，
-    // 手势还在，start() 通常能过；被浏览器拦下也只是没声音，不报错
-    let on = false;
-    try { on = localStorage.getItem('tv.player.sound') === '1'; } catch { /* 无痕 */ }
-    if (on) { setSound(true); void a.start(); }
-    return () => { void a.stop(); };   // 退出播放器一定要停，淡出由 stop() 管
-  }, []);
+    // 播放器是被"点播放"点开的，手势还在，多半能直接出声。
+    // **拦下来也不是错误** —— 那就静静地留着按钮等用户点
+    void a.start().then((ok) => setSound(ok));
+    return () => { a.stop(); ambientRef.current = null; };
+  }, [track]);
+
   const toggleSound = useCallback(() => {
     const a = ambientRef.current;
     if (!a) return;
-    setSound((on) => {
-      const next = !on;
-      // 只在这个点击里 start() —— 用户手势之外调用会被浏览器拒掉
-      if (next) void a.start(); else void a.stop();
-      try { localStorage.setItem('tv.player.sound', next ? '1' : '0'); }
-      catch { /* 无痕模式会抛，不要紧 */ }
-      return next;
-    });
+    if (a.running) { a.pause(); setSound(false); }
+    else void a.start().then((ok) => setSound(ok));
   }, []);
+
   const beat = beats[i] ?? beats[0];
   const photoById = useMemo(
     () => Object.fromEntries(story.photos.map((p) => [p.id, p])), [story]);
@@ -209,14 +205,14 @@ export default function StoryPlayer({
 
   // 到站时给一声，让"车在动"这件事也听得见
   useEffect(() => {
-    if (sound && beat.kind === 'transit') ambientRef.current?.transit();
+    if (sound && beat.kind === 'transit') ambientRef.current?.transit();  // 压低音量，给地图那一刻让出空间
   }, [i, beat.kind, sound]);
 
   // 暂停时音乐跟着停 —— 画面停了声音还在飘，很怪
   useEffect(() => {
     const a = ambientRef.current;
     if (!a || !sound) return;
-    if (playing) void a.start(); else void a.stop();
+    if (playing) void a.resume(); else a.pause();
   }, [playing, sound]);
 
   const stop = beat.kind === 'photo' || beat.kind === 'transit'
@@ -312,6 +308,12 @@ export default function StoryPlayer({
           >
             {t(locale, 'player.again')}
           </button>
+          {/* 署名。Pixabay 不强制，但这是好习惯 —— 也是给用户看的示范 */}
+          {track?.credit && (
+            <p className="mt-8 text-[11px] text-white/35">
+              Music: {track.credit}
+            </p>
+          )}
         </Card>
       )}
 
@@ -351,7 +353,7 @@ export default function StoryPlayer({
           {playing ? '❚❚' : '▶'}
         </Ctrl>
         {/* 配乐还没有做，按钮就不出现 —— 点了没反应比没有更糟 */}
-        {PLAYER_MUSIC && (
+        {track && (
           <Ctrl onClick={toggleSound}
             label={sound ? t(locale, 'player.mute') : t(locale, 'player.unmute')}>
             <span className={sound ? '' : 'line-through opacity-60'}>♪</span>
