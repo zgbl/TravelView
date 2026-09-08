@@ -341,8 +341,8 @@ class _PublishDialogState extends State<PublishDialog> {
                                   // 而用户要认的恰恰就是"哪篇是刚发的"
                                   child: Text(
                                     '${_dayClockIso(st.publishedAt)}  '
-                                    '${st.title}   ${st.start ?? ''} - '
-                                    '${st.end ?? ''} · ${st.stops} 站 · '
+                                    '${st.title}   ${_dateOnly(st.start)} - '
+                                    '${_dateOnly(st.end)} · ${st.stops} 站 · '
                                     '${st.photos} 张'
                                     '${st.id == (c.currentProject?.publishedStoryId ?? '') ? '   ← 上次发的' : ''}',
                                     style: const TextStyle(fontSize: 12),
@@ -637,4 +637,11 @@ String _dayClockIso(String? iso) {
   return '${t.month}/${t.day} '
       '${t.hour.toString().padLeft(2, '0')}:'
       '${t.minute.toString().padLeft(2, '0')}';
+}
+
+/// 服务器给的是完整 ISO 时间戳，界面上只该看到日期 ——
+/// "2025-09-06T00:00:00.000Z" 里有价值的信息只有前面十个字符
+String _dateOnly(String? iso) {
+  if (iso == null || iso.isEmpty) return '';
+  return iso.length >= 10 ? iso.substring(0, 10) : iso;
 }

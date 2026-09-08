@@ -78,21 +78,23 @@ export async function POST(req: Request) {
   /**
    * 配乐字段消毒。**在服务器上做，不能只信桌面端** ——
    * 这个字段最后会变成页面上的 <audio src>，任何人拿到令牌都能直接
-   * POST 上来。只放行曲库 id 和 https 链接: http 会让整页变成混合内容，
-   * 而 javascript:/data: 这类根本不该出现在这里。
+   * POST 上来。只放行 audio/ 下的上传文件和 https 直链: http 会让整页
+   * 变成混合内容，而 javascript:/data: 这类根本不该出现在这里。
    */
   const rawMusic = (manifest as { music?: unknown }).music;
-  if (typeof rawMusic === 'string') {
-    const m = rawMusic.trim();
-    // 三种合法写法: 随故事上传的文件 audio/x.mp3、外部 https 链接。
-    // **别的一律丢掉** —— 这个字段会变成页面上的 <audio src>
-    const ok = /^audio\/[A-Za-z0-9._-]{1,80}\.(mp3|m4a|aac|ogg|wav)$/i.test(m)
-      || /^https:\/\/[^\s]{5,500}$/i.test(m);
-    if (ok) (manifest as { music?: string }).music = m;
-    else delete (manifest as { music?: string }).music;
-  } else {
-    delete (manifest as { music?: string }).music;
-  }
+  const musicIn = Array.isArray(rawMusic)
+    ? rawMusic
+    : (typeof rawMusic === 'string' ? [rawMusic] : []);
+  const musicOut = musicIn
+    .filter((x): x is string => typeof x === 'string')
+    .map((x) => x.trim())
+    // 两种合法写法: 随故事上传的文件 audio/x.mp3，或外部 https 直链
+    .filter((m) =>
+      /^audio\/[A-Za-z0-9._-]{1,80}\.(mp3|m4a|aac|ogg|wav)$/i.test(m)
+      || /^https:\/\/[^\s]{5,500}$/i.test(m))
+    .slice(0, 3);           // 上限三首，多的丢掉
+  if (musicOut.length) (manifest as { music?: string[] }).music = musicOut;
+  else delete (manifest as { music?: unknown }).music;
 
   const asText = JSON.stringify(manifest);
   if (/\.(heic|heif|dng|cr2|nef|arw|raf|orf|rw2|tif|tiff)"/i.test(asText)) {

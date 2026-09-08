@@ -34,8 +34,12 @@ class Project {
   String units;
 
   /// 配乐。空 = 没有配乐（播放器里连按钮都不出现）。
-  /// 本地音频文件的绝对路径，或 https:// 直链。
-  String music;
+  /// 配乐，**最多三首，轮流播放**。每项是本地音频文件的绝对路径，
+  /// 或 https:// 直链。
+  ///
+  /// 一趟长途行程配一首三分钟的曲子，循环七八遍会非常明显；
+  /// 三首轮着放，同样的时长听感完全不同。
+  List<String> music;
 
   /// 用户声明拥有这首曲子的使用权。换曲子会重置 —— 一次勾选管到永远等于没勾
   bool musicRightsOk;
@@ -70,7 +74,7 @@ class Project {
     this.coverPhotoId = '',
     this.coverMode = 'auto',
     this.units = 'auto',
-    this.music = '',
+    this.music = const [],
     this.musicRightsOk = false,
     this.storyTitle = '',
     this.storySubtitle = '',
@@ -114,7 +118,13 @@ class Project {
         coverPhotoId: j['coverPhotoId'] as String? ?? '',
         coverMode: j['coverMode'] as String? ?? 'auto',
         units: j['units'] as String? ?? 'auto',
-        music: j['music'] as String? ?? '',
+        // 老草稿里 music 是一个字符串，读出来时升级成列表
+        music: switch (j['music']) {
+          final String one when one.isNotEmpty => [one],
+          final List<dynamic> many =>
+            many.whereType<String>().where((e) => e.isNotEmpty).toList(),
+          _ => <String>[],
+        },
         musicRightsOk: j['musicRightsOk'] as bool? ?? false,
         storyTitle: j['storyTitle'] as String? ?? '',
         storySubtitle: j['storySubtitle'] as String? ?? '',

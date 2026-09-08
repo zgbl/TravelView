@@ -224,7 +224,7 @@ class _StoryPageState extends State<StoryPage> {
       units: widget.c.units,
       // **没勾版权声明就不带配乐。** 声明是这条路成立的前提，
       // 不能因为用户忘了勾就默默替他上传
-      music: widget.c.musicRightsOk ? widget.c.music : '',
+      music: widget.c.musicRightsOk ? widget.c.music : const [],
       title: title,
       subtitle: sub,
       tripForNotes: r,
@@ -339,7 +339,9 @@ class _StoryPageState extends State<StoryPage> {
     final unit = {'auto': '', 'mi': ' · 英里', 'km': ' · 公里'}[widget.c.units] ?? '';
     final music = widget.c.music.isEmpty
         ? ''
-        : (widget.c.musicRightsOk ? ' · ♪' : ' · ♪(未声明)');
+        : (widget.c.musicRightsOk
+            ? ' · ♪${widget.c.music.length}'
+            : ' · ♪(未声明)');
     return '$cover$unit$music';
   }
 
@@ -443,83 +445,83 @@ class _StoryPageState extends State<StoryPage> {
                   const SizedBox(height: 20),
 
                   // ── 配乐 ──
-                  // **我们不提供曲库，用户自己传。**
+                  // **我们不提供曲库，用户自己传，最多三首轮流播放。**
                   // 曲库选择永远太少，而且会让我们成为内容的提供方、
                   // 把版权责任揽到自己头上。用户上传，责任在上传者 ——
                   // 所以下面那个声明不是走过场，是这条路成立的前提。
-                  _label('配乐'),
-                  Row(children: [
-                    OutlinedButton.icon(
-                      onPressed: () async {
-                        await _pickMusicFile();
-                        refresh();
-                      },
-                      icon: const Icon(Icons.audio_file_outlined, size: 15),
-                      label: Text(
-                        widget.c.music.isEmpty ? '选一个音频文件…' : '换一首',
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () async {
-                        await _askMusicUrl();
-                        refresh();
-                      },
-                      child: const Text('用外部链接',
-                          style: TextStyle(fontSize: 12)),
-                    ),
-                    if (widget.c.music.isNotEmpty)
-                      TextButton(
+                  _label('配乐（最多 ${LibraryController.maxTracks} 首，轮流播放）'),
+                  ...widget.c.music.map((m) => Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(children: [
+                          Icon(
+                            LibraryController.isLocalTrack(m)
+                                ? Icons.music_note : Icons.link,
+                            size: 14, color: scheme.primary,
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(LibraryController.trackLabel(m),
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12)),
+                          ),
+                          IconButton(
+                            tooltip: '去掉这一首',
+                            icon: const Icon(Icons.close, size: 14),
+                            constraints:
+                                const BoxConstraints(minWidth: 28, minHeight: 28),
+                            padding: EdgeInsets.zero,
+                            onPressed: () async {
+                              await widget.c.removeMusic(m);
+                              refresh();
+                            },
+                          ),
+                        ]),
+                      )),
+                  if (widget.c.music.length < LibraryController.maxTracks)
+                    Row(children: [
+                      OutlinedButton.icon(
                         onPressed: () async {
-                          await widget.c.setMusic('');
+                          await _pickMusicFile();
                           refresh();
                         },
-                        child: const Text('去掉配乐',
+                        icon: const Icon(Icons.audio_file_outlined, size: 15),
+                        label: Text(
+                          widget.c.music.isEmpty ? '选一个音频文件…' : '再加一首',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      TextButton(
+                        onPressed: () async {
+                          await _askMusicUrl();
+                          refresh();
+                        },
+                        child: const Text('用外部链接',
                             style: TextStyle(fontSize: 12)),
                       ),
-                  ]),
-                  if (widget.c.music.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Row(children: [
-                      Icon(
-                        widget.c.musicIsLocalFile
-                            ? Icons.music_note : Icons.link,
-                        size: 14,
-                        color: scheme.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Expanded(
-                        child: Text(widget.c.musicLabel,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 12)),
-                      ),
                     ]),
-                    const SizedBox(height: 10),
-                    // 版权声明。**换一首就要重新勾** —— 一次勾选管到永远
-                    // 等于没有声明
+                  if (widget.c.music.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    // 版权声明。**增删任何一首都要重新勾** ——
+                    // 一次勾选管到永远，等于没有声明
                     CheckboxListTile(
                       value: widget.c.musicRightsOk,
                       dense: true,
                       contentPadding: EdgeInsets.zero,
                       controlAffinity: ListTileControlAffinity.leading,
                       onChanged: (v) async {
-                        await widget.c.setMusic(widget.c.music,
-                            rightsOk: v ?? false);
+                        await widget.c.setMusicRights(v ?? false);
                         refresh();
                       },
                       title: const Text(
-                        '我拥有这首音乐的使用权，或它允许商用/公开分享，'
+                        '这些音乐我拥有使用权，或它们允许商用/公开分享，'
                         '由此产生的版权责任由我承担。',
                         style: TextStyle(fontSize: 12, height: 1.5),
                       ),
                     ),
                     Text(
-                      widget.c.musicIsLocalFile
-                          ? '这个文件会随游记一起上传，和照片放在一起；'
-                            '删掉这篇游记时一并删除。'
-                          : '音乐在对方服务器上，我们不复制也不保存。'
-                            '对方一旦防盗链、改地址或删文件，这篇就没声音了。',
+                      '本地文件会随游记一起上传，删掉这篇游记时一并删除；'
+                      '外部链接的文件不在我们这儿，对方一旦失效就没声音了。',
                       style: TextStyle(
                           fontSize: 11, height: 1.5,
                           color: scheme.onSurfaceVariant),
@@ -528,8 +530,8 @@ class _StoryPageState extends State<StoryPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
                         child: Text('没有勾选声明，发布时不会带上配乐。',
-                            style: TextStyle(
-                                fontSize: 11, color: scheme.error)),
+                            style:
+                                TextStyle(fontSize: 11, color: scheme.error)),
                       ),
                   ] else
                     Padding(
@@ -574,16 +576,17 @@ class _StoryPageState extends State<StoryPage> {
     final size = await File(f.path).length();
     // 20MB 以上多半是整张专辑或者无损文件。一篇游记的读者要先下完
     // 才有声音，太大等于没有
-    if (size > 20 * 1024 * 1024) {
+    if (size > 10 * 1024 * 1024) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('这个文件 ${(size / 1024 / 1024).round()}MB，太大了。'
-            '配乐建议在 10MB 以内 —— 读者要下完才有声音。'),
+        content: Text('这个文件 ${(size / 1024 / 1024).round()}MB，'
+            '超过了服务器 10MB 的单文件上限。'
+            '配乐几 MB 就够 —— 读者要下完才有声音。'),
         duration: const Duration(seconds: 5),
       ));
       return;
     }
-    await widget.c.setMusic(f.path);   // 换了曲子，版权声明重新来
+    await widget.c.addMusic(f.path);   // 加了曲子，版权声明重新来
   }
 
   /// 让用户贴一个音频直链。
@@ -598,7 +601,7 @@ class _StoryPageState extends State<StoryPage> {
     final url = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('自定义配乐链接'),
+        title: const Text('用一个外部链接作为配乐'),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: ctl,
@@ -633,7 +636,7 @@ class _StoryPageState extends State<StoryPage> {
       ),
     );
     if (url == null) return;                     // 取消: 什么都不改
-    if (url.isEmpty) { await widget.c.setMusic(''); return; }
+    if (url.isEmpty) return;
     if (!url.startsWith('https://')) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
@@ -641,7 +644,7 @@ class _StoryPageState extends State<StoryPage> {
       ));
       return;
     }
-    await widget.c.setMusic(url);
+    await widget.c.addMusic(url);
   }
 
   Widget _noMatch(BuildContext context) {

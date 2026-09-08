@@ -66,7 +66,15 @@ export async function PUT(req: Request) {
   }
 
   const type = req.headers.get('content-type') ?? '';
-  if (!type.startsWith('image/webp') && !type.startsWith('image/jpeg')) {
+  /// 配乐走 audio/ 这个目录。**目录决定允许什么格式** ——
+  /// photos/ 里出现 mp3、audio/ 里出现 webp，都说明客户端出了问题
+  const isAudioSlot = /^(.*\/)?audio\//.test(key) || key.startsWith('audio/');
+  if (isAudioSlot) {
+    if (!type.startsWith('audio/')) {
+      return NextResponse.json({ error: 'audio/ 下只接受音频文件' },
+        { status: 415 });
+    }
+  } else if (!type.startsWith('image/webp') && !type.startsWith('image/jpeg')) {
     return NextResponse.json({ error: '只接受 WebP 或 JPEG 派生图' },
       { status: 415 });
   }
@@ -78,6 +86,28 @@ export async function PUT(req: Request) {
   if (body.length > maxUploadBytes) {
     return NextResponse.json({ error: '文件太大' }, { status: 413 });
   }
+  if (isAudioSlot) {
+    // 音频也认魔数，理由和图片一样: Content-Type 是客户端随口说的。
+    //   ID3      带标签的 MP3
+    //   FF Fx/Ex 裸 MPEG 帧头（没有 ID3 标签的 mp3）
+    //   ftyp     MP4/M4A（第 4 字节起）
+    //   OggS     Ogg
+    //   RIFF     WAV
+    const head = body.subarray(0, 12);
+    const ascii4 = head.subarray(0, 4).toString('ascii');
+    const okAudio = ascii4 === 'ID3' || ascii4.startsWith('ID3')
+      || (body[0] === 0xff && (body[1] & 0xe0) === 0xe0)
+      || head.subarray(4, 8).toString('ascii') === 'ftyp'
+      || ascii4 === 'OggS'
+      || ascii4 === 'RIFF';
+    if (!okAudio) {
+      return NextResponse.json({ error: '这不是一个音频文件' },
+        { status: 415 });
+    }
+    await writeLocal(key, body);
+    return NextResponse.json({ ok: true, bytes: body.length });
+  }
+
   // 光信 Content-Type 不够，客户端说什么都可以 —— 认魔数。
   // RIFF....WEBP 或 JPEG 的 FF D8 FF
   const isWebp = body.subarray(0, 4).toString('ascii') === 'RIFF' &&

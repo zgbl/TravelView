@@ -529,7 +529,7 @@ class LibraryController extends ChangeNotifier {
     String? coverPhotoId,
     String coverMode = 'map',
     String units = 'auto',
-    String music = '',
+    List<String> music = const [],
     required String title,
     String? subtitle,
     required TripRoute tripForNotes,
@@ -701,23 +701,47 @@ class LibraryController extends ChangeNotifier {
               : (updateExisting && canUpdatePublished)
                   ? (currentProject?.publishedStoryId ?? '')
                   : '';
-      final res = await Publisher(publishConfig).publish(
-        export.dir,
-        visibility: visibility,
-        storyId: existingId.isEmpty ? null : existingId,
-        onCreated: (id) {
-          // Story 一建好就记下来。**传图之前记** ——
-          // 断在传图那一步时，这个 id 是能续传的唯一凭据
-          resumeStoryId = id;
-          _resumeKey = lastExport?.storyKey ?? '';
-        },
-        onProgress: (d, t, label) {
-          publishDone = d;
-          publishTotal = t;
-          status = '正在发布 $d/$t 个文件  $label';
+      /**
+       * **断了就自己接着传，最多三轮。**
+       *
+       * 一次发布是几百个文件，家用网络掉一个包就会断在半路 ——
+       * 让用户盯着屏幕、失败了再手点一次「继续上传」，是把我们的
+       * 稳定性问题变成他的操作负担。
+       *
+       * 重试是安全的，因为续传是**幂等**的: Story 只在第一轮创建，
+       * 之后每轮都带着同一个 storyId，已经传上去的文件会被跳过，
+       * 额度只在全部传完那一刻扣一次。所以第二轮不是"重发一篇"，
+       * 而是"接着上一轮往下传"。
+       *
+       * 只对**网络类**失败重试。额度不够、令牌失效、文件被拒，
+       * 重试一百次也是同样的结果，只会拖长用户等待。
+       */
+      PublishResult? res;
+      PublishException? lastFail;
+      var attemptId = existingId;
+      for (var attempt = 1; attempt <= 3; attempt++) {
+        try {
+          res = await _publishOnce(export, visibility, attemptId,
+              attempt: attempt);
+          break;
+        } on PublishException catch (e) {
+          lastFail = e;
+          // 服务器已经建好了 Story: 下一轮带着它接着传
+          if ((e.storyId ?? '').isNotEmpty) {
+            attemptId = e.storyId!;
+            resumeStoryId = e.storyId!;
+            _resumeKey = lastExport?.storyKey ?? '';
+          }
+          // 这些错重试没有意义
+          if (e.needsPayment || attempt == 3) rethrow;
+          status = '传输中断，正在自动重试（第 ${attempt + 1} 次）...';
           notifyListeners();
-        },
-      );
+          // 退避一下再来: 网络刚断的那一秒重试，基本还是断的
+          await Future.delayed(Duration(seconds: attempt * 2));
+        }
+      }
+      if (res == null) throw lastFail!;
+
       lastPublish = res;
       lastPublishAt = DateTime.now();
       resumeStoryId = '';
@@ -763,6 +787,37 @@ class LibraryController extends ChangeNotifier {
     }
   }
 
+  /// 发布的一轮。带 [storyId] 就是接着那一篇往下传（续传或更新）。
+  ///
+  /// **进度要显示"这是第几轮"**: 用户看到进度条从 0 重新开始会以为
+  /// 前面白传了 —— 其实已经传上去的文件这一轮会被直接跳过，
+  /// 计数从 0 开始只是因为它数的是"这一轮走过的文件"。
+  Future<PublishResult> _publishOnce(
+    ExportResult export,
+    String visibility,
+    String storyId, {
+    int attempt = 1,
+  }) {
+    final round = attempt > 1 ? '（第 $attempt 轮）' : '';
+    return Publisher(publishConfig).publish(
+      export.dir,
+      visibility: visibility,
+      storyId: storyId.isEmpty ? null : storyId,
+      onCreated: (id) {
+        // Story 一建好就记下来。**传图之前记** ——
+        // 断在传图那一步时，这个 id 是能续传的唯一凭据
+        resumeStoryId = id;
+        _resumeKey = lastExport?.storyKey ?? '';
+      },
+      onProgress: (d, t, label) {
+        publishDone = d;
+        publishTotal = t;
+        status = '正在发布 $d/$t 个文件$round  $label';
+        notifyListeners();
+      },
+    );
+  }
+
   // ---- 片头封面 ----
 
   /// 用户选定的片头封面。**没选过就是空**，由 StoryBuilder 回落到自动挑的那张。
@@ -792,51 +847,70 @@ class LibraryController extends ChangeNotifier {
 
   static const unitOptions = ['auto', 'mi', 'km'];
 
-  /// 配乐。空 = 不配乐。
-  ///
-  /// 存的是**用户机器上那个音频文件的绝对路径**，或者一个 https 直链。
-  /// 发布时把本地文件当成一张"照片"一起上传，落到 audio/ 下。
+  /// 配乐，**最多三首，轮流播放**。每项是本地音频文件的绝对路径，
+  /// 或 https 直链。
   ///
   /// **我们不提供曲库。** 内置曲库选择永远太少，而且会让我们成为
   /// 内容的提供方、版权责任落到我们头上。用户自己传，责任在上传者 ——
   /// 发布前要他明确声明拥有使用权。
-  String get music => currentProject?.music ?? _tmpMusic;
-  String _tmpMusic = '';
+  List<String> get music => currentProject?.music ?? _tmpMusic;
+  List<String> _tmpMusic = [];
 
-  /// 用户是否已经声明拥有这首曲子的使用权。**每换一首都要重新声明** ——
+  static const maxTracks = 3;
+
+  /// 用户是否已经声明拥有这些曲子的使用权。**每次增删都要重新声明** ——
   /// 一次勾选管到永远，等于没有声明。
   bool get musicRightsOk => currentProject?.musicRightsOk ?? _tmpRights;
   bool _tmpRights = false;
 
-  /// 配乐显示用的名字: 本地文件取文件名，外链取域名
-  String get musicLabel {
-    final m = music;
-    if (m.isEmpty) return '';
+  static const audioExts = ['mp3', 'm4a', 'aac', 'ogg', 'wav'];
+
+  /// 一首曲子显示用的名字: 本地文件取文件名，外链取域名
+  static String trackLabel(String m) {
     if (m.startsWith('https://')) return Uri.tryParse(m)?.host ?? '外部链接';
     return p.basename(m);
   }
 
-  bool get musicIsLocalFile =>
-      music.isNotEmpty && !music.startsWith('https://');
+  static bool isLocalTrack(String m) => !m.startsWith('https://');
 
-  static const audioExts = ['mp3', 'm4a', 'aac', 'ogg', 'wav'];
-
-  /// 选一首曲子。[rightsOk] 是用户的版权声明，换曲子就要重来一次。
-  Future<void> setMusic(String m, {bool rightsOk = false}) async {
-    final v = m.trim();
-    final ok = v.isEmpty ||
-        v.startsWith('https://') ||
-        audioExts.contains(v.split('.').last.toLowerCase());
-    _tmpMusic = ok ? v : '';
-    _tmpRights = _tmpMusic.isEmpty ? false : rightsOk;
+  Future<void> _saveMusic() async {
     final proj = currentProject;
     if (proj != null) {
-      proj.music = _tmpMusic;
+      proj.music = List.of(_tmpMusic);
       proj.musicRightsOk = _tmpRights;
       proj.updatedAt = DateTime.now();
       await _store?.save(projects);
     }
     notifyListeners();
+  }
+
+  /// 加一首。超过三首、或者重复的，直接忽略。
+  /// **加完之后版权声明要重来** —— 新曲子没被声明过
+  Future<void> addMusic(String m) async {
+    final v = m.trim();
+    if (v.isEmpty) return;
+    final ok = v.startsWith('https://') ||
+        audioExts.contains(v.split('.').last.toLowerCase());
+    if (!ok) return;
+    final cur = List.of(music);
+    if (cur.contains(v) || cur.length >= maxTracks) return;
+    cur.add(v);
+    _tmpMusic = cur;
+    _tmpRights = false;
+    await _saveMusic();
+  }
+
+  Future<void> removeMusic(String m) async {
+    final cur = List.of(music)..remove(m);
+    _tmpMusic = cur;
+    if (cur.isEmpty) _tmpRights = false;
+    await _saveMusic();
+  }
+
+  /// 只改版权声明，不动曲目
+  Future<void> setMusicRights(bool ok) async {
+    _tmpRights = music.isEmpty ? false : ok;
+    await _saveMusic();
   }
 
   Future<void> setUnits(String u) async {
@@ -1160,7 +1234,7 @@ class LibraryController extends ChangeNotifier {
     _tmpSubtitle = proj.storySubtitle;
     _tmpCoverMode = proj.coverMode;
     _tmpUnits = proj.units;
-    _tmpMusic = proj.music;
+    _tmpMusic = List.of(proj.music);
     _tmpRights = proj.musicRightsOk;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;

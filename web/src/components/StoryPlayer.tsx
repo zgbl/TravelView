@@ -6,7 +6,7 @@ import { decodePolyline, mediaUrl, dist, distUnit, distLabel, type Story }
   from '@/lib/story';
 import { t, type Locale } from '@/lib/i18n';
 import { Ambient } from '@/lib/ambient';
-import { storyTrack } from '@/lib/music';
+import { storyTracks } from '@/lib/music';
 import { carSvg, bearing, smoothTurn } from '@/lib/carMarker';
 
 /**
@@ -78,19 +78,19 @@ export default function StoryPlayer({
 
   // ── 配乐 ──
   // 这篇游记选了曲子才有声音；没选就当配乐功能不存在，一个按钮都不出现。
-  const track = useMemo(() => storyTrack(story, prefix), [story, prefix]);
+  const tracks = useMemo(() => storyTracks(story, prefix), [story, prefix]);
   const [sound, setSound] = useState(false);
   const ambientRef = useRef<Ambient | null>(null);
 
   useEffect(() => {
-    if (!track) return;
-    const a = new Ambient(track.url);
+    if (tracks.length === 0) return;
+    const a = new Ambient(tracks.map((t) => t.url));
     ambientRef.current = a;
     // 播放器是被"点播放"点开的，手势还在，多半能直接出声。
     // **拦下来也不是错误** —— 那就静静地留着按钮等用户点
     void a.start().then((ok) => setSound(ok));
     return () => { a.stop(); ambientRef.current = null; };
-  }, [track]);
+  }, [tracks]);
 
   const toggleSound = useCallback(() => {
     const a = ambientRef.current;
@@ -348,7 +348,7 @@ export default function StoryPlayer({
           {playing ? '❚❚' : '▶'}
         </Ctrl>
         {/* 配乐还没有做，按钮就不出现 —— 点了没反应比没有更糟 */}
-        {track && (
+        {tracks.length > 0 && (
           <Ctrl onClick={toggleSound}
             label={sound ? t(locale, 'player.mute') : t(locale, 'player.unmute')}>
             <span className={sound ? '' : 'line-through opacity-60'}>♪</span>

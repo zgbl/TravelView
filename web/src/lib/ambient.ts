@@ -17,8 +17,15 @@ export class Ambient {
   private fadeTimer: number | null = null;
   private duckTimer: number | null = null;
   private target = FULL;
+  /// 现在放到第几首
+  private at = 0;
 
-  constructor(private src: string) {}
+  /**
+   * @param srcs 一首或多首，**放完一首接下一首，到头再从第一首开始**。
+   *   一趟长途行程配一首三分钟的曲子，循环七八遍会非常明显；
+   *   三首轮着放，同样的时长听感完全不同。
+   */
+  constructor(private srcs: string[]) {}
 
   get running() {
     return !!this.el && !this.el.paused;
@@ -31,10 +38,17 @@ export class Ambient {
    */
   async start(): Promise<boolean> {
     if (!this.el) {
-      const el = new Audio(this.src);
-      el.loop = true;          // 行程长短不一，曲子必须能一直循环下去
+      const el = new Audio(this.srcs[0]);
+      // **不用 loop**: 单曲循环会把"就这一首"暴露得很明显。
+      // 放完切下一首，只有一首时才等于循环
+      el.loop = false;
       el.preload = 'auto';
       el.volume = 0;
+      el.addEventListener('ended', () => this.next());
+      // 某一首挂了（文件坏了、外链失效）不该让配乐整个停掉，跳过它
+      el.addEventListener('error', () => {
+        if (this.srcs.length > 1) this.next();
+      });
       this.el = el;
     }
     try {
@@ -44,6 +58,16 @@ export class Ambient {
     }
     this.fadeTo(FULL, 2000);
     return true;
+  }
+
+  /// 换下一首。**接上就放，不淡入淡出** —— 曲子之间本来就有自然的
+  /// 起收，再叠一层渐变反而像卡带
+  private next() {
+    const el = this.el;
+    if (!el) return;
+    this.at = (this.at + 1) % this.srcs.length;
+    el.src = this.srcs[this.at];
+    void el.play().catch(() => {});
   }
 
   /// 转场: 压低两秒再回来，给地图那一刻让出空间
