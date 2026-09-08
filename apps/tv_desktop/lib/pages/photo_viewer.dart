@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
+import '../state/l10n.dart';
 import '../state/library_controller.dart';
 import '../widgets/photo_tile.dart';
 
@@ -272,11 +273,11 @@ class _PhotoViewerState extends State<PhotoViewer> {
           );
         }
         if (snap.hasError) {
-          return _failure('生成预览时出错', '${snap.error}', file);
+          return _failure(tr('生成预览时出错'), '${snap.error}', file);
         }
         final f = snap.data;
         if (f == null) {
-          return _failure('无法为这个文件生成预览', rec.origFilename, file);
+          return _failure(tr('无法为这个文件生成预览'), rec.origFilename, file);
         }
 
         final image = GestureDetector(
@@ -295,7 +296,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 // 之前这里没有 errorBuilder —— 预览图损坏时 Flutter 什么都不画，
                 // 表现就是"一片黑"，完全看不出发生了什么
                 errorBuilder: (context, err, stack) =>
-                    _failure('预览图读不出来', '$err', file, badPreview: f),
+                    _failure(tr('预览图读不出来'), '$err', file, badPreview: f),
               ),
             ),
           ),
@@ -342,13 +343,13 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 FilledButton.tonalIcon(
                   onPressed: () => _regenerate(badPreview),
                   icon: const Icon(Icons.refresh, size: 16),
-                  label: const Text('重新生成预览'),
+                  label: Text(tr('重新生成预览')),
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton.icon(
                   onPressed: () => _openWithSystem(source),
                   icon: const Icon(Icons.open_in_new, size: 16),
-                  label: const Text('用系统程序打开原图'),
+                  label: Text(tr('用系统程序打开原图')),
                 ),
               ],
             ),
@@ -381,11 +382,11 @@ class _PhotoViewerState extends State<PhotoViewer> {
         FilledButton.icon(
           onPressed: () => _openWithSystem(file),
           icon: const Icon(Icons.play_arrow),
-          label: const Text('用系统播放器打开'),
+          label: Text(tr('用系统播放器打开')),
         ),
         const SizedBox(height: 10),
-        const Text('视频暂不内嵌播放，这里显示的是首帧',
-            style: TextStyle(color: Colors.white60, fontSize: 12)),
+        Text(tr('视频暂不内嵌播放，这里显示的是首帧'),
+            style: const TextStyle(color: Colors.white60, fontSize: 12)),
       ],
     );
   }
@@ -417,27 +418,27 @@ class _PhotoViewerState extends State<PhotoViewer> {
             _pickButton(),
             const SizedBox(width: 10),
             IconButton(
-              tooltip: '向左旋转 (  [  )',
+              tooltip: tr('向左旋转 (  [  )'),
               onPressed: () => _rotate(false),
               icon: const Icon(Icons.rotate_left, color: Colors.white70),
             ),
             IconButton(
-              tooltip: '向右旋转 (  ]  )',
+              tooltip: tr('向右旋转 (  ]  )'),
               onPressed: () => _rotate(true),
               icon: const Icon(Icons.rotate_right, color: Colors.white70),
             ),
             IconButton(
-              tooltip: '在访达中显示',
+              tooltip: tr('在访达中显示'),
               onPressed: () => _revealInFinder(widget.c.fileOf(current)),
               icon: const Icon(Icons.folder_open, color: Colors.white70),
             ),
             IconButton(
-              tooltip: '用默认程序打开原图',
+              tooltip: tr('用默认程序打开原图'),
               onPressed: () => _openWithSystem(widget.c.fileOf(current)),
               icon: const Icon(Icons.open_in_new, color: Colors.white70),
             ),
             IconButton(
-              tooltip: '信息 (I)',
+              tooltip: tr('信息 (I)'),
               onPressed: () => setState(() => showInfo = !showInfo),
               icon: Icon(Icons.info_outline,
                   color: showInfo ? Colors.white : Colors.white54),
@@ -445,7 +446,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
             FilledButton.tonalIcon(
               onPressed: () => Navigator.of(context).maybePop(),
               icon: const Icon(Icons.close, size: 16),
-              label: const Text('关闭'),
+              label: Text(tr('关闭')),
             ),
           ],
           ),
@@ -457,7 +458,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
   Widget _pickButton() {
     final picked = widget.c.isPicked(current);
     return Tooltip(
-      message: picked ? '已在「${widget.c.pickAlbum}」中 (X 移出)' : '加入「${widget.c.pickAlbum}」(空格)',
+      message: picked
+          ? trf('已在「{0}」中 (X 移出)', [widget.c.pickAlbum])
+          : trf('加入「{0}」(空格)', [widget.c.pickAlbum]),
       child: FilledButton.icon(
         onPressed: () => _togglePick(),
         style: FilledButton.styleFrom(
@@ -468,7 +471,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
         ),
         icon: Icon(picked ? Icons.check_circle : Icons.circle_outlined,
             size: 18),
-        label: Text(picked ? '已选取' : '未选取'),
+        label: Text(picked ? tr('已选取') : tr('未选取')),
       ),
     );
   }
@@ -522,7 +525,9 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  picked ? '已加入「${widget.c.pickAlbum}」' : '已移出',
+                  picked
+                      ? trf('已加入「{0}」', [widget.c.pickAlbum])
+                      : tr('已移出'),
                   style: const TextStyle(color: Colors.white, fontSize: 14),
                 ),
               ],
@@ -548,14 +553,16 @@ class _PhotoViewerState extends State<PhotoViewer> {
                 size: 15, color: const Color(0xFF4FBFA8)),
             const SizedBox(width: 6),
             Text(
-              '「${widget.c.pickAlbum}」已选 ${widget.c.pickedCount} 张',
+              trf('「{0}」已选 {1} 张',
+                  [widget.c.pickAlbum, widget.c.pickedCount]),
               style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
             const Spacer(),
             Text(
-              '空格 选取/取消   X 移出   '
-              '[ ] 旋转   Z 缩放   '
-              '${Platform.isMacOS ? "左右滑动" : "滚轮"} 翻页   Esc 关闭',
+              trf('空格 选取/取消   X 移出   '
+                  '[ ] 旋转   Z 缩放   '
+                  '{0} 翻页   Esc 关闭',
+                  [Platform.isMacOS ? tr('左右滑动') : tr('滚轮')]),
               style: const TextStyle(color: Colors.white54, fontSize: 11),
             ),
           ],
@@ -589,7 +596,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
       if (r.hasLocation)
         '位置': '${r.lat!.toStringAsFixed(5)}, ${r.lon!.toStringAsFixed(5)}'
       else
-        '位置': '无 GPS',
+        '位置': tr('无 GPS'),
       if (r.width != null && r.height != null)
         '尺寸': '${r.width} x ${r.height}',
       '大小': humanBytes(r.bytes),
@@ -617,7 +624,7 @@ class _PhotoViewerState extends State<PhotoViewer> {
                       children: [
                         SizedBox(
                           width: 66,
-                          child: Text(e.key,
+                          child: Text(tr(e.key),
                               style: const TextStyle(
                                   color: Colors.white54, fontSize: 11)),
                         ),

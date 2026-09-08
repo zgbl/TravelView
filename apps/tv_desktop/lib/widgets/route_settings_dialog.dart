@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/library_controller.dart';
+import '../state/l10n.dart';
 
 /// 路径规划服务设置。
 ///
@@ -35,7 +36,7 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('道路路线服务'),
+      title: Text(tr('道路路线服务')),
       content: SizedBox(
         width: 520,
         child: Column(
@@ -43,9 +44,9 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '两个选项都基于 OpenStreetMap，结果允许永久保存 —— '
-              '这是能把路线写进分享页并十年后仍可显示的前提。\n'
-              '算过的路线会存进照片库的 catalog/routes.json，之后不再请求网络。',
+              tr('两个选项都基于 OpenStreetMap，结果允许永久保存 —— '
+                  '这是能把路线写进分享页并十年后仍可显示的前提。\n'
+                  '算过的路线会存进照片库的 catalog/routes.json，之后不再请求网络。'),
               style: TextStyle(
                   fontSize: 12, color: scheme.onSurfaceVariant, height: 1.6),
             ),
@@ -55,21 +56,21 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
               groupValue: provider,
               onChanged: (v) => setState(() => provider = v!),
               dense: true,
-              title: const Text('openrouteservice（托管，起步最快）',
-                  style: TextStyle(fontSize: 13)),
-              subtitle: const Text('注册即有免费额度，适合现在用',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(tr('openrouteservice（托管，起步最快）'),
+                  style: const TextStyle(fontSize: 13)),
+              subtitle: Text(tr('注册即有免费额度，适合现在用'),
+                  style: const TextStyle(fontSize: 11)),
             ),
             if (provider == 'ors')
               Padding(
                 padding: const EdgeInsets.fromLTRB(52, 0, 8, 8),
                 child: TextField(
                   controller: keyCtrl,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
-                    border: OutlineInputBorder(),
+                    border: const OutlineInputBorder(),
                     labelText: 'API key',
-                    hintText: '在 openrouteservice.org 注册后获取',
+                    hintText: tr('在 openrouteservice.org 注册后获取'),
                   ),
                 ),
               ),
@@ -78,20 +79,20 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
               groupValue: provider,
               onChanged: (v) => setState(() => provider = v!),
               dense: true,
-              title: const Text('OSRM（自托管，长期首选）',
-                  style: TextStyle(fontSize: 13)),
-              subtitle: const Text('没有额度限制，但预处理路网很吃内存',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(tr('OSRM（自托管，长期首选）'),
+                  style: const TextStyle(fontSize: 13)),
+              subtitle: Text(tr('没有额度限制，但预处理路网很吃内存'),
+                  style: const TextStyle(fontSize: 11)),
             ),
             if (provider == 'osrm')
               Padding(
                 padding: const EdgeInsets.fromLTRB(52, 0, 8, 8),
                 child: TextField(
                   controller: urlCtrl,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
-                    border: OutlineInputBorder(),
-                    labelText: '服务地址',
+                    border: const OutlineInputBorder(),
+                    labelText: tr('服务地址'),
                     hintText: 'http://localhost:5000',
                   ),
                 ),
@@ -101,9 +102,9 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
               groupValue: provider,
               onChanged: (v) => setState(() => provider = v!),
               dense: true,
-              title: const Text('只用直线', style: TextStyle(fontSize: 13)),
-              subtitle: const Text('不联网。任何服务不可用时的兜底',
-                  style: TextStyle(fontSize: 11)),
+              title: Text(tr('只用直线'), style: const TextStyle(fontSize: 13)),
+              subtitle: Text(tr('不联网。任何服务不可用时的兜底'),
+                  style: const TextStyle(fontSize: 11)),
             ),
             const SizedBox(height: 8),
             Container(
@@ -113,9 +114,9 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                '为什么没有 Google：它的条款既限制存储路线内容，'
-                '又要求路线必须显示在 Google 地图上，不能与其它底图混用。'
-                '我们用的是自托管底图，两条都冲突。',
+                tr('为什么没有 Google：它的条款既限制存储路线内容，'
+                    '又要求路线必须显示在 Google 地图上，不能与其它底图混用。'
+                    '我们用的是自托管底图，两条都冲突。'),
                 style: TextStyle(
                     fontSize: 11, color: scheme.onSurfaceVariant, height: 1.5),
               ),
@@ -126,7 +127,7 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
       actions: [
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消')),
+            child: Text(tr('取消'))),
         FilledButton(
           onPressed: () {
             widget.c.settings
@@ -136,7 +137,7 @@ class _RouteSettingsDialogState extends State<RouteSettingsDialog> {
             widget.c.settings.save();
             Navigator.of(context).pop();
           },
-          child: const Text('保存'),
+          child: Text(tr('保存')),
         ),
       ],
     );

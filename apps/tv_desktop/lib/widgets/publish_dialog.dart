@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 
 import 'package:tv_core/tv_core.dart';
 
+import '../state/l10n.dart';
 import '../state/library_controller.dart';
 import 'account_bar.dart';
 
@@ -67,13 +68,13 @@ class _PublishDialogState extends State<PublishDialog> {
     final picked = await showDialog<RemoteStory>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('更新我已发布的哪一篇？'),
+        title: Text(tr('更新我已发布的哪一篇？')),
         content: SizedBox(
           width: 520,
           height: 420,
           child: c.remoteStories.isEmpty
               ? Center(
-                  child: Text(c.lastError ?? '还没有发布过任何故事',
+                  child: Text(c.lastError ?? tr('还没有发布过任何故事'),
                       style: const TextStyle(fontSize: 13)))
               : ListView.separated(
                   itemCount: c.remoteStories.length,
@@ -85,9 +86,13 @@ class _PublishDialogState extends State<PublishDialog> {
                       title: Text(s.title,
                           style: const TextStyle(fontSize: 13)),
                       subtitle: Text(
-                        '${s.start ?? ''} - ${s.end ?? ''} · '
-                        '${s.stops} 站 · ${s.photos} 张'
-                        '${s.published ? '' : ' · 未发布完'}',
+                        trf('{0} - {1} · {2} 站 · {3} 张{4}', [
+                          s.start ?? '',
+                          s.end ?? '',
+                          s.stops,
+                          s.photos,
+                          s.published ? '' : tr(' · 未发布完'),
+                        ]),
                         style: const TextStyle(fontSize: 11),
                       ),
                       onTap: () => Navigator.pop(ctx, s),
@@ -98,7 +103,7 @@ class _PublishDialogState extends State<PublishDialog> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('取消')),
+              child: Text(tr('取消'))),
         ],
       ),
     );
@@ -115,20 +120,22 @@ class _PublishDialogState extends State<PublishDialog> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('覆盖已发布的那一篇？'),
+          title: Text(tr('覆盖已发布的那一篇？')),
           content: Text(
-            '$target\n\n'
-            '这个地址上现在的内容会被这次的内容替换掉，无法撤销。'
-            '已经分享出去的链接仍然有效，但别人看到的会是新内容。',
+            trf('{0}\n\n'
+                '这个地址上现在的内容会被这次的内容替换掉，无法撤销。'
+                '已经分享出去的链接仍然有效，但别人看到的会是新内容。', [
+              target,
+            ]),
             style: const TextStyle(fontSize: 13),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('取消')),
+                child: Text(tr('取消'))),
             FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('确认覆盖')),
+                child: Text(tr('确认覆盖'))),
           ],
         ),
       );
@@ -140,22 +147,24 @@ class _PublishDialogState extends State<PublishDialog> {
       final ok = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-          title: const Text('这趟行程已经发布过'),
+          title: Text(tr('这趟行程已经发布过')),
           content: Text(
-            '网站上已经有 $n 篇日期重叠的故事。\n\n'
-            '继续发新的一篇：再扣 1 次发布额度，'
-            '线上会同时存在两篇几乎一样的内容。\n'
-            '改成更新已有的那一篇：不扣额度，公开链接也不变。\n\n'
-            '想更新的话，回去点那一篇后面的「更新这一篇」。',
+            trf('网站上已经有 {0} 篇日期重叠的故事。\n\n'
+                '继续发新的一篇：再扣 1 次发布额度，'
+                '线上会同时存在两篇几乎一样的内容。\n'
+                '改成更新已有的那一篇：不扣额度，公开链接也不变。\n\n'
+                '想更新的话，回去点那一篇后面的「更新这一篇」。', [
+              n,
+            ]),
             style: const TextStyle(fontSize: 13),
           ),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('回去选一篇更新')),
+                child: Text(tr('回去选一篇更新'))),
             FilledButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('确认再发一篇')),
+                child: Text(tr('确认再发一篇'))),
           ],
         ),
       );
@@ -178,16 +187,16 @@ class _PublishDialogState extends State<PublishDialog> {
     final next = used + 1;
 
     if (charged(next)) {
-      return '公开链接不变。这将是第 $next 次更新 —— '
-          '每 $free 次更新收 0.5 篇额度，这次要扣。';
+      return trf('公开链接不变。这将是第 {0} 次更新 —— '
+          '每 {1} 次更新收 0.5 篇额度，这次要扣。', [next, free]);
     }
     // 还差几次到收费那一次
     var n = next;
     while (!charged(n)) {
       n++;
     }
-    return '更新不扣额度，公开链接也不变'
-        '（再更新 ${n - next} 次之后会扣 0.5 篇）。';
+    return trf('更新不扣额度，公开链接也不变'
+        '（再更新 {0} 次之后会扣 0.5 篇）。', [n - next]);
   }
 
   String get _base =>
@@ -201,7 +210,7 @@ class _PublishDialogState extends State<PublishDialog> {
     final done = c.lastPublish;
 
     return AlertDialog(
-      title: const Text('发布到网站'),
+      title: Text(tr('发布到网站')),
       content: SizedBox(
         width: 540,
         child: SingleChildScrollView(
@@ -211,32 +220,39 @@ class _PublishDialogState extends State<PublishDialog> {
             children: [
               if (export == null)
                 _hint(scheme,
-                    '还没有可发布的内容 —— 每一站都没有选中照片。'
-                    '先在上面挑一些照片再发布。')
+                    tr('还没有可发布的内容 —— 每一站都没有选中照片。'
+                        '先在上面挑一些照片再发布。'))
               else
                 // 说清楚"张"和"个文件"不是一回事。
                 // 进度条数的是文件数（每张照片一张大图 + 一张缩略图），
                 // 这里只写"张"的话，用户会以为我们在偷偷传三倍的东西
-                _hint(scheme,
-                    '将上传 ${export.photoCount} 张照片'
-                    '（每张一份 1600px 网页图 + 一份 480px 缩略图，'
-                    '共 ${export.photoCount * 2 + 1} 个文件，'
-                    '${(export.totalBytes / 1024 / 1024).toStringAsFixed(1)} MB）。'
-                    '原图一张都不会离开这台电脑。'),
+                _hint(
+                    scheme,
+                    trf(
+                        '将上传 {0} 张照片'
+                        '（每张一份 1600px 网页图 + 一份 480px 缩略图，'
+                        '共 {1} 个文件，'
+                        '{2} MB）。'
+                        '原图一张都不会离开这台电脑。', [
+                      export.photoCount,
+                      export.photoCount * 2 + 1,
+                      (export.totalBytes / 1024 / 1024).toStringAsFixed(1),
+                    ])),
               const SizedBox(height: 16),
               const SizedBox(height: 12),
               _account(scheme),
               const SizedBox(height: 16),
               SegmentedButton<String>(
                 style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: const [
+                segments: [
                   ButtonSegment(
                       value: 'public',
-                      label: Text('公开', style: TextStyle(fontSize: 12))),
+                      label: Text(tr('公开'),
+                          style: const TextStyle(fontSize: 12))),
                   ButtonSegment(
                       value: 'unlisted',
-                      label: Text('仅凭链接访问',
-                          style: TextStyle(fontSize: 12))),
+                      label: Text(tr('仅凭链接访问'),
+                          style: const TextStyle(fontSize: 12))),
                 ],
                 selected: {visibility},
                 onSelectionChanged: (v) =>
@@ -264,8 +280,8 @@ class _PublishDialogState extends State<PublishDialog> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('将覆盖这一篇：',
-                            style: TextStyle(
+                        Text(tr('将覆盖这一篇：'),
+                            style: const TextStyle(
                                 fontSize: 12, fontWeight: FontWeight.w600)),
                         const SizedBox(height: 4),
                         Text(c.pickedStoryTitle,
@@ -273,9 +289,10 @@ class _PublishDialogState extends State<PublishDialog> {
                         Text(
                             c.pickedStoryPublishedAt == null
                                 ? c.pickedStoryUrl
-                                : '${c.pickedStoryUrl}   '
-                                    '（上次发布 '
-                                    '${_dayClockIso(c.pickedStoryPublishedAt)}）',
+                                : trf('{0}   （上次发布 {1}）', [
+                                    c.pickedStoryUrl,
+                                    _dayClockIso(c.pickedStoryPublishedAt),
+                                  ]),
                             style: TextStyle(
                                 fontSize: 11, color: scheme.onSurfaceVariant)),
                         const SizedBox(height: 4),
@@ -290,8 +307,8 @@ class _PublishDialogState extends State<PublishDialog> {
                             style: TextButton.styleFrom(
                                 padding: EdgeInsets.zero,
                                 minimumSize: Size.zero),
-                            child: const Text('改回发新的一篇',
-                                style: TextStyle(fontSize: 11)),
+                            child: Text(tr('改回发新的一篇'),
+                                style: const TextStyle(fontSize: 11)),
                           ),
                         ),
                       ],
@@ -314,10 +331,12 @@ class _PublishDialogState extends State<PublishDialog> {
                       children: [
                         Text(
                           c.updateCandidates.length > 1
-                              ? '这趟行程在网站上已经有 '
-                                  '${c.updateCandidates.length} 篇'
-                                  '（日期重叠）—— 可能是重复发布了'
-                              : '这趟行程已经发布过，要更新它吗？',
+                              ? trf('这趟行程在网站上已经有 '
+                                  '{0} 篇'
+                                  '（日期重叠）—— 可能是重复发布了', [
+                                  c.updateCandidates.length,
+                                ])
+                              : tr('这趟行程已经发布过，要更新它吗？'),
                           style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w600),
                         ),
@@ -325,8 +344,8 @@ class _PublishDialogState extends State<PublishDialog> {
                           Padding(
                             padding: const EdgeInsets.only(top: 2, bottom: 6),
                             child: Text(
-                              '在网站的「我的故事」里删掉多余的那篇，'
-                              '当时扣的额度会退回来。',
+                              tr('在网站的「我的故事」里删掉多余的那篇，'
+                                  '当时扣的额度会退回来。'),
                               style: TextStyle(
                                   fontSize: 11, color: scheme.outline),
                             ),
@@ -341,11 +360,23 @@ class _PublishDialogState extends State<PublishDialog> {
                                   // 全都一样 —— 时间是唯一能把两条分开的信息，
                                   // 而用户要认的恰恰就是"哪篇是刚发的"
                                   child: Text(
-                                    '${_dayClockIso(st.publishedAt)}  '
-                                    '${st.title}   ${_dateOnly(st.start)} - '
-                                    '${_dateOnly(st.end)} · ${st.stops} 站 · '
-                                    '${st.photos} 张'
-                                    '${st.id == (c.currentProject?.publishedStoryId ?? '') ? '   ← 上次发的' : ''}',
+                                    trf('{0}  '
+                                        '{1}   {2} - '
+                                        '{3} · {4} 站 · '
+                                        '{5} 张{6}', [
+                                      _dayClockIso(st.publishedAt),
+                                      st.title,
+                                      _dateOnly(st.start),
+                                      _dateOnly(st.end),
+                                      st.stops,
+                                      st.photos,
+                                      st.id ==
+                                              (c.currentProject
+                                                      ?.publishedStoryId ??
+                                                  '')
+                                          ? tr('   ← 上次发的')
+                                          : '',
+                                    ]),
                                     style: const TextStyle(fontSize: 12),
                                     overflow: TextOverflow.ellipsis,
                                   ),
@@ -356,8 +387,8 @@ class _PublishDialogState extends State<PublishDialog> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 6),
                                       minimumSize: Size.zero),
-                                  child: const Text('看看',
-                                      style: TextStyle(fontSize: 11)),
+                                  child: Text(tr('看看'),
+                                      style: const TextStyle(fontSize: 11)),
                                 ),
                                 TextButton(
                                   onPressed: c.publishing
@@ -367,8 +398,8 @@ class _PublishDialogState extends State<PublishDialog> {
                                       padding: const EdgeInsets.symmetric(
                                           horizontal: 8),
                                       minimumSize: Size.zero),
-                                  child: const Text('更新这一篇',
-                                      style: TextStyle(fontSize: 11)),
+                                  child: Text(tr('更新这一篇'),
+                                      style: const TextStyle(fontSize: 11)),
                                 ),
                               ]),
                             )),
@@ -379,8 +410,8 @@ class _PublishDialogState extends State<PublishDialog> {
                           const SizedBox(width: 4),
                           Expanded(
                             child: Text(
-                              '「更新这一篇」不扣额度，链接也不变；'
-                              '不选就是再发一篇新的，会再扣 1 次发布额度。',
+                              tr('「更新这一篇」不扣额度，链接也不变；'
+                                  '不选就是再发一篇新的，会再扣 1 次发布额度。'),
                               style: TextStyle(
                                   fontSize: 11, color: scheme.tertiary),
                             ),
@@ -390,7 +421,7 @@ class _PublishDialogState extends State<PublishDialog> {
                     ),
                   )
                 else
-                  Text('会发布成新的一篇。',
+                  Text(tr('会发布成新的一篇。'),
                       style: TextStyle(fontSize: 12, color: scheme.outline)),
                 if (c.pickedStoryId.isEmpty)
                   Align(
@@ -400,8 +431,8 @@ class _PublishDialogState extends State<PublishDialog> {
                           ? null
                           : _pickStory,
                       icon: const Icon(Icons.history, size: 15),
-                      label: const Text('改为更新我已发布的某一篇...',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(tr('改为更新我已发布的某一篇...'),
+                          style: const TextStyle(fontSize: 12)),
                       style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 4),
                           minimumSize: Size.zero),
@@ -416,7 +447,7 @@ class _PublishDialogState extends State<PublishDialog> {
                         : c.publishDone / c.publishTotal),
                 const SizedBox(height: 8),
                 Text(c.status, style: const TextStyle(fontSize: 12)),
-                Text('进度按文件数算，不是照片数',
+                Text(tr('进度按文件数算，不是照片数'),
                     style: TextStyle(fontSize: 11, color: scheme.outline)),
               ],
               if (done != null) ...[
@@ -435,8 +466,8 @@ class _PublishDialogState extends State<PublishDialog> {
                         Expanded(
                           child: Text(
                               done.updated
-                                  ? '已更新，链接没有变'
-                                  : '已发布，这个链接永久有效',
+                                  ? tr('已更新，链接没有变')
+                                  : tr('已发布，这个链接永久有效'),
                               style: const TextStyle(
                                   fontSize: 12, fontWeight: FontWeight.w600)),
                         ),
@@ -454,9 +485,13 @@ class _PublishDialogState extends State<PublishDialog> {
                       if (done.updated)
                         Text(
                           done.charged > 0
-                              ? '第 ${done.updateCount} 次更新，扣了 '
-                                  '${done.charged} 篇额度'
-                              : '第 ${done.updateCount} 次更新，没有扣额度',
+                              ? trf('第 {0} 次更新，扣了 {1} 篇额度', [
+                                  done.updateCount,
+                                  done.charged,
+                                ])
+                              : trf('第 {0} 次更新，没有扣额度', [
+                                  done.updateCount,
+                                ]),
                           style: const TextStyle(fontSize: 11),
                         ),
                       const SizedBox(height: 8),
@@ -465,14 +500,14 @@ class _PublishDialogState extends State<PublishDialog> {
                           onPressed: () => Clipboard.setData(
                               ClipboardData(text: done.publicUrl)),
                           icon: const Icon(Icons.copy, size: 15),
-                          label: const Text('复制链接',
-                              style: TextStyle(fontSize: 12)),
+                          label: Text(tr('复制链接'),
+                              style: const TextStyle(fontSize: 12)),
                         ),
                         TextButton.icon(
                           onPressed: () => _open(done.publicUrl),
                           icon: const Icon(Icons.open_in_new, size: 15),
-                          label: const Text('打开',
-                              style: TextStyle(fontSize: 12)),
+                          label: Text(tr('打开'),
+                              style: const TextStyle(fontSize: 12)),
                         ),
                         TextButton.icon(
                           // Facebook 只认公开地址，所以这一步必须在发布之后
@@ -480,13 +515,13 @@ class _PublishDialogState extends State<PublishDialog> {
                               'https://www.facebook.com/sharer/sharer.php?u='
                               '${Uri.encodeComponent(done.publicUrl)}'),
                           icon: const Icon(Icons.share, size: 15),
-                          label: const Text('分享到 Facebook',
-                              style: TextStyle(fontSize: 12)),
+                          label: Text(tr('分享到 Facebook'),
+                              style: const TextStyle(fontSize: 12)),
                         ),
                       ]),
                       const SizedBox(height: 4),
-                      Text('微信要用二维码转发 —— 打开上面的网页，'
-                          '页面底部有「微信」按钮，扫码即可。',
+                      Text(tr('微信要用二维码转发 —— 打开上面的网页，'
+                              '页面底部有「微信」按钮，扫码即可。'),
                           style: TextStyle(
                               fontSize: 11, color: scheme.onSurfaceVariant)),
                     ],
@@ -505,19 +540,19 @@ class _PublishDialogState extends State<PublishDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('还没有可用的发布额度',
-                          style: TextStyle(
+                      Text(tr('还没有可用的发布额度'),
+                          style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 4),
-                      const Text('照片和文字都还在这台电脑上，付款后回来再点一次发布即可。',
-                          style: TextStyle(fontSize: 12)),
+                      Text(tr('照片和文字都还在这台电脑上，付款后回来再点一次发布即可。'),
+                          style: const TextStyle(fontSize: 12)),
                       const SizedBox(height: 8),
                       FilledButton.tonalIcon(
                         onPressed: () => _open(
                             '$_base/pricing'),
                         icon: const Icon(Icons.open_in_new, size: 15),
-                        label: const Text('去网站购买',
-                            style: TextStyle(fontSize: 12)),
+                        label: Text(tr('去网站购买'),
+                            style: const TextStyle(fontSize: 12)),
                       ),
                     ],
                   ),
@@ -529,8 +564,8 @@ class _PublishDialogState extends State<PublishDialog> {
                 if (c.canResume) ...[
                   const SizedBox(height: 6),
                   Text(
-                    '已经传上去的照片不会重传，点「继续上传」只补没传完的那些。'
-                    '不会再建一篇，也不会再扣一次额度。',
+                    tr('已经传上去的照片不会重传，点「继续上传」只补没传完的那些。'
+                        '不会再建一篇，也不会再扣一次额度。'),
                     style: TextStyle(fontSize: 11, color: scheme.outline),
                   ),
                 ],
@@ -542,17 +577,17 @@ class _PublishDialogState extends State<PublishDialog> {
       actions: [
         TextButton(
           onPressed: c.publishing ? null : () => Navigator.pop(context),
-          child: Text(done == null ? '取消' : '完成'),
+          child: Text(done == null ? tr('取消') : tr('完成')),
         ),
         FilledButton(
           onPressed: (c.publishing || export == null || !c.isLinked)
               ? null
               : _publish,
           child: Text(c.canResume
-              ? '继续上传'
+              ? tr('继续上传')
               : c.updateExisting
-                  ? (done == null ? '更新那一篇' : '再更新一次')
-                  : '发布新的一篇'),
+                  ? (done == null ? tr('更新那一篇') : tr('再更新一次'))
+                  : tr('发布新的一篇')),
         ),
       ],
     );
@@ -566,22 +601,22 @@ class _PublishDialogState extends State<PublishDialog> {
       return Row(children: [
         Icon(Icons.check_circle, size: 16, color: scheme.primary),
         const SizedBox(width: 6),
-        const Expanded(
-          child: Text('已登录', style: TextStyle(fontSize: 12)),
+        Expanded(
+          child: Text(tr('已登录'), style: const TextStyle(fontSize: 12)),
         ),
         TextButton(
           onPressed: () => _open('$_base/account'),
           style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               minimumSize: Size.zero),
-          child: const Text('账户页', style: TextStyle(fontSize: 11)),
+          child: Text(tr('账户页'), style: const TextStyle(fontSize: 11)),
         ),
         TextButton(
           onPressed: c.publishing ? null : c.logout,
           style: TextButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 6),
               minimumSize: Size.zero),
-          child: const Text('退出登录', style: TextStyle(fontSize: 11)),
+          child: Text(tr('退出登录'), style: const TextStyle(fontSize: 11)),
         ),
       ]);
     }
@@ -590,11 +625,11 @@ class _PublishDialogState extends State<PublishDialog> {
       FilledButton.icon(
         onPressed: () => LoginDialog.show(context, c),
         icon: const Icon(Icons.login, size: 16),
-        label: const Text('登录', style: TextStyle(fontSize: 12)),
+        label: Text(tr('登录'), style: const TextStyle(fontSize: 12)),
       ),
       const SizedBox(width: 10),
       Expanded(
-        child: Text('发布需要先登录',
+        child: Text(tr('发布需要先登录'),
             style: TextStyle(fontSize: 11, color: scheme.outline)),
       ),
     ]);

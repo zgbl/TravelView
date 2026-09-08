@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
 import '../native/native_bridge.dart';
+import '../state/l10n.dart';
 import 'web_template.dart';
 
 class ExportResult {
@@ -100,7 +101,7 @@ class StoryExporter {
     for (final r in wanted) {
       final rel = catalog.relPathOf(r.id);
       if (rel == null) {
-        warnings.add('${r.origFilename}: 库里找不到文件');
+        warnings.add(trf('{0}: 库里找不到文件', [r.origFilename]));
         continue;
       }
       final src = File(p.joinAll([libraryRoot.path, ...p.posix.split(rel)]));
@@ -111,7 +112,7 @@ class StoryExporter {
         maxPixels: webMaxPixels,
       );
       if (web == null) {
-        warnings.add('${r.origFilename}: 导出失败');
+        warnings.add(trf('{0}: 导出失败', [r.origFilename]));
         done++;
         onProgress?.call(done, wanted.length, r.origFilename);
         continue;

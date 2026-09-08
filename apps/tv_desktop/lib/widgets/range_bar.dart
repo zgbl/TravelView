@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
+import '../state/l10n.dart';
 import 'range_dialog.dart';
 
 /// 全局时间范围条。照片视图和行程地图共用同一个范围。
@@ -29,7 +30,7 @@ class RangeBar extends StatelessWidget {
         const SizedBox(width: 8),
         _chip(
           context,
-          label: '全部',
+          label: tr('全部'),
           selected: !c.hasRange,
           onTap: c.clearRange,
         ),
@@ -48,7 +49,7 @@ class RangeBar extends StatelessWidget {
         ),
         if (c.hasRange)
           IconButton(
-            tooltip: '清除筛选',
+            tooltip: tr('清除筛选'),
             onPressed: c.clearRange,
             icon: const Icon(Icons.close, size: 15),
           ),
@@ -59,8 +60,8 @@ class RangeBar extends StatelessWidget {
         const SizedBox(width: 12),
         Text(
           c.hasRange
-              ? '范围内 ${c.visibleCount} / ${c.photoCount} 张'
-              : '共 ${c.photoCount} 张',
+              ? trf('范围内 {0} / {1} 张', [c.visibleCount, c.photoCount])
+              : trf('共 {0} 张', [c.photoCount]),
           style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
         ),
       ],
@@ -82,8 +83,8 @@ class RangeBar extends StatelessWidget {
       c.rangeEnd == DateTime(y, 12, 31, 23, 59, 59);
 
   String _label() {
-    if (!c.hasRange) return '自定义时间范围';
-    return '${_stamp(c.rangeStart, '最早')} ~ ${_stamp(c.rangeEnd, '最新')}';
+    if (!c.hasRange) return tr('自定义时间范围');
+    return '${_stamp(c.rangeStart, tr('最早'))} ~ ${_stamp(c.rangeEnd, tr('最新'))}';
   }
 
   /// 精确到分钟 —— 同一天可能要切成上下午两段行程

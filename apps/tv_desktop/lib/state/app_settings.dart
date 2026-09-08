@@ -56,6 +56,11 @@ class AppSettings {
   String siteUrl;
   String publishToken;
 
+  /// 界面语言: 'zh' 中文 / 'en' English。
+  /// **不跟随系统**: 很多人系统是英文但更愿意用中文界面，反过来也一样。
+  /// 第一次启动按系统语言猜一个，之后完全由用户说了算。
+  String uiLang;
+
   AppSettings({
     this.lastLibraryPath,
     this.rangeStart,
@@ -75,6 +80,7 @@ class AppSettings {
     this.aiTone = '简洁克制',
     this.siteUrl = kDefaultSiteUrl,
     this.publishToken = '',
+    this.uiLang = '',
   });
 
   static Directory get _dir {
@@ -122,6 +128,7 @@ class AppSettings {
         aiTone: j['aiTone'] as String? ?? '简洁克制',
         siteUrl: _siteOf(j['siteUrl'] as String?),
         publishToken: j['publishToken'] as String? ?? '',
+        uiLang: j['uiLang'] as String? ?? '',
       );
     } catch (_) {
       // 配置坏了不该让 App 打不开
@@ -152,6 +159,7 @@ class AppSettings {
         'aiTone': aiTone,
         'siteUrl': siteUrl,
         'publishToken': publishToken,
+        'uiLang': uiLang,
       }));
       await tmp.rename(_file.path);
     } catch (_) {

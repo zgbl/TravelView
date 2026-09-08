@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/library_controller.dart';
+import '../state/l10n.dart';
 
 /// AI 服务设置。
 ///
@@ -43,7 +44,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('AI 文案服务'),
+      title: Text(tr('AI 文案服务')),
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(
@@ -52,9 +53,9 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                '用你自己的 AI 账号来起草文案，费用由你自己承担，'
-                '我们不经手也不加价。\n'
-                '任何兼容 OpenAI 接口的服务都能用，包括本机跑的模型。',
+                tr('用你自己的 AI 账号来起草文案，费用由你自己承担，'
+                    '我们不经手也不加价。\n'
+                    '任何兼容 OpenAI 接口的服务都能用，包括本机跑的模型。'),
                 style: TextStyle(
                     fontSize: 12, color: scheme.onSurfaceVariant, height: 1.6),
               ),
@@ -75,31 +76,31 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
               const SizedBox(height: 16),
               TextField(
                 controller: base,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  border: OutlineInputBorder(),
-                  labelText: '接口地址',
-                  helperText: '要带 /v1，例如 https://api.openai.com/v1',
+                  border: const OutlineInputBorder(),
+                  labelText: tr('接口地址'),
+                  helperText: tr('要带 /v1，例如 https://api.openai.com/v1'),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: model,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  border: OutlineInputBorder(),
-                  labelText: '模型',
+                  border: const OutlineInputBorder(),
+                  labelText: tr('模型'),
                 ),
               ),
               const SizedBox(height: 12),
               TextField(
                 controller: key,
                 obscureText: true,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   isDense: true,
-                  border: OutlineInputBorder(),
+                  border: const OutlineInputBorder(),
                   labelText: 'API Key',
-                  helperText: '只保存在这台电脑上，不会上传',
+                  helperText: tr('只保存在这台电脑上，不会上传'),
                 ),
               ),
               const SizedBox(height: 16),
@@ -109,8 +110,8 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                     child: DropdownButtonFormField<String>(
                       initialValue: language,
                       isDense: true,
-                      decoration: const InputDecoration(
-                          border: OutlineInputBorder(), labelText: '语言'),
+                      decoration: InputDecoration(
+                          border: const OutlineInputBorder(), labelText: tr('语言')),
                       items: const ['中文', 'English', '日本語']
                           .map((e) =>
                               DropdownMenuItem(value: e, child: Text(e)))
@@ -123,8 +124,8 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                     child: DropdownButtonFormField<String>(
                       initialValue: tone,
                       isDense: true,
-                      decoration: const InputDecoration(
-                          border: OutlineInputBorder(), labelText: '语气'),
+                      decoration: InputDecoration(
+                          border: const OutlineInputBorder(), labelText: tr('语气')),
                       items: const ['简洁克制', '生动一些', '像发朋友圈']
                           .map((e) =>
                               DropdownMenuItem(value: e, child: Text(e)))
@@ -142,9 +143,9 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
-                  '发送给 AI 的只有文字: 地名、时间、停留时长、'
-                  '照片张数、附近地标。**照片一张都不会发出去。**\n'
-                  '不想联网也可以用「复制提示词」，自己粘到任何 AI 里。',
+                  tr('发送给 AI 的只有文字: 地名、时间、停留时长、'
+                      '照片张数、附近地标。**照片一张都不会发出去。**\n'
+                      '不想联网也可以用「复制提示词」，自己粘到任何 AI 里。'),
                   style: TextStyle(
                       fontSize: 11,
                       color: scheme.onSurfaceVariant,
@@ -158,7 +159,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
       actions: [
         TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('取消')),
+            child: Text(tr('取消'))),
         FilledButton(
           onPressed: () {
             widget.c.settings
@@ -170,7 +171,7 @@ class _AiSettingsDialogState extends State<AiSettingsDialog> {
             widget.c.settings.save();
             Navigator.of(context).pop();
           },
-          child: const Text('保存'),
+          child: Text(tr('保存')),
         ),
       ],
     );

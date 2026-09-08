@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../export/story_exporter.dart';
+import '../state/l10n.dart';
 import '../state/library_controller.dart';
 import '../widgets/ai_settings_dialog.dart';
 import '../widgets/publish_dialog.dart';
@@ -147,18 +148,17 @@ class _StoryPageState extends State<StoryPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('对全部站应用自动精选'),
-        content: const Text(
-          '会用自动精选的结果覆盖各站现有的选取，包括你手动选过的。\n'
-          '照片本身不受影响。',
+        title: Text(tr('对全部站应用自动精选')),
+        content: Text(
+          tr('会用自动精选的结果覆盖各站现有的选取，包括你手动选过的。\n照片本身不受影响。'),
         ),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('取消')),
+              child: Text(tr('取消'))),
           FilledButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('应用')),
+              child: Text(tr('应用'))),
         ],
       ),
     );
@@ -181,8 +181,8 @@ class _StoryPageState extends State<StoryPage> {
     setState(() => _fillingCaptions = false);
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text(n == 0
-          ? '每一站都已经有文字了，没有改动'
-          : '已经为 $n 站生成文字，可以直接改'),
+          ? tr('每一站都已经有文字了，没有改动')
+          : trf('已经为 {0} 站生成文字，可以直接改', [n])),
       duration: const Duration(seconds: 3),
     ));
   }
@@ -209,7 +209,7 @@ class _StoryPageState extends State<StoryPage> {
     // 草稿名是给自己找东西用的，标题是读者唯一看得到的那行字
     final title = widget.c.storyTitle.isNotEmpty
         ? widget.c.storyTitle
-        : (widget.c.currentProjectName ?? '我的旅行');
+        : (widget.c.currentProjectName ?? tr('我的旅行'));
     final cover = widget.c.coverPhotoId;
     // **只数真正进 Story 的站。** 副标题写 22 站、统计栏写 7 站，
     // 用户第一眼就会觉得数据是错的 —— 事实上错的是副标题。
@@ -217,8 +217,8 @@ class _StoryPageState extends State<StoryPage> {
         r.stays.where((s) => _selectedOf(s).isNotEmpty).length;
     final sub = widget.c.storySubtitle.isNotEmpty
         ? widget.c.storySubtitle
-        : '${_dateOnly(r.start)} - ${_dateOnly(r.end)}'
-            ' · ${r.dayCount} 天 · $shownStops 站';
+        : trf('{0} - {1} · {2} 天 · {3} 站',
+            [_dateOnly(r.start), _dateOnly(r.end), r.dayCount, shownStops]);
 
     return widget.c.exportStory(
       trip: r,
@@ -351,14 +351,14 @@ class _StoryPageState extends State<StoryPage> {
   /// 一个只写"呈现"的按钮，用户每次都得点开才知道自己上次选了什么。
   String _lookSummary() {
     final cover = {
-      'auto': '自动封面', 'map': '整屏地图', 'mapcard': '地图卡片', 'photo': '照片封面',
-    }[widget.c.coverMode] ?? '自动封面';
-    final unit = {'auto': '', 'mi': ' · 英里', 'km': ' · 公里'}[widget.c.units] ?? '';
+      'auto': tr('自动封面'), 'map': tr('整屏地图'), 'mapcard': tr('地图卡片'), 'photo': tr('照片封面'),
+    }[widget.c.coverMode] ?? tr('自动封面');
+    final unit = {'auto': '', 'mi': tr(' · 英里'), 'km': tr(' · 公里')}[widget.c.units] ?? '';
     final music = widget.c.music.isEmpty
         ? ''
         : (widget.c.musicRightsOk
             ? ' · ♪${widget.c.music.length}'
-            : ' · ♪(未声明)');
+            : tr(' · ♪(未声明)'));
     return '$cover$unit$music';
   }
 
@@ -372,7 +372,7 @@ class _StoryPageState extends State<StoryPage> {
           final scheme = Theme.of(ctx).colorScheme;
           void refresh() { setLocal(() {}); setState(() {}); }
           return AlertDialog(
-            title: const Text('这篇怎么呈现'),
+            title: Text(tr('这篇怎么呈现')),
             content: SizedBox(
               width: 460,
               child: Column(
@@ -380,15 +380,15 @@ class _StoryPageState extends State<StoryPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // ── 封面 ──
-                  _label('封面'),
+                  _label(tr('封面')),
                   SegmentedButton<String>(
                     style: const ButtonStyle(
                         visualDensity: VisualDensity.compact),
-                    segments: const [
-                      ButtonSegment(value: 'auto', label: Text('自动')),
-                      ButtonSegment(value: 'map', label: Text('整屏地图')),
-                      ButtonSegment(value: 'mapcard', label: Text('地图卡片')),
-                      ButtonSegment(value: 'photo', label: Text('照片')),
+                    segments: [
+                      ButtonSegment(value: 'auto', label: Text(tr('自动'))),
+                      ButtonSegment(value: 'map', label: Text(tr('整屏地图'))),
+                      ButtonSegment(value: 'mapcard', label: Text(tr('地图卡片'))),
+                      ButtonSegment(value: 'photo', label: Text(tr('照片'))),
                     ],
                     selected: {widget.c.coverMode},
                     onSelectionChanged: (v) async {
@@ -411,8 +411,8 @@ class _StoryPageState extends State<StoryPage> {
                         const SizedBox(width: 6),
                         Text(
                           widget.c.coverPhotoId.isEmpty
-                              ? '用自动挑的那张（在照片上点星号可以指定）'
-                              : '已指定一张',
+                              ? tr('用自动挑的那张（在照片上点星号可以指定）')
+                              : tr('已指定一张'),
                           style: TextStyle(
                               fontSize: 12, color: scheme.onSurfaceVariant),
                         ),
@@ -422,8 +422,8 @@ class _StoryPageState extends State<StoryPage> {
                               await widget.c.setCoverPhoto('');
                               refresh();
                             },
-                            child: const Text('改回自动',
-                                style: TextStyle(fontSize: 12)),
+                            child: Text(tr('改回自动'),
+                                style: const TextStyle(fontSize: 12)),
                           ),
                       ]),
                     ),
@@ -431,14 +431,14 @@ class _StoryPageState extends State<StoryPage> {
                   const SizedBox(height: 20),
 
                   // ── 距离单位 ──
-                  _label('距离单位'),
+                  _label(tr('距离单位')),
                   SegmentedButton<String>(
                     style: const ButtonStyle(
                         visualDensity: VisualDensity.compact),
-                    segments: const [
-                      ButtonSegment(value: 'auto', label: Text('自动')),
-                      ButtonSegment(value: 'mi', label: Text('英里')),
-                      ButtonSegment(value: 'km', label: Text('公里')),
+                    segments: [
+                      ButtonSegment(value: 'auto', label: Text(tr('自动'))),
+                      ButtonSegment(value: 'mi', label: Text(tr('英里'))),
+                      ButtonSegment(value: 'km', label: Text(tr('公里'))),
                     ],
                     selected: {widget.c.units},
                     onSelectionChanged: (v) async {
@@ -450,8 +450,7 @@ class _StoryPageState extends State<StoryPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        '按每一站所在的国家决定: 美国、英国用英里，其余用公里。'
-                        '中英文两个版本用同一个单位。',
+                        tr('按每一站所在的国家决定: 美国、英国用英里，其余用公里。中英文两个版本用同一个单位。'),
                         style: TextStyle(
                             fontSize: 11,
                             height: 1.5,
@@ -466,7 +465,7 @@ class _StoryPageState extends State<StoryPage> {
                   // 曲库选择永远太少，而且会让我们成为内容的提供方、
                   // 把版权责任揽到自己头上。用户上传，责任在上传者 ——
                   // 所以下面那个声明不是走过场，是这条路成立的前提。
-                  _label('配乐（最多 ${LibraryController.maxTracks} 首，轮流播放）'),
+                  _label(trf('配乐（最多 {0} 首，轮流播放）', [LibraryController.maxTracks])),
                   ...widget.c.music.map((m) => Padding(
                         padding: const EdgeInsets.only(bottom: 4),
                         child: Row(children: [
@@ -482,7 +481,7 @@ class _StoryPageState extends State<StoryPage> {
                                 style: const TextStyle(fontSize: 12)),
                           ),
                           IconButton(
-                            tooltip: '去掉这一首',
+                            tooltip: tr('去掉这一首'),
                             icon: const Icon(Icons.close, size: 14),
                             constraints:
                                 const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -503,7 +502,7 @@ class _StoryPageState extends State<StoryPage> {
                         },
                         icon: const Icon(Icons.audio_file_outlined, size: 15),
                         label: Text(
-                          widget.c.music.isEmpty ? '选一个音频文件…' : '再加一首',
+                          widget.c.music.isEmpty ? tr('选一个音频文件…') : tr('再加一首'),
                           style: const TextStyle(fontSize: 12),
                         ),
                       ),
@@ -513,8 +512,8 @@ class _StoryPageState extends State<StoryPage> {
                           await _askMusicUrl();
                           refresh();
                         },
-                        child: const Text('用外部链接',
-                            style: TextStyle(fontSize: 12)),
+                        child: Text(tr('用外部链接'),
+                            style: const TextStyle(fontSize: 12)),
                       ),
                     ]),
                   if (widget.c.music.isNotEmpty) ...[
@@ -530,15 +529,13 @@ class _StoryPageState extends State<StoryPage> {
                         await widget.c.setMusicRights(v ?? false);
                         refresh();
                       },
-                      title: const Text(
-                        '这些音乐我拥有使用权，或它们允许商用/公开分享，'
-                        '由此产生的版权责任由我承担。',
-                        style: TextStyle(fontSize: 12, height: 1.5),
+                      title: Text(
+                        tr('这些音乐我拥有使用权，或它们允许商用/公开分享，由此产生的版权责任由我承担。'),
+                        style: const TextStyle(fontSize: 12, height: 1.5),
                       ),
                     ),
                     Text(
-                      '本地文件会随游记一起上传，删掉这篇游记时一并删除；'
-                      '外部链接的文件不在我们这儿，对方一旦失效就没声音了。',
+                      tr('本地文件会随游记一起上传，删掉这篇游记时一并删除；外部链接的文件不在我们这儿，对方一旦失效就没声音了。'),
                       style: TextStyle(
                           fontSize: 11, height: 1.5,
                           color: scheme.onSurfaceVariant),
@@ -546,7 +543,7 @@ class _StoryPageState extends State<StoryPage> {
                     if (!widget.c.musicRightsOk)
                       Padding(
                         padding: const EdgeInsets.only(top: 6),
-                        child: Text('没有勾选声明，发布时不会带上配乐。',
+                        child: Text(tr('没有勾选声明，发布时不会带上配乐。'),
                             style:
                                 TextStyle(fontSize: 11, color: scheme.error)),
                       ),
@@ -554,7 +551,7 @@ class _StoryPageState extends State<StoryPage> {
                     Padding(
                       padding: const EdgeInsets.only(top: 6),
                       child: Text(
-                        '只在全屏播放时出声，默认静音，读者点一下才播。',
+                        tr('只在全屏播放时出声，默认静音，读者点一下才播。'),
                         style: TextStyle(
                             fontSize: 11, color: scheme.onSurfaceVariant),
                       ),
@@ -565,7 +562,7 @@ class _StoryPageState extends State<StoryPage> {
             actions: [
               FilledButton(
                   onPressed: () => Navigator.of(ctx).pop(),
-                  child: const Text('好')),
+                  child: Text(tr('好'))),
             ],
           );
         },
@@ -584,11 +581,11 @@ class _StoryPageState extends State<StoryPage> {
   /// **不复制到别处，只记路径。** 真正的拷贝发生在导出那一刻 ——
   /// 用户可能选完又换、又去掉，提前拷贝只会在库里堆垃圾。
   Future<void> _pickMusicFile() async {
-    const group = XTypeGroup(
-      label: '音频',
-      extensions: ['mp3', 'm4a', 'aac', 'ogg', 'wav'],
+    final group = XTypeGroup(
+      label: tr('音频'),
+      extensions: const ['mp3', 'm4a', 'aac', 'ogg', 'wav'],
     );
-    final f = await openFile(acceptedTypeGroups: const [group]);
+    final f = await openFile(acceptedTypeGroups: [group]);
     if (f == null) return;
     final size = await File(f.path).length();
     // 20MB 以上多半是整张专辑或者无损文件。一篇游记的读者要先下完
@@ -596,9 +593,10 @@ class _StoryPageState extends State<StoryPage> {
     if (size > 10 * 1024 * 1024) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('这个文件 ${(size / 1024 / 1024).round()}MB，'
-            '超过了服务器 10MB 的单文件上限。'
-            '配乐几 MB 就够 —— 读者要下完才有声音。'),
+        content: Text(trf(
+            '这个文件 {0}MB，超过了服务器 10MB 的单文件上限。'
+            '配乐几 MB 就够 —— 读者要下完才有声音。',
+            [(size / 1024 / 1024).round()])),
         duration: const Duration(seconds: 5),
       ));
       return;
@@ -617,37 +615,33 @@ class _StoryPageState extends State<StoryPage> {
     final url = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('用一个外部链接作为配乐'),
+        title: Text(tr('用一个外部链接作为配乐')),
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
             controller: ctl,
             autofocus: true,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               hintText: 'https://…/song.mp3',
-              helperText: '必须是 https 的音频文件直链（.mp3 / .m4a / .ogg），\n'
-                  '不是播放页面的网址',
+              helperText: tr('必须是 https 的音频文件直链（.mp3 / .m4a / .ogg），\n不是播放页面的网址'),
               helperMaxLines: 2,
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
-            '音乐存在对方服务器上，我们不复制也不保存。\n'
-            '好处是版权关系清楚；代价是对方一旦防盗链、改地址或删文件，\n'
-            '这篇游记就永久没有声音了，而且你不会收到任何通知。\n'
-            '要稳定，建议用上面曲库里的曲子。',
-            style: TextStyle(fontSize: 12, height: 1.6),
+          Text(
+            tr('音乐存在对方服务器上，我们不复制也不保存。\n好处是版权关系清楚；代价是对方一旦防盗链、改地址或删文件，\n这篇游记就永久没有声音了，而且你不会收到任何通知。\n要稳定，建议用上面曲库里的曲子。'),
+            style: const TextStyle(fontSize: 12, height: 1.6),
           ),
         ]),
         actions: [
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(''),
-              child: const Text('不用配乐')),
+              child: Text(tr('不用配乐'))),
           TextButton(
               onPressed: () => Navigator.of(ctx).pop(null),
-              child: const Text('取消')),
+              child: Text(tr('取消'))),
           FilledButton(
               onPressed: () => Navigator.of(ctx).pop(ctl.text.trim()),
-              child: const Text('用这个')),
+              child: Text(tr('用这个'))),
         ],
       ),
     );
@@ -655,8 +649,8 @@ class _StoryPageState extends State<StoryPage> {
     if (url.isEmpty) return;
     if (!url.startsWith('https://')) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('只能用 https 开头的链接 —— http 会被浏览器整页拦掉'),
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(tr('只能用 https 开头的链接 —— http 会被浏览器整页拦掉')),
       ));
       return;
     }
@@ -667,7 +661,7 @@ class _StoryPageState extends State<StoryPage> {
     final scheme = Theme.of(context).colorScheme;
     return Center(
       child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Text('没有哪一站包含「$_query」',
+        Text(trf('没有哪一站包含「{0}」', [_query]),
             style: TextStyle(color: scheme.onSurfaceVariant)),
         const SizedBox(height: 10),
         TextButton(
@@ -675,7 +669,7 @@ class _StoryPageState extends State<StoryPage> {
             _query = '';
             _searchCtl.clear();
           }),
-          child: const Text('清除查找'),
+          child: Text(tr('清除查找')),
         ),
       ]),
     );
@@ -687,8 +681,7 @@ class _StoryPageState extends State<StoryPage> {
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Text(
-          '这个时间范围里没有带 GPS 的照片，没法分站。\n'
-          '用上方的时间范围换一段试试。',
+          tr('这个时间范围里没有带 GPS 的照片，没法分站。\n用上方的时间范围换一段试试。'),
           textAlign: TextAlign.center,
           style: TextStyle(color: scheme.onSurfaceVariant, height: 1.7),
         ),
@@ -730,7 +723,7 @@ class _StoryPageState extends State<StoryPage> {
                 decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
-                  hintText: widget.c.currentProjectName ?? '给这篇起个标题',
+                  hintText: widget.c.currentProjectName ?? tr('给这篇起个标题'),
                   hintStyle: TextStyle(
                       fontSize: 17,
                       fontWeight: FontWeight.w600,
@@ -750,8 +743,9 @@ class _StoryPageState extends State<StoryPage> {
                 decoration: InputDecoration(
                   isDense: true,
                   border: InputBorder.none,
-                  hintText: '${_dateOnly(r.start)} - ${_dateOnly(r.end)}'
-                      ' · ${r.dayCount} 天 · ${r.stays.length} 站',
+                  hintText: trf('{0} - {1} · {2} 天 · {3} 站',
+                      [_dateOnly(r.start), _dateOnly(r.end), r.dayCount,
+                          r.stays.length]),
                   hintStyle:
                       TextStyle(fontSize: 12, color: scheme.outline),
                 ),
@@ -782,7 +776,7 @@ class _StoryPageState extends State<StoryPage> {
                             _searchCtl.clear();
                           }),
                         ),
-                  hintText: '查找地点、文字、日期',
+                  hintText: tr('查找地点、文字、日期'),
                   hintStyle: TextStyle(fontSize: 12, color: scheme.outline),
                   border: const OutlineInputBorder(),
                   contentPadding:
@@ -791,14 +785,16 @@ class _StoryPageState extends State<StoryPage> {
               ),
             ),
             const SizedBox(width: 16),
-            Text('${r.stays.length} 站 · ${r.dayCount} 天 · '
-                '${r.totalMiles.round()} mi · 精选 $totalSelected/$totalPhotos',
+            Text(
+                trf('{0} 站 · {1} 天 · {2} mi · 精选 {3}/{4}',
+                    [r.stays.length, r.dayCount, r.totalMiles.round(),
+                        totalSelected, totalPhotos]),
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant)),
+
             if (ready < all) ...[
               const SizedBox(width: 12),
               Tooltip(
-                message: '还在后台计算去重信号（清晰度、感知哈希、人脸）。\n'
-                    '算完之前，去重只能靠拍摄时间兜底，重复照片会偏多。',
+                message: tr('还在后台计算去重信号（清晰度、感知哈希、人脸）。\n算完之前，去重只能靠拍摄时间兜底，重复照片会偏多。'),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   const Icon(Icons.info_outline, size: 14),
                   const SizedBox(width: 4),
@@ -817,18 +813,18 @@ class _StoryPageState extends State<StoryPage> {
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
-              const Text('每站', style: TextStyle(fontSize: 12)),
+              Text(tr('每站'), style: const TextStyle(fontSize: 12)),
               const SizedBox(width: 6),
               DropdownButton<int>(
                 value: targetPerStop,
                 underline: const SizedBox.shrink(),
                 style: const TextStyle(fontSize: 12),
-                items: const [
-                  DropdownMenuItem(value: 0, child: Text('自动')),
-                  DropdownMenuItem(value: 3, child: Text('3 张')),
-                  DropdownMenuItem(value: 5, child: Text('5 张')),
-                  DropdownMenuItem(value: 8, child: Text('8 张')),
-                  DropdownMenuItem(value: 12, child: Text('12 张')),
+                items: [
+                  DropdownMenuItem(value: 0, child: Text(tr('自动'))),
+                  DropdownMenuItem(value: 3, child: Text(tr('3 张'))),
+                  DropdownMenuItem(value: 5, child: Text(tr('5 张'))),
+                  DropdownMenuItem(value: 8, child: Text(tr('8 张'))),
+                  DropdownMenuItem(value: 12, child: Text(tr('12 张'))),
                 ],
                 onChanged: (v) {
                   if (v == null) return;
@@ -840,14 +836,14 @@ class _StoryPageState extends State<StoryPage> {
               FilledButton.tonalIcon(
                 onPressed: _recompute,
                 icon: const Icon(Icons.refresh, size: 15),
-                label: const Text('重算建议', style: TextStyle(fontSize: 12)),
+                label: Text(tr('重算建议'), style: const TextStyle(fontSize: 12)),
               ),
               const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: _applyAll,
                 icon: const Icon(Icons.auto_awesome, size: 15),
                 label:
-                    const Text('自动精选全部站', style: TextStyle(fontSize: 12)),
+                    Text(tr('自动精选全部站'), style: const TextStyle(fontSize: 12)),
               ),
               const SizedBox(width: 8),
               _fillingCaptions
@@ -858,12 +854,12 @@ class _StoryPageState extends State<StoryPage> {
                   : OutlinedButton.icon(
                       onPressed: _fillCaptions,
                       icon: const Icon(Icons.bolt, size: 15),
-                      label: const Text('自动生成全部文字',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(tr('自动生成全部文字'),
+                          style: const TextStyle(fontSize: 12)),
                     ),
               const SizedBox(width: 8),
               IconButton(
-                tooltip: 'AI 文案设置',
+                tooltip: tr('AI 文案设置'),
                 onPressed: () => AiSettingsDialog.show(context, widget.c),
                 icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
               ),
@@ -897,8 +893,8 @@ class _StoryPageState extends State<StoryPage> {
                   : OutlinedButton.icon(
                       onPressed: totalSelected == 0 ? null : _export,
                       icon: const Icon(Icons.ios_share, size: 15),
-                      label: const Text('导出网页',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(tr('导出网页'),
+                          style: const TextStyle(fontSize: 12)),
                     ),
               const SizedBox(width: 8),
               FilledButton.icon(
@@ -906,7 +902,7 @@ class _StoryPageState extends State<StoryPage> {
                     ? null
                     : _publish,
                 icon: const Icon(Icons.cloud_upload_outlined, size: 15),
-                label: const Text('发布', style: TextStyle(fontSize: 12)),
+                label: Text(tr('发布'), style: const TextStyle(fontSize: 12)),
               ),
             ]),
           ),
@@ -948,7 +944,7 @@ class _StoryPageState extends State<StoryPage> {
                     color: scheme.primaryContainer,
                     borderRadius: BorderRadius.circular(6),
                   ),
-                  child: Text('第 ${index + 1} 站',
+                  child: Text(trf('第 {0} 站', [index + 1]),
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w700,
@@ -966,31 +962,31 @@ class _StoryPageState extends State<StoryPage> {
                       TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
                 ),
                 const Spacer(),
-                Text('已选 ${selected.length} / ${all.length} 张',
+                Text(trf('已选 {0} / {1} 张', [selected.length, all.length]),
                     style: TextStyle(
                         fontSize: 12, color: scheme.onSurfaceVariant)),
                 if (sug.duplicatesRemoved > 0) ...[
                   const SizedBox(width: 10),
-                  Text('可折叠重复 ${sug.duplicatesRemoved}',
+                  Text(trf('可折叠重复 {0}', [sug.duplicatesRemoved]),
                       style: TextStyle(fontSize: 11, color: scheme.primary)),
                 ],
                 const SizedBox(width: 10),
                 TextButton(
                   onPressed: () => _applySuggestion(stop),
-                  child: Text('自动精选 ${sug.selected.length} 张',
+                  child: Text(trf('自动精选 {0} 张', [sug.selected.length]),
                       style: const TextStyle(fontSize: 12)),
                 ),
                 if (selected.isNotEmpty)
                   TextButton(
                     onPressed: () => _clearStop(stop),
-                    child: const Text('清空', style: TextStyle(fontSize: 12)),
+                    child: Text(tr('清空'), style: const TextStyle(fontSize: 12)),
                   ),
               ],
             ),
             const SizedBox(height: 14),
 
             // ── 轨道一: 已选进回顾 ──
-            _trackLabel(context, '已选进回顾', selected.length, scheme.primary),
+            _trackLabel(context, tr('已选进回顾'), selected.length, scheme.primary),
             const SizedBox(height: 6),
             _strip(
               context,
@@ -999,12 +995,12 @@ class _StoryPageState extends State<StoryPage> {
               all,
               size: 92,
               heroId: heroId,
-              emptyHint: '这一站还没选照片。点右边的「自动精选」，或在下面挑。',
+              emptyHint: tr('这一站还没选照片。点右边的「自动精选」，或在下面挑。'),
             ),
             const SizedBox(height: 14),
 
             // ── 轨道二: 全部照片 ──
-            _trackLabel(context, '这一站的全部照片', all.length,
+            _trackLabel(context, tr('这一站的全部照片'), all.length,
                 scheme.onSurfaceVariant),
             const SizedBox(height: 6),
             _strip(
@@ -1021,7 +1017,7 @@ class _StoryPageState extends State<StoryPage> {
                 onPressed: () =>
                     setState(() => expandedStop = expanded ? null : stop.seq),
                 child: Text(
-                    expanded ? '收起' : '展开全部 ${all.length} 张（可换行显示）',
+                    expanded ? tr('收起') : trf('展开全部 {0} 张（可换行显示）', [all.length]),
                     style: const TextStyle(fontSize: 12)),
               ),
             ),
@@ -1049,7 +1045,7 @@ class _StoryPageState extends State<StoryPage> {
             style: TextStyle(
                 fontSize: 11, color: color, fontWeight: FontWeight.w600)),
         const SizedBox(width: 10),
-        Text('点图看大图（大图里按空格选取）· 点右上角圆圈直接选取',
+        Text(tr('点图看大图（大图里按空格选取）· 点右上角圆圈直接选取'),
             style: TextStyle(
                 fontSize: 10,
                 color: Theme.of(context).colorScheme.onSurfaceVariant)),
@@ -1099,8 +1095,8 @@ class _StoryPageState extends State<StoryPage> {
                 onTap: () => widget.c.setCoverPhoto(r.id),
                 child: Tooltip(
                   message: widget.c.coverPhotoId == r.id
-                      ? '这是封面照片'
-                      : '设为封面照片',
+                      ? tr('这是封面照片')
+                      : tr('设为封面照片'),
                   child: Container(
                     padding: const EdgeInsets.all(3),
                     decoration: BoxDecoration(
@@ -1131,8 +1127,8 @@ class _StoryPageState extends State<StoryPage> {
                     color: scheme.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
-                  child: const Text('本站首图',
-                      style: TextStyle(fontSize: 9, color: Colors.white)),
+                  child: Text(tr('本站首图'),
+                      style: const TextStyle(fontSize: 9, color: Colors.white)),
                 ),
               ),
           ],

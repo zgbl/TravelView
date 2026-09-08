@@ -2,8 +2,10 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
+import '../state/l10n.dart';
 import '../state/library_controller.dart';
 import '../widgets/account_bar.dart';
+import '../widgets/lang_switch.dart';
 import 'map_page.dart';
 import 'phone_import_page.dart';
 import 'story_page.dart';
@@ -42,12 +44,12 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _pickLibrary() async {
-    final dir = await getDirectoryPath(confirmButtonText: '用作照片库');
+    final dir = await getDirectoryPath(confirmButtonText: tr('用作照片库'));
     if (dir != null) await c.openLibrary(dir);
   }
 
   Future<void> _pickImportSource() async {
-    final dir = await getDirectoryPath(confirmButtonText: '导入这个文件夹');
+    final dir = await getDirectoryPath(confirmButtonText: tr('导入这个文件夹'));
     if (dir != null) await c.importFrom(dir);
   }
 
@@ -106,12 +108,12 @@ class _HomePageState extends State<HomePage> {
             Icon(Icons.photo_library_outlined,
                 size: 56, color: scheme.primary),
             const SizedBox(height: 20),
-            Text('选择一个文件夹作为你的照片库',
+            Text(tr('选择一个文件夹作为你的照片库'),
                 style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 10),
             Text(
-              '照片会以普通文件的形式，按拍摄日期存进这个文件夹。\n'
-              '没有数据库黑盒，没有专有格式 —— 十年后不装任何软件也能打开。',
+              tr('照片会以普通文件的形式，按拍摄日期存进这个文件夹。\n'
+                  '没有数据库黑盒，没有专有格式 —— 十年后不装任何软件也能打开。'),
               textAlign: TextAlign.center,
               style: TextStyle(color: scheme.onSurfaceVariant, height: 1.6),
             ),
@@ -119,7 +121,7 @@ class _HomePageState extends State<HomePage> {
             FilledButton.icon(
               onPressed: _pickLibrary,
               icon: const Icon(Icons.folder_open),
-              label: const Text('选择照片库文件夹'),
+              label: Text(tr('选择照片库文件夹')),
             ),
           ],
         ),
@@ -145,6 +147,10 @@ class _HomePageState extends State<HomePage> {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            // 语言开关放在第一屏最显眼处 —— 看不懂当前语言的人，
+            // 恰恰最没能力去层层菜单里找"语言设置"
+            LangSwitch(c: c),
+            const SizedBox(width: 10),
             // 登录常驻顶栏: 发布前就该连好，而不是点了发布才被打断
             AccountBar(c: c),
           ]),
@@ -171,11 +177,13 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('这个库还是空的',
+          Text(tr('这个库还是空的'),
               style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
           Text(
-              c.hasRange ? '这个时间范围里没有照片，换一段试试' : '从一个文件夹导入照片开始',
+              c.hasRange
+                  ? tr('这个时间范围里没有照片，换一段试试')
+                  : tr('从一个文件夹导入照片开始'),
               style: TextStyle(color: scheme.onSurfaceVariant)),
           const SizedBox(height: 20),
           Row(
@@ -184,13 +192,13 @@ class _HomePageState extends State<HomePage> {
               FilledButton.icon(
                 onPressed: c.busy ? null : _importFromPhone,
                 icon: const Icon(Icons.phone_iphone),
-                label: const Text('从 iPhone 导入'),
+                label: Text(tr('从 iPhone 导入')),
               ),
               const SizedBox(width: 12),
               FilledButton.tonalIcon(
                 onPressed: c.busy ? null : _pickImportSource,
                 icon: const Icon(Icons.folder_outlined),
-                label: const Text('从文件夹导入'),
+                label: Text(tr('从文件夹导入')),
               ),
             ],
           ),
@@ -242,47 +250,47 @@ class _Sidebar extends StatelessWidget {
           const SizedBox(height: 28),
           _Action(
             icon: Icons.folder_open,
-            label: '打开照片库',
+            label: tr('打开照片库'),
             onTap: c.busy ? null : onOpen,
           ),
           _Action(
             icon: Icons.phone_iphone,
-            label: '从手机导入',
+            label: tr('从手机导入'),
             onTap: c.busy || !c.hasLibrary ? null : onPhoneImport,
           ),
           _Action(
             icon: Icons.folder_outlined,
-            label: '从文件夹导入',
+            label: tr('从文件夹导入'),
             onTap: c.busy || !c.hasLibrary ? null : onImport,
           ),
           const SizedBox(height: 14),
           _Action(
             icon: Icons.photo_library_outlined,
-            label: '照片',
+            label: tr('照片'),
             selected: selectedView == 0,
             onTap: !c.hasLibrary ? null : () => onView(0),
           ),
           _Action(
             icon: Icons.map_outlined,
-            label: '行程地图',
+            label: tr('行程地图'),
             selected: selectedView == 1,
             onTap: !c.hasLibrary ? null : () => onView(1),
           ),
           _Action(
             icon: Icons.auto_stories_outlined,
-            label: '生成旅行回顾',
+            label: tr('生成旅行回顾'),
             selected: selectedView == 2,
             onTap: !c.hasLibrary ? null : () => onView(2),
           ),
           const SizedBox(height: 14),
           _Action(
             icon: Icons.refresh,
-            label: '重建索引',
+            label: tr('重建索引'),
             onTap: c.busy || !c.hasLibrary ? null : c.rebuild,
           ),
           _Action(
             icon: Icons.verified_outlined,
-            label: '校验完整性',
+            label: tr('校验完整性'),
             onTap: c.busy || !c.hasLibrary ? null : c.verify,
           ),
           const Spacer(),
@@ -354,11 +362,11 @@ class _IssueSummary extends StatelessWidget {
     for (final i in issues) {
       counts[i.kind] = (counts[i.kind] ?? 0) + 1;
     }
-    const labels = {
-      'adopted': '已认领',
-      'orphan': '未登记',
-      'missing': '文件缺失',
-      'mismatch': '内容不符',
+    final labels = {
+      'adopted': tr('已认领'),
+      'orphan': tr('未登记'),
+      'missing': tr('文件缺失'),
+      'mismatch': tr('内容不符'),
     };
     return Container(
       padding: const EdgeInsets.all(12),
@@ -369,7 +377,7 @@ class _IssueSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('待处理',
+          Text(tr('待处理'),
               style: TextStyle(
                   fontSize: 11, color: scheme.onSurfaceVariant)),
           const SizedBox(height: 6),
@@ -428,7 +436,7 @@ class _StatusBar extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             Text(
-              '生成缩略图 ${c.warmDone}/${c.warmTotal}',
+              trf('生成缩略图 {0}/{1}', [c.warmDone, c.warmTotal]),
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
             ),
           ],

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
+import '../state/l10n.dart';
 
 /// 一站的文字。
 ///
@@ -101,9 +102,9 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
         userHint: hint.text);
     await Clipboard.setData(ClipboardData(text: p));
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-      content: Text('提示词已复制，粘贴到任意 AI 里即可'),
-      duration: Duration(seconds: 2),
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(tr('提示词已复制，粘贴到任意 AI 里即可')),
+      duration: const Duration(seconds: 2),
     ));
   }
 
@@ -115,7 +116,7 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
       final err = widget.c.aiError;
       if (err != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('AI 生成失败: $err')));
+            SnackBar(content: Text(trf('AI 生成失败: {0}', [err]))));
       }
       return;
     }
@@ -148,7 +149,7 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
             children: [
               Icon(Icons.edit_note, size: 16, color: scheme.primary),
               const SizedBox(width: 6),
-              Text('这一站的文字',
+              Text(tr('这一站的文字'),
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
@@ -164,7 +165,8 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
                   style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 6),
                       minimumSize: Size.zero),
-                  child: Text(lookingUp ? '查询中...' : '查地名和附近地标',
+                  child: Text(
+                      lookingUp ? tr('查询中...') : tr('查地名和附近地标'),
                       style: const TextStyle(fontSize: 11)),
                 ),
               const Spacer(),
@@ -187,11 +189,11 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
             controller: title,
             onChanged: (_) => _onEdited(),
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isDense: true,
-              border: OutlineInputBorder(),
-              labelText: '小标题',
-              hintText: '例如 河上的一小时',
+              border: const OutlineInputBorder(),
+              labelText: tr('小标题'),
+              hintText: tr('例如 河上的一小时'),
             ),
           ),
           const SizedBox(height: 8),
@@ -201,11 +203,11 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
             maxLines: 4,
             minLines: 2,
             style: const TextStyle(fontSize: 13, height: 1.5),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               isDense: true,
-              border: OutlineInputBorder(),
-              labelText: '说明文字',
-              hintText: '写几句，或者让 AI 起个草再改',
+              border: const OutlineInputBorder(),
+              labelText: tr('说明文字'),
+              hintText: tr('写几句，或者让 AI 起个草再改'),
             ),
           ),
           const SizedBox(height: 8),
@@ -215,11 +217,11 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
               maxLines: 2,
               minLines: 1,
               style: const TextStyle(fontSize: 12),
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 isDense: true,
-                border: OutlineInputBorder(),
-                labelText: '给 AI 的补充信息（可选）',
-                hintText: '例如: 坐了游船，风很大，和爸妈一起',
+                border: const OutlineInputBorder(),
+                labelText: tr('给 AI 的补充信息（可选）'),
+                hintText: tr('例如: 坐了游船，风很大，和爸妈一起'),
               ),
             ),
             const SizedBox(height: 8),
@@ -230,7 +232,7 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
                 onPressed: () => setState(() => expanded = !expanded),
                 icon: Icon(expanded ? Icons.expand_less : Icons.expand_more,
                     size: 15),
-                label: Text(expanded ? '收起' : '补充信息',
+                label: Text(expanded ? tr('收起') : tr('补充信息'),
                     style: const TextStyle(fontSize: 12)),
               ),
               const SizedBox(width: 4),
@@ -242,14 +244,14 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
                   : FilledButton.tonalIcon(
                       onPressed: _autoFill,
                       icon: const Icon(Icons.bolt, size: 14),
-                      label: const Text('自动生成',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(tr('自动生成'),
+                          style: const TextStyle(fontSize: 12)),
                     ),
               const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: _copyPrompt,
                 icon: const Icon(Icons.content_copy, size: 14),
-                label: const Text('复制提示词', style: TextStyle(fontSize: 12)),
+                label: Text(tr('复制提示词'), style: const TextStyle(fontSize: 12)),
               ),
               const SizedBox(width: 8),
               widget.c.aiBusy
@@ -260,15 +262,15 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
                   : FilledButton.tonalIcon(
                       onPressed: aiReady ? _draft : null,
                       icon: const Icon(Icons.auto_awesome, size: 14),
-                      label: const Text('用我的 AI 起草',
-                          style: TextStyle(fontSize: 12)),
+                      label: Text(tr('用我的 AI 起草'),
+                          style: const TextStyle(fontSize: 12)),
                     ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   aiReady
-                      ? '只发送地名、时间、地标等文字，照片不会发出去'
-                      : '需要先在设置里填自己的 AI 服务（费用由你自己承担）',
+                      ? tr('只发送地名、时间、地标等文字，照片不会发出去')
+                      : tr('需要先在设置里填自己的 AI 服务（费用由你自己承担）'),
                   style: TextStyle(
                       fontSize: 10, color: scheme.onSurfaceVariant),
                   overflow: TextOverflow.ellipsis,
@@ -284,15 +286,15 @@ class _StopNoteEditorState extends State<StopNoteEditor> {
   static String _sourceLabel(String s) {
     switch (s) {
       case 'ai':
-        return 'AI 起草';
+        return tr('AI 起草');
       case 'aiEdited':
-        return 'AI 起草后已修改';
+        return tr('AI 起草后已修改');
       case 'facts':
-        return '按时间地点自动生成';
+        return tr('按时间地点自动生成');
       case 'factsEdited':
-        return '自动生成后已修改';
+        return tr('自动生成后已修改');
       default:
-        return '手写';
+        return tr('手写');
     }
   }
 }

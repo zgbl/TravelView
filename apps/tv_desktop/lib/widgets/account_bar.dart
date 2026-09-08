@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../state/library_controller.dart';
+import '../state/l10n.dart';
 
 /// 账号状态，常驻主界面顶栏。
 ///
@@ -54,7 +55,7 @@ class _AccountBarState extends State<AccountBar> {
       return TextButton.icon(
         onPressed: () => LoginDialog.show(context, c),
         icon: const Icon(Icons.login, size: 15),
-        label: const Text('登录', style: TextStyle(fontSize: 12)),
+        label: Text(tr('登录'), style: const TextStyle(fontSize: 12)),
         style: TextButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             minimumSize: Size.zero),
@@ -62,22 +63,22 @@ class _AccountBarState extends State<AccountBar> {
     }
 
     return PopupMenuButton<String>(
-      tooltip: '账号',
+      tooltip: tr('账号'),
       onSelected: (v) {
         if (v == 'account') _open('$_base/account');
         if (v == 'stories') _open('$_base/stories');
         if (v == 'logout') c.logout();
       },
-      itemBuilder: (_) => const [
-        PopupMenuItem(value: 'account', child: Text('账户页')),
-        PopupMenuItem(value: 'stories', child: Text('我发布的故事')),
-        PopupMenuDivider(),
-        PopupMenuItem(value: 'logout', child: Text('退出登录')),
+      itemBuilder: (_) => [
+        PopupMenuItem(value: 'account', child: Text(tr('账户页'))),
+        PopupMenuItem(value: 'stories', child: Text(tr('我发布的故事'))),
+        const PopupMenuDivider(),
+        PopupMenuItem(value: 'logout', child: Text(tr('退出登录'))),
       ],
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(Icons.check_circle, size: 14, color: scheme.primary),
         const SizedBox(width: 5),
-        const Text('已登录', style: TextStyle(fontSize: 12)),
+        Text(tr('已登录'), style: const TextStyle(fontSize: 12)),
         const Icon(Icons.arrow_drop_down, size: 16),
       ]),
     );
@@ -134,7 +135,7 @@ class _LoginDialogState extends State<LoginDialog> {
         !c.loggingIn;
 
     return AlertDialog(
-      title: const Text('登录'),
+      title: Text(tr('登录')),
       content: SizedBox(
         width: 380,
         child: Column(
@@ -146,10 +147,10 @@ class _LoginDialogState extends State<LoginDialog> {
               autofocus: true,
               keyboardType: TextInputType.emailAddress,
               onChanged: (_) => setState(() {}),
-              decoration: const InputDecoration(
-                labelText: '邮箱',
+              decoration: InputDecoration(
+                labelText: tr('邮箱'),
                 isDense: true,
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
@@ -158,14 +159,14 @@ class _LoginDialogState extends State<LoginDialog> {
               obscureText: true,
               onChanged: (_) => setState(() {}),
               onSubmitted: (_) => canSubmit ? _submit() : null,
-              decoration: const InputDecoration(
-                labelText: '密码',
+              decoration: InputDecoration(
+                labelText: tr('密码'),
                 isDense: true,
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 10),
-            Text('密码不会保存在这台电脑上。登录后可以在网站账户页随时吊销这台设备。',
+            Text(tr('密码不会保存在这台电脑上。登录后可以在网站账户页随时吊销这台设备。'),
                 style: TextStyle(fontSize: 11, color: scheme.outline)),
             if (c.loginError != null) ...[
               const SizedBox(height: 10),
@@ -178,16 +179,16 @@ class _LoginDialogState extends State<LoginDialog> {
       actions: [
         TextButton(
           onPressed: () => _open('$_base/signup'),
-          child: const Text('还没有账号？免费注册',
-              style: TextStyle(fontSize: 12)),
+          child: Text(tr('还没有账号？免费注册'),
+              style: const TextStyle(fontSize: 12)),
         ),
         TextButton(
           onPressed: c.loggingIn ? null : () => Navigator.pop(context),
-          child: const Text('取消'),
+          child: Text(tr('取消')),
         ),
         FilledButton(
           onPressed: canSubmit ? _submit : null,
-          child: Text(c.loggingIn ? '正在登录...' : '登录'),
+          child: Text(c.loggingIn ? tr('正在登录...') : tr('登录')),
         ),
       ],
     );

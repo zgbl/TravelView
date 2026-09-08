@@ -5,6 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:tv_core/tv_core.dart';
 
+import '../state/l10n.dart';
 import '../state/library_controller.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/route_settings_dialog.dart';
@@ -106,7 +107,7 @@ class _MapPageState extends State<MapPage> {
                 TextButton(
                   onPressed: () =>
                       RouteSettingsDialog.show(context, widget.c),
-                  child: const Text('去设置', style: TextStyle(fontSize: 12)),
+                  child: Text(tr('去设置'), style: const TextStyle(fontSize: 12)),
                 ),
               ],
             ),
@@ -132,8 +133,8 @@ class _MapPageState extends State<MapPage> {
       child: Padding(
         padding: const EdgeInsets.all(40),
         child: Text(
-          '这个时间范围里没有带 GPS 的照片。\n'
-          '用上方的日期范围换一段，或者先导入有位置信息的照片。',
+          tr('这个时间范围里没有带 GPS 的照片。\n'
+              '用上方的日期范围换一段，或者先导入有位置信息的照片。'),
           textAlign: TextAlign.center,
           style: TextStyle(color: scheme.onSurfaceVariant, height: 1.7),
         ),
@@ -158,19 +159,19 @@ class _MapPageState extends State<MapPage> {
               child: Row(
                 children: [
           SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'road', label: Text('长途自驾')),
-              ButtonSegment(value: 'city', label: Text('城市游玩')),
+            segments: [
+              ButtonSegment(value: 'road', label: Text(tr('长途自驾'))),
+              ButtonSegment(value: 'city', label: Text(tr('城市游玩'))),
             ],
             selected: {widget.c.clusterPreset},
             onSelectionChanged: (s) => widget.c.setClusterPreset(s.first),
           ),
           const SizedBox(width: 20),
           SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'driving', label: Text('驾车')),
-              ButtonSegment(value: 'walking', label: Text('步行')),
-              ButtonSegment(value: 'direct', label: Text('直线')),
+            segments: [
+              ButtonSegment(value: 'driving', label: Text(tr('驾车'))),
+              ButtonSegment(value: 'walking', label: Text(tr('步行'))),
+              ButtonSegment(value: 'direct', label: Text(tr('直线'))),
             ],
             selected: {widget.c.routeMode},
             onSelectionChanged: (s) => widget.c.routeMode = s.first,
@@ -195,11 +196,11 @@ class _MapPageState extends State<MapPage> {
                         : () => widget.c.computeRoads(r),
                     icon: const Icon(Icons.alt_route, size: 15),
                     label: Text(
-                        widget.c.roadLegs.isEmpty ? '贴合道路' : '重算路线',
+                        widget.c.roadLegs.isEmpty ? tr('贴合道路') : tr('重算路线'),
                         style: const TextStyle(fontSize: 12)),
                   ),
           IconButton(
-            tooltip: '道路路线服务设置',
+            tooltip: tr('道路路线服务设置'),
             onPressed: () => RouteSettingsDialog.show(context, widget.c),
             icon: const Icon(Icons.settings_outlined, size: 18),
           ),
@@ -225,8 +226,8 @@ class _MapPageState extends State<MapPage> {
       '站': '${r.stays.length}',
       // 有道路路线时用道路里程 —— 直线里程总会明显偏小
       '里程': roadMiles == null
-          ? '${r.totalMiles.round()} mi 直线'
-          : '${roadMiles.round()} mi 道路',
+          ? trf('{0} mi 直线', [r.totalMiles.round()])
+          : trf('{0} mi 道路', [roadMiles.round()]),
       '照片': '${r.stays.fold<int>(0, (a, s) => a + s.photoCount)}',
     };
     return Row(
@@ -236,7 +237,7 @@ class _MapPageState extends State<MapPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(e.key,
+                    Text(tr(e.key),
                         style: TextStyle(
                             fontSize: 10, color: scheme.onSurfaceVariant)),
                     Text(e.value,
@@ -436,7 +437,7 @@ class _MapPageState extends State<MapPage> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    '${s.photoCount} 张 · 停留 ${_dur(s.duration)}',
+                    trf('{0} 张 · 停留 {1}', [s.photoCount, _dur(s.duration)]),
                     style: TextStyle(
                         fontSize: 11, color: scheme.onSurfaceVariant),
                   ),
@@ -482,9 +483,9 @@ class _MapPageState extends State<MapPage> {
   }
 
   static String _dur(Duration d) {
-    if (d.inMinutes < 1) return '片刻';
-    if (d.inMinutes < 60) return '${d.inMinutes} 分钟';
-    if (d.inHours < 24) return '${d.inHours} 小时';
-    return '${d.inDays} 天';
+    if (d.inMinutes < 1) return tr('片刻');
+    if (d.inMinutes < 60) return trf('{0} 分钟', [d.inMinutes]);
+    if (d.inHours < 24) return trf('{0} 小时', [d.inHours]);
+    return trf('{0} 天', [d.inDays]);
   }
 }

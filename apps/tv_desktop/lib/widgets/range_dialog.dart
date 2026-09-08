@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
+import '../state/l10n.dart';
+
 /// 时间范围选择。**日期和时分都能直接改** ——
 /// 做单日内的分段行程报告时，只能选到"天"是不够的。
 class RangeDialog extends StatefulWidget {
@@ -51,7 +53,7 @@ class _RangeDialogState extends State<RangeDialog> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return AlertDialog(
-      title: const Text('选择时间范围'),
+      title: Text(tr('选择时间范围')),
       content: SizedBox(
         width: 460,
         child: Column(
@@ -59,17 +61,17 @@ class _RangeDialogState extends State<RangeDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '做行程报告时用这个范围。日期和时分都可以改 —— '
-              '同一天里想切成上午、下午两段时会用到。',
+              tr('做行程报告时用这个范围。日期和时分都可以改 —— '
+                  '同一天里想切成上午、下午两段时会用到。'),
               style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 20),
-            _row('开始', start, (v) => setState(() => start = v), isStart: true),
+            _row(tr('开始'), start, (v) => setState(() => start = v), isStart: true),
             const SizedBox(height: 12),
-            _row('结束', end, (v) => setState(() => end = v), isStart: false),
+            _row(tr('结束'), end, (v) => setState(() => end = v), isStart: false),
             const SizedBox(height: 18),
             if (!end.isAfter(start))
-              Text('结束时间必须晚于开始时间',
+              Text(tr('结束时间必须晚于开始时间'),
                   style: TextStyle(fontSize: 12, color: scheme.error)),
           ],
         ),
@@ -77,18 +79,18 @@ class _RangeDialogState extends State<RangeDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop((null, null)),
-          child: const Text('不筛选（看全部）'),
+          child: Text(tr('不筛选（看全部）')),
         ),
         const Spacer(),
         TextButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('取消'),
+          child: Text(tr('取消')),
         ),
         FilledButton(
           onPressed: end.isAfter(start)
               ? () => Navigator.of(context).pop((start, end))
               : null,
-          child: const Text('应用'),
+          child: Text(tr('应用')),
         ),
       ],
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../native/native_bridge.dart';
+import '../state/l10n.dart';
 import '../state/library_controller.dart';
 
 /// 从 iPhone 导入。手机上的照片全程只读。
@@ -145,11 +146,11 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
                 children: [
                   Icon(Icons.phone_iphone, color: scheme.primary),
                   const SizedBox(width: 10),
-                  Text('从手机导入',
+                  Text(tr('从手机导入'),
                       style: Theme.of(context).textTheme.titleLarge),
                   const Spacer(),
                   IconButton(
-                    tooltip: '重新检测设备',
+                    tooltip: tr('重新检测设备'),
                     onPressed: loading ? null : _refreshDevices,
                     icon: const Icon(Icons.refresh),
                   ),
@@ -159,7 +160,7 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
-                '手机上的照片全程只读 —— 只会复制到你的照片库，绝不修改或删除手机上的任何内容。',
+                tr('手机上的照片全程只读 —— 只会复制到你的照片库，绝不修改或删除手机上的任何内容。'),
                 style: TextStyle(fontSize: 12, color: scheme.onSurfaceVariant),
               ),
             ),
@@ -178,22 +179,22 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
                       onPressed: () => setState(() => chosen
                         ..clear()
                         ..addAll(filtered.map((e) => e.key))),
-                      child: const Text('全选'),
+                      child: Text(tr('全选')),
                     ),
                     TextButton(
                       onPressed: () => setState(chosen.clear),
-                      child: const Text('清空'),
+                      child: Text(tr('清空')),
                     ),
                   ],
                   const Spacer(),
                   TextButton(
                     onPressed: () => Navigator.of(context).pop(),
-                    child: const Text('取消'),
+                    child: Text(tr('取消')),
                   ),
                   const SizedBox(width: 8),
                   FilledButton(
                     onPressed: chosen.isEmpty || loading ? null : _import,
-                    child: const Text('导入到照片库'),
+                    child: Text(tr('导入到照片库')),
                   ),
                 ],
               ),
@@ -208,18 +209,18 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
     final scheme = Theme.of(context).colorScheme;
 
     if (!NativeBridge.supported) {
-      return _hint('目前只有 macOS 支持直连手机读取，Windows 版还在做。\n'
-          '在 Windows 上可以先用「导入照片」从文件夹导入。');
+      return _hint(tr('目前只有 macOS 支持直连手机读取，Windows 版还在做。\n'
+          '在 Windows 上可以先用「导入照片」从文件夹导入。'));
     }
     if (error != null) {
       return _hint(error!, isError: true);
     }
     if (devices.isEmpty) {
-      return _hint('没有检测到设备。\n\n'
+      return _hint(tr('没有检测到设备。\n\n'
           '1. 用数据线把 iPhone 连到这台 Mac\n'
           '2. 在 iPhone 上点「信任此电脑」\n'
           '3. 保持手机解锁状态\n'
-          '4. 点右上角的刷新');
+          '4. 点右上角的刷新'));
     }
     if (selected == null || items.isEmpty) {
       return ListView(
@@ -229,7 +230,9 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
                   child: ListTile(
                     leading: const Icon(Icons.phone_iphone),
                     title: Text(d.name),
-                    subtitle: Text(d.itemCount > 0 ? '${d.itemCount} 个项目' : '点击读取'),
+                    subtitle: Text(d.itemCount > 0
+                        ? trf('{0} 个项目', [d.itemCount])
+                        : tr('点击读取')),
                     onTap: loading ? null : () => _open(d),
                   ),
                 ))
@@ -250,7 +253,7 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
               ),
               if (range != null)
                 IconButton(
-                  tooltip: '清除筛选',
+                  tooltip: tr('清除筛选'),
                   onPressed: () => setState(() => range = null),
                   icon: const Icon(Icons.close, size: 16),
                 ),
@@ -259,7 +262,8 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
                 Padding(
                   padding: const EdgeInsets.only(right: 12),
                   child: Tooltip(
-                    message: '$undatedCount 个文件没有拍摄时间，日期筛选会把它们排除在外',
+                    message: trf('{0} 个文件没有拍摄时间，日期筛选会把它们排除在外',
+                        [undatedCount]),
                     child: Icon(Icons.info_outline,
                         size: 16,
                         color: Theme.of(context).colorScheme.onSurfaceVariant),
@@ -268,11 +272,11 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
               Expanded(
                 child: TextField(
                   controller: tripController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     isDense: true,
-                    border: OutlineInputBorder(),
-                    labelText: '这批照片属于哪次旅行（可留空）',
-                    hintText: '例如 京都 2025',
+                    border: const OutlineInputBorder(),
+                    labelText: tr('这批照片属于哪次旅行（可留空）'),
+                    hintText: tr('例如 京都 2025'),
                   ),
                 ),
               ),
@@ -309,21 +313,22 @@ class _PhoneImportDialogState extends State<PhoneImportDialog> {
   }
 
   String _rangeLabel() {
-    if (range == null) return '按日期筛选';
+    if (range == null) return tr('按日期筛选');
     return '${LibraryLayout.dateStamp(range!.start)} ~ '
         '${LibraryLayout.dateStamp(range!.end)}';
   }
 
   String _itemSubtitle(PhoneItem it) {
     final when = it.created == null
-        ? '时间未知'
+        ? tr('时间未知')
         : '${LibraryLayout.dateStamp(it.created!)} ${LibraryLayout.timeStamp(it.created!)}';
     return '$when   ${humanBytes(it.size)}';
   }
 
   String _selectionSummary() {
     final n = chosen.where((k) => filtered.any((e) => e.key == k)).length;
-    return '已选 $n / ${filtered.length} 张 · ${humanBytes(chosenBytes)}';
+    return trf('已选 {0} / {1} 张 · {2}',
+        [n, filtered.length, humanBytes(chosenBytes)]);
   }
 
   Widget _hint(String text, {bool isError = false}) {

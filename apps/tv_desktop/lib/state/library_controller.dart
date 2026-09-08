@@ -7,6 +7,7 @@ import 'package:tv_core/tv_core.dart';
 
 import '../native/native_bridge.dart';
 import 'app_settings.dart';
+import 'l10n.dart';
 import 'projects.dart';
 import '../export/story_exporter.dart';
 import '../widgets/photo_tile.dart';
@@ -296,8 +297,9 @@ class LibraryController extends ChangeNotifier {
       out.add(leg);
     }
     lastRouteSummary = fallback == 0
-        ? '${out.length} 段全部是实际道路'
-        : '${out.length} 段中有 $fallback 段没有道路数据，已用直线连上';
+        ? trf('{0} 段全部是实际道路', [out.length])
+        : trf('{0} 段中有 {1} 段没有道路数据，已用直线连上',
+            [out.length, fallback]);
     return out;
   }
 
@@ -314,8 +316,8 @@ class LibraryController extends ChangeNotifier {
     }
     // 先做本地检查，避免明知会失败还打二十几次请求
     if (settings.routeProvider == 'ors' && settings.orsApiKey.trim().isEmpty) {
-      routeError = '还没有填 openrouteservice 的 API key。'
-          '点右边的齿轮填上，或改用自托管 OSRM / 只用直线。';
+      routeError = tr('还没有填 openrouteservice 的 API key。'
+          '点右边的齿轮填上，或改用自托管 OSRM / 只用直线。');
       notifyListeners();
       return;
     }
@@ -355,8 +357,9 @@ class LibraryController extends ChangeNotifier {
       if (fellBack > 0) {
         // 把供应商返回的真实原因带出来，而不是让用户猜
         final why = planner.lastError;
-        routeError = '$fellBack 段没能取到道路路线，已退回直线。'
-            '${why == null ? '' : '原因: $why'}';
+        routeError = trf('{0} 段没能取到道路路线，已退回直线。',
+                [fellBack]) +
+            (why == null ? '' : trf('原因: {0}', [why]));
       }
     } catch (e) {
       routeError = '$e';
@@ -543,7 +546,7 @@ class LibraryController extends ChangeNotifier {
         .map((e) => e.id)
         .toSet();
     if (selected.isEmpty) {
-      status = '还没有选中任何照片，先在「生成旅行回顾」里挑一些';
+      status = tr('还没有选中任何照片，先在「生成旅行回顾」里挑一些');
       notifyListeners();
       return null;
     }
@@ -551,7 +554,7 @@ class LibraryController extends ChangeNotifier {
     exporting = true;
     exportDone = 0;
     exportTotal = selected.length;
-    status = '正在导出 Story...';
+    status = tr('正在导出 Story...');
     lastError = null;
     notifyListeners();
 
@@ -582,7 +585,7 @@ class LibraryController extends ChangeNotifier {
       }
 
       // 先把路线补齐，绝不导出一张没有线的地图
-      status = '正在准备路线...';
+      status = tr('正在准备路线...');
       notifyListeners();
       final legs = await legsForStory(trip);
 
@@ -605,19 +608,23 @@ class LibraryController extends ChangeNotifier {
         onProgress: (d, t, label) {
           exportDone = d;
           exportTotal = t;
-          status = '正在导出 $d/$t  $label';
+          status = trf('正在导出 {0}/{1}  {2}', [d, t, label]);
           notifyListeners();
         },
       );
       lastExport = res;
       final mb = (res.totalBytes / 1024 / 1024).toStringAsFixed(1);
-      status = '导出完成: ${res.photoCount} 张，共 $mb MB'
-          '${lastRouteSummary == null ? '' : '，路线 $lastRouteSummary'}'
-          '${res.warnings.isEmpty ? '' : '（${res.warnings.length} 个警告）'}';
+      status = trf('导出完成: {0} 张，共 {1} MB', [res.photoCount, mb]) +
+          (lastRouteSummary == null
+              ? ''
+              : trf('，路线 {0}', [lastRouteSummary])) +
+          (res.warnings.isEmpty
+              ? ''
+              : trf('（{0} 个警告）', [res.warnings.length]));
       return res;
     } catch (e) {
       lastError = '$e';
-      status = '导出失败';
+      status = tr('导出失败');
       return null;
     } finally {
       exporting = false;
@@ -674,7 +681,7 @@ class LibraryController extends ChangeNotifier {
   Future<PublishResult?> publishStory({String visibility = 'public'}) async {
     final export = lastExport;
     if (export == null) {
-      status = '先导出一次 Story，再发布';
+      status = tr('先导出一次 Story，再发布');
       notifyListeners();
       return null;
     }
@@ -685,7 +692,7 @@ class LibraryController extends ChangeNotifier {
     publishTotal = 0;
     needsPayment = false;
     lastError = null;
-    status = '正在发布...';
+    status = tr('正在发布...');
     notifyListeners();
 
     try {
@@ -734,7 +741,8 @@ class LibraryController extends ChangeNotifier {
           }
           // 这些错重试没有意义
           if (e.needsPayment || attempt == 3) rethrow;
-          status = '传输中断，正在自动重试（第 ${attempt + 1} 次）...';
+          status = trf('传输中断，正在自动重试（第 {0} 次）...',
+              [attempt + 1]);
           notifyListeners();
           // 退避一下再来: 网络刚断的那一秒重试，基本还是断的
           await Future.delayed(Duration(seconds: attempt * 2));
@@ -761,8 +769,8 @@ class LibraryController extends ChangeNotifier {
       // 更新次数变了，把列表刷一下，好显示"还剩几次免费更新"
       unawaited(loadRemoteStories());
       status = res.updated
-          ? '已更新: ${res.publicUrl}'
-          : '发布成功: ${res.publicUrl}';
+          ? trf('已更新: {0}', [res.publicUrl])
+          : trf('发布成功: {0}', [res.publicUrl]);
       return res;
     } on PublishException catch (e) {
       needsPayment = e.needsPayment;
@@ -772,14 +780,14 @@ class LibraryController extends ChangeNotifier {
         _resumeKey = lastExport?.storyKey ?? '';
       }
       status = e.needsPayment
-          ? '还没有可用的发布额度'
+          ? tr('还没有可用的发布额度')
           : canResume
-              ? '传到一半断了，再点一次「继续上传」接着传'
-              : '发布失败';
+              ? tr('传到一半断了，再点一次「继续上传」接着传')
+              : tr('发布失败');
       return null;
     } catch (e) {
       lastError = '$e';
-      status = '发布失败';
+      status = tr('发布失败');
       return null;
     } finally {
       publishing = false;
@@ -798,7 +806,7 @@ class LibraryController extends ChangeNotifier {
     String storyId, {
     int attempt = 1,
   }) {
-    final round = attempt > 1 ? '（第 $attempt 轮）' : '';
+    final round = attempt > 1 ? trf('（第 {0} 轮）', [attempt]) : '';
     return Publisher(publishConfig).publish(
       export.dir,
       visibility: visibility,
@@ -812,7 +820,8 @@ class LibraryController extends ChangeNotifier {
       onProgress: (d, t, label) {
         publishDone = d;
         publishTotal = t;
-        status = '正在发布 $d/$t 个文件$round  $label';
+        status = trf('正在发布 {0}/{1} 个文件{2}  {3}',
+            [d, t, round, label]);
         notifyListeners();
       },
     );
@@ -867,7 +876,9 @@ class LibraryController extends ChangeNotifier {
 
   /// 一首曲子显示用的名字: 本地文件取文件名，外链取域名
   static String trackLabel(String m) {
-    if (m.startsWith('https://')) return Uri.tryParse(m)?.host ?? '外部链接';
+    if (m.startsWith('https://')) {
+      return Uri.tryParse(m)?.host ?? tr('外部链接');
+    }
     return p.basename(m);
   }
 
@@ -1021,7 +1032,7 @@ class LibraryController extends ChangeNotifier {
           .signIn(email, password, label: Platform.localHostname);
       settings.publishToken = token;
       await settings.save();
-      status = '已登录';
+      status = tr('已登录');
       return true;
     } on LoginException catch (e) {
       loginError = e.message;
@@ -1089,7 +1100,7 @@ class LibraryController extends ChangeNotifier {
     projects.insert(0, proj);
     await store.save(projects);
     currentProjectName = trimmed;
-    status = '已保存工作进度「$trimmed」';
+    status = trf('已保存工作进度「{0}」', [trimmed]);
     _persist();
     notifyListeners();
   }
@@ -1242,7 +1253,7 @@ class LibraryController extends ChangeNotifier {
     clusterPreset = proj.clusterPreset;
     view = proj.view;
     currentProjectName = proj.name;
-    status = '已打开工作进度「${proj.name}」';
+    status = trf('已打开工作进度「{0}」', [proj.name]);
     _invalidate();
     _persist();
     notifyListeners();
@@ -1267,6 +1278,17 @@ class LibraryController extends ChangeNotifier {
   // ---- 跨启动保存工作状态 ----
 
   AppSettings settings = AppSettings();
+
+  /// 界面语言。**存在设置里，跟着这台电脑走** ——
+  /// 不跟随系统: 很多人系统是英文但更愿意用中文界面，反过来也一样
+  String get uiLang => L10n.lang.value;
+
+  Future<void> setUiLang(String v) async {
+    L10n.set(v);
+    settings.uiLang = L10n.lang.value;
+    await settings.save();
+    notifyListeners();
+  }
   int view = 0;
 
   void setView(int v) {
@@ -1294,6 +1316,10 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> restore() async {
     settings = await AppSettings.load();
+    // **语言要最先恢复。** 它之后的每一次 notifyListeners 都可能
+    // 让界面重建，晚一步用户就会看到界面从中文闪成英文
+    if (settings.uiLang.isEmpty) settings.uiLang = L10n.guessFromSystem();
+    L10n.set(settings.uiLang);
     pickAlbum = settings.pickAlbum;
     view = settings.view;
     clusterPreset = settings.clusterPreset;
@@ -1320,7 +1346,7 @@ class LibraryController extends ChangeNotifier {
   }
 
   Future<void> openLibrary(String path, {bool restoring = false}) async {
-    await _guard('正在读取照片库...', () async {
+    await _guard(tr('正在读取照片库...'), () async {
       final dir = Directory(path);
       await Directory(p.join(dir.path, LibraryLayout.photosDir))
           .create(recursive: true);
@@ -1334,7 +1360,7 @@ class LibraryController extends ChangeNotifier {
       await _geo!.load();
       final res = await _catalog!.rebuild();
       issues = res.issues;
-      status = '已打开 ${res.photoCount} 张照片';
+      status = trf('已打开 {0} 张照片', [res.photoCount]);
     });
     if (!restoring) {
       rangeStart = null;
@@ -1396,7 +1422,7 @@ class LibraryController extends ChangeNotifier {
   /// 从一个文件夹导入。`tags` 用于给这批照片统一打标（例如"来自 iPhone 的这次旅行"）。
   Future<void> importFrom(String sourcePath, {List<Tag> tags = const []}) async {
     if (_catalog == null) return;
-    await _guard('正在导入...', () async {
+    await _guard(tr('正在导入...'), () async {
       final src = Directory(sourcePath);
       final files = <File>[];
       await for (final e in src.list(recursive: true, followLinks: false)) {
@@ -1430,11 +1456,11 @@ class LibraryController extends ChangeNotifier {
           lastError = '$e';
         }
         progress = (i + 1) / files.length;
-        status = '正在导入 ${i + 1}/${files.length}';
+        status = trf('正在导入 {0}/{1}', [i + 1, files.length]);
         notifyListeners();
       }
       await _catalog!.writeJsonl();
-      status = '导入完成: 新增 $imported 张，重复跳过 $dup 张';
+      status = trf('导入完成: 新增 {0} 张，重复跳过 {1} 张', [imported, dup]);
       _invalidate();
       startWarming();
     });
@@ -1465,7 +1491,7 @@ class LibraryController extends ChangeNotifier {
     List<Tag> tags = const [],
   }) async {
     if (_catalog == null) return;
-    await _guard('正在从手机读取...', () async {
+    await _guard(tr('正在从手机读取...'), () async {
       final staging = await Directory(
         p.join(Directory.systemTemp.path,
             'travelview_staging_${DateTime.now().millisecondsSinceEpoch}'),
@@ -1473,7 +1499,7 @@ class LibraryController extends ChangeNotifier {
 
       NativeBridge.setDownloadProgressHandler((done, total, name, error) {
         progress = total == 0 ? null : done / total;
-        status = '正在从手机读取 $done/$total  $name';
+        status = trf('正在从手机读取 {0}/{1}  {2}', [done, total, name]);
         if (error != null) lastError = error;
         notifyListeners();
       });
@@ -1485,7 +1511,7 @@ class LibraryController extends ChangeNotifier {
           destDir: staging.path,
         );
 
-        status = '正在写入照片库...';
+        status = tr('正在写入照片库...');
         notifyListeners();
 
         final from = limitFrom == null
@@ -1529,16 +1555,16 @@ class LibraryController extends ChangeNotifier {
             dup++;
           }
           progress = (i + 1) / files.length;
-          status = '正在写入照片库 ${i + 1}/${files.length}';
+          status = trf('正在写入照片库 {0}/{1}', [i + 1, files.length]);
           notifyListeners();
         }
         await _catalog!.writeJsonl();
         final res = await _catalog!.rebuild();
         issues = res.issues;
         status = skipped > 0
-            ? '从手机导入完成: 新增 $imported 张，已有 $dup 张，'
-                '$skipped 张不在所选日期范围内已跳过'
-            : '从手机导入完成: 新增 $imported 张，已有 $dup 张';
+            ? trf('从手机导入完成: 新增 {0} 张，已有 {1} 张，'
+                '{2} 张不在所选日期范围内已跳过', [imported, dup, skipped])
+            : trf('从手机导入完成: 新增 {0} 张，已有 {1} 张', [imported, dup]);
         _invalidate();
         startWarming();
       } finally {
@@ -1553,26 +1579,27 @@ class LibraryController extends ChangeNotifier {
 
   Future<void> rebuild() async {
     if (_catalog == null) return;
-    await _guard('正在重建索引...', () async {
+    await _guard(tr('正在重建索引...'), () async {
       final res = await _catalog!.rebuild();
       issues = res.issues;
       await _catalog!.writeJsonl();
-      status = '重建完成: ${res.photoCount} 张照片，${res.issues.length} 个待处理项';
+      status = trf('重建完成: {0} 张照片，{1} 个待处理项',
+          [res.photoCount, res.issues.length]);
     });
   }
 
   Future<void> verify() async {
     if (_catalog == null) return;
-    await _guard('正在校验...', () async {
+    await _guard(tr('正在校验...'), () async {
       final report = await Verifier(_catalog!).run(onProgress: (d, t) {
         progress = t == 0 ? null : d / t;
-        status = '正在校验 $d/$t';
+        status = trf('正在校验 {0}/{1}', [d, t]);
         notifyListeners();
       });
       issues = report.problems;
       status = report.ok
-          ? '校验通过: ${report.checked} 张照片全部完好'
-          : '校验发现 ${report.problems.length} 个问题';
+          ? trf('校验通过: {0} 张照片全部完好', [report.checked])
+          : trf('校验发现 {0} 个问题', [report.problems.length]);
     });
   }
 
@@ -1587,7 +1614,7 @@ class LibraryController extends ChangeNotifier {
       await body();
     } catch (e) {
       lastError = '$e';
-      status = '出错了';
+      status = tr('出错了');
     } finally {
       _invalidate();
       busy = false;

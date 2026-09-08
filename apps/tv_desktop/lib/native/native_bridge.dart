@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import '../state/l10n.dart';
+
 class PhoneDevice {
   final String id;
   final String name;
@@ -17,7 +19,7 @@ class PhoneDevice {
 
   factory PhoneDevice.fromMap(Map m) => PhoneDevice(
         id: m['id'] as String,
-        name: m['name'] as String? ?? '未知设备',
+        name: m['name'] as String? ?? tr('未知设备'),
         itemCount: (m['itemCount'] as num?)?.toInt() ?? 0,
         open: m['open'] as bool? ?? false,
       );
@@ -274,15 +276,15 @@ class NativeBridge {
   /// 不重新编码像素，只改 EXIF 方向标记 —— 画质零损失，拍摄时间不变。
   /// 返回 null 表示成功，否则是错误说明。
   static Future<String?> rotate(String path, {bool clockwise = true}) async {
-    if (!supported) return '当前平台还不支持旋转';
+    if (!supported) return tr('当前平台还不支持旋转');
     try {
       final m = await _channel.invokeMethod<Map>('rotate', {
         'path': path,
         'clockwise': clockwise,
       });
-      if (m == null) return '旋转失败';
+      if (m == null) return tr('旋转失败');
       if (m['ok'] == true) return null;
-      return m['error'] as String? ?? '旋转失败';
+      return m['error'] as String? ?? tr('旋转失败');
     } catch (e) {
       return '$e';
     }

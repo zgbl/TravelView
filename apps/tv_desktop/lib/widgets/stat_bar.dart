@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/library_controller.dart';
+import '../state/l10n.dart';
 
 class StatBar extends StatelessWidget {
   final LibraryController c;
@@ -11,19 +12,19 @@ class StatBar extends StatelessWidget {
     final gpsRatio = c.photoCount == 0 ? 0.0 : c.gpsCount / c.photoCount;
     return Row(
       children: [
-        _Stat(label: '照片', value: '${c.photoCount}'),
-        _Stat(label: '占用', value: humanBytes(c.totalBytes)),
+        _Stat(label: tr('照片'), value: '${c.photoCount}'),
+        _Stat(label: tr('占用'), value: humanBytes(c.totalBytes)),
         _Stat(
-          label: '含 GPS',
+          label: tr('含 GPS'),
           value: '${c.gpsCount}',
           hint: '${(gpsRatio * 100).toStringAsFixed(0)}%',
         ),
         _Stat(
-          label: '已选「${c.pickAlbum}」',
+          label: trf('已选「{0}」', [c.pickAlbum]),
           value: '${c.pickedCount}',
         ),
         _Stat(
-          label: '待处理',
+          label: tr('待处理'),
           value: '${c.issues.length}',
           warn: c.issues.isNotEmpty,
         ),

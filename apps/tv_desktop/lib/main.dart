@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'pages/home_page.dart';
+import 'state/l10n.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -18,7 +19,7 @@ void main() {
             children: [
               const Icon(Icons.error_outline, color: Colors.orangeAccent, size: 40),
               const SizedBox(height: 12),
-              const Text('这一块出错了（按 Esc 返回）',
+              Text(tr('这一块出错了（按 Esc 返回）'),
                   style: TextStyle(color: Colors.white, fontSize: 14)),
               const SizedBox(height: 10),
               SelectableText(
@@ -43,12 +44,18 @@ class TravelViewApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'TravelView',
-      debugShowCheckedModeBanner: false,
-      theme: _theme(Brightness.light),
-      darkTheme: _theme(Brightness.dark),
-      home: const HomePage(),
+    // **整棵树挂在语言这个 ValueNotifier 上。**
+    // 切换语言要让每一个 Text 重建 —— 让每个页面自己去监听，
+    // 一定会漏掉几个，用户就会看到半中半英的界面
+    return ValueListenableBuilder<String>(
+      valueListenable: L10n.lang,
+      builder: (context, _, __) => MaterialApp(
+        title: 'TravelView',
+        debugShowCheckedModeBanner: false,
+        theme: _theme(Brightness.light),
+        darkTheme: _theme(Brightness.dark),
+        home: const HomePage(),
+      ),
     );
   }
 
