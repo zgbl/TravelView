@@ -27,6 +27,9 @@ build/
 .fvm/
 *.iml
 
+# 音乐文件
+*.mp3
+
 # ── 原生工程的生成物 ──
 **/Pods/
 **/.symlinks/
