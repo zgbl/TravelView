@@ -595,9 +595,8 @@ class _StoryPageState extends State<StoryPage> {
   /// 用户很容易把 Pixabay 的页面地址贴进来 —— 那是一个 HTML 页面，
   /// 播放器拿到它只会静静地不出声，而用户会以为是我们坏了。
   Future<void> _askMusicUrl() async {
-    final ctl = TextEditingController(
-      text: widget.c.music.startsWith('https://') ? widget.c.music : '',
-    );
+    // 空着开始 —— 现在是"再加一首"，预填上一首的地址只会让人误改
+    final ctl = TextEditingController();
     final url = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
