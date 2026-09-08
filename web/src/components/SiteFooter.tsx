@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
+import { featuredStory, featuredHref } from '@/lib/featured';
 import LangSwitch from './LangSwitch';
 import Logo from './Logo';
 
@@ -12,6 +13,7 @@ import Logo from './Logo';
  */
 export default async function SiteFooter() {
   const L = await getLocale();
+  const featured = await featuredStory();
   const item = 'text-sm text-muted transition-colors hover:text-paper';
   return (
     <footer className="border-t border-white/10 px-6 py-12">
@@ -30,7 +32,9 @@ export default async function SiteFooter() {
         <nav className="flex flex-col gap-2.5">
           <Link href={href(L, '/download')} className={item}>{t(L, 'nav.download')}</Link>
           <Link href={href(L, '/pricing')} className={item}>{t(L, 'nav.pricing')}</Link>
-          <Link href={href(L, '/demo')} className={item}>{t(L, 'home.demo.open')}</Link>
+          <Link href={href(L, featuredHref(featured))} className={item}>
+            {t(L, 'home.demo.open')}
+          </Link>
         </nav>
         <nav className="flex flex-col gap-2.5">
           <Link href={href(L, '/login')} className={item}>{t(L, 'nav.login')}</Link>

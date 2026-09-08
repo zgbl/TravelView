@@ -2,7 +2,7 @@ import Link from 'next/link';
 import NavBar from '@/components/NavBar';
 import SiteFooter from '@/components/SiteFooter';
 import StoryRenderer from '@/components/StoryRenderer';
-import { demoStory } from '@/lib/demo-story';
+import { featuredStory, featuredHref } from '@/lib/featured';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
 
@@ -20,6 +20,8 @@ import { href, t } from '@/lib/i18n';
  */
 export default async function Home() {
   const L = await getLocale();
+  // 展示的是一篇**真发布过的**游记，由 FEATURED_STORY_SLUG 指定
+  const featured = await featuredStory();
 
   return (
     <main className="bg-ink text-paper">
@@ -73,7 +75,7 @@ export default async function Home() {
                 {t(L, 'home.demo.sub')}
               </p>
             </div>
-            <Link href={href(L, '/demo')}
+            <Link href={href(L, featuredHref(featured))}
               className="rounded-full border border-white/20 px-5 py-2 text-sm
                 transition hover:border-white/40">
               {t(L, 'home.demo.open')} →
@@ -89,12 +91,13 @@ export default async function Home() {
               <span className="h-2.5 w-2.5 rounded-full bg-white/25" />
               <span className="h-2.5 w-2.5 rounded-full bg-white/25" />
               <span className="ml-3 truncate text-[11px] text-muted">
-                travelview.app/s/demo
+                travelview.app{featuredHref(featured)}
               </span>
             </div>
             {/* 固定高度 + 内部滚动: 示例不该把整个落地页撑成十屏 */}
             <div className="h-[70vh] overflow-y-auto">
-              <StoryRenderer story={demoStory} compact locale={L} />
+              <StoryRenderer story={featured.story} prefix={featured.prefix}
+                compact locale={L} />
             </div>
           </div>
         </div>
