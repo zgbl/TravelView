@@ -28,7 +28,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   Win32Window::Point origin(10, 10);
   // 照片网格 + 地图 + 工具栏三样同屏，1280x720 一打开工具栏就溢出
   Win32Window::Size size(1500, 980);
-  if (!window.Create(L"tv_desktop", origin, size)) {
+  if (!window.Create(L"TravelView", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);

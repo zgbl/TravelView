@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.travelview" "\0"
-            VALUE "FileDescription", "tv_desktop" "\0"
+            VALUE "CompanyName", "TravelView" "\0"
+            VALUE "FileDescription", "TravelView" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "tv_desktop" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 com.travelview. All rights reserved." "\0"
-            VALUE "OriginalFilename", "tv_desktop.exe" "\0"
-            VALUE "ProductName", "tv_desktop" "\0"
+            VALUE "InternalName", "TravelView" "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 TravelView. All rights reserved." "\0"
+            VALUE "OriginalFilename", "TravelView.exe" "\0"
+            VALUE "ProductName", "TravelView" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END

@@ -1,0 +1,48 @@
+# 网站的持续检查。
+#
+# **不部署，只检查。** 部署仍然是你在服务器上 git pull + build ——
+# 这里要挡住的是"推上去的东西在服务器上 build 不出来"，
+# 那种错误会让线上停在半路，而且总是在你最没空的时候发生。
+name: Web CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/web.yml'
+  pull_request:
+    paths: ['web/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: 依赖
+        working-directory: web
+        # ci 而不是 install: 严格按 lock 文件装，
+        # 保证这里跑的和服务器上跑的是同一批版本
+        run: npm ci
+
+      - name: 类型检查
+        working-directory: web
+        run: npx tsc --noEmit
+
+      - name: 构建
+        working-directory: web
+        # 构建期用不到真数据库，但 Next 会读这些变量；
+        # 给一组假的，只为让构建走完
+        env:
+          NEXT_PUBLIC_SITE_URL: https://example.com
+          DATABASE_URL: postgres://user:pass@localhost:5432/db
+          AUTH_SECRET: ci-placeholder-secret-not-used-anywhere
+        run: npm run build
