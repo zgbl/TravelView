@@ -327,6 +327,180 @@ class _StoryPageState extends State<StoryPage> {
     );
   }
 
+  /// 工具栏那个按钮上的一句话摘要。**要能一眼看出当前是什么设置** ——
+  /// 一个只写"呈现"的按钮，用户每次都得点开才知道自己上次选了什么。
+  String _lookSummary() {
+    final cover = {
+      'auto': '自动封面', 'map': '整屏地图', 'mapcard': '地图卡片', 'photo': '照片封面',
+    }[widget.c.coverMode] ?? '自动封面';
+    final unit = {'auto': '', 'mi': ' · 英里', 'km': ' · 公里'}[widget.c.units] ?? '';
+    final music = widget.c.music.isEmpty ? '' : ' · ♪';
+    return '$cover$unit$music';
+  }
+
+  /// 「这篇长什么样」的设置。封面、距离单位、配乐 —— 都是发布前定一次
+  /// 就不再动的东西，不该长期占着工具栏。
+  Future<void> _openLookSettings() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) {
+          final scheme = Theme.of(ctx).colorScheme;
+          void refresh() { setLocal(() {}); setState(() {}); }
+          return AlertDialog(
+            title: const Text('这篇怎么呈现'),
+            content: SizedBox(
+              width: 460,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // ── 封面 ──
+                  _label('封面'),
+                  SegmentedButton<String>(
+                    style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact),
+                    segments: const [
+                      ButtonSegment(value: 'auto', label: Text('自动')),
+                      ButtonSegment(value: 'map', label: Text('整屏地图')),
+                      ButtonSegment(value: 'mapcard', label: Text('地图卡片')),
+                      ButtonSegment(value: 'photo', label: Text('照片')),
+                    ],
+                    selected: {widget.c.coverMode},
+                    onSelectionChanged: (v) async {
+                      await widget.c.setCoverMode(v.first);
+                      refresh();
+                    },
+                  ),
+                  if (widget.c.coverMode == 'photo')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Row(children: [
+                        Icon(
+                          widget.c.coverPhotoId.isEmpty
+                              ? Icons.star_border : Icons.star,
+                          size: 15,
+                          color: widget.c.coverPhotoId.isEmpty
+                              ? scheme.onSurfaceVariant
+                              : const Color(0xFFE0A800),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          widget.c.coverPhotoId.isEmpty
+                              ? '用自动挑的那张（在照片上点星号可以指定）'
+                              : '已指定一张',
+                          style: TextStyle(
+                              fontSize: 12, color: scheme.onSurfaceVariant),
+                        ),
+                        if (widget.c.coverPhotoId.isNotEmpty)
+                          TextButton(
+                            onPressed: () async {
+                              await widget.c.setCoverPhoto('');
+                              refresh();
+                            },
+                            child: const Text('改回自动',
+                                style: TextStyle(fontSize: 12)),
+                          ),
+                      ]),
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // ── 距离单位 ──
+                  _label('距离单位'),
+                  SegmentedButton<String>(
+                    style: const ButtonStyle(
+                        visualDensity: VisualDensity.compact),
+                    segments: const [
+                      ButtonSegment(value: 'auto', label: Text('自动')),
+                      ButtonSegment(value: 'mi', label: Text('英里')),
+                      ButtonSegment(value: 'km', label: Text('公里')),
+                    ],
+                    selected: {widget.c.units},
+                    onSelectionChanged: (v) async {
+                      await widget.c.setUnits(v.first);
+                      refresh();
+                    },
+                  ),
+                  if (widget.c.units == 'auto')
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        '按每一站所在的国家决定: 美国、英国用英里，其余用公里。'
+                        '中英文两个版本用同一个单位。',
+                        style: TextStyle(
+                            fontSize: 11,
+                            height: 1.5,
+                            color: scheme.onSurfaceVariant),
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // ── 配乐 ──
+                  _label('配乐'),
+                  Wrap(spacing: 8, runSpacing: 8, children: [
+                    ChoiceChip(
+                      label: const Text('无', style: TextStyle(fontSize: 12)),
+                      selected: widget.c.music.isEmpty,
+                      onSelected: (_) async {
+                        await widget.c.setMusic('');
+                        refresh();
+                      },
+                    ),
+                    ...LibraryController.musicLibrary.entries.map(
+                      (e) => ChoiceChip(
+                        label: Text(e.value,
+                            style: const TextStyle(fontSize: 12)),
+                        selected: widget.c.music == e.key,
+                        onSelected: (_) async {
+                          await widget.c.setMusic(e.key);
+                          refresh();
+                        },
+                      ),
+                    ),
+                    ActionChip(
+                      avatar: const Icon(Icons.link, size: 14),
+                      label: Text(
+                        widget.c.music.startsWith('https://')
+                            ? (Uri.tryParse(widget.c.music)?.host ?? '自定义链接')
+                            : '自定义链接…',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      onPressed: () async {
+                        await _askMusicUrl();
+                        refresh();
+                      },
+                    ),
+                  ]),
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: Text(
+                      '只在全屏播放时出声，默认从静音开始，读者点一下才播。',
+                      style: TextStyle(
+                          fontSize: 11, color: scheme.onSurfaceVariant),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              FilledButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: const Text('好')),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _label(String s) => Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(s,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      );
+
   /// 让用户贴一个音频直链。
   ///
   /// **只收 https 的音频文件直链，不收网页地址。**
@@ -592,133 +766,16 @@ class _StoryPageState extends State<StoryPage> {
 
               _sep(scheme),
 
-              const Text('封面', style: TextStyle(fontSize: 12)),
-              const SizedBox(width: 6),
-              SegmentedButton<String>(
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: const [
-                  ButtonSegment(
-                      value: 'auto',
-                      label: Text('自动', style: TextStyle(fontSize: 11))),
-                  ButtonSegment(
-                      value: 'map',
-                      label: Text('整屏地图', style: TextStyle(fontSize: 11))),
-                  ButtonSegment(
-                      value: 'mapcard',
-                      label: Text('地图卡片', style: TextStyle(fontSize: 11))),
-                  ButtonSegment(
-                      value: 'photo',
-                      label: Text('照片', style: TextStyle(fontSize: 11))),
-                ],
-                selected: {widget.c.coverMode},
-                onSelectionChanged: (v) => widget.c.setCoverMode(v.first),
+              // **呈现设置收进一个对话框。**
+              // 封面、距离单位、配乐都是"这篇长什么样"，不是"现在要做什么"。
+              // 它们平时不用改，却一直占着工具栏最贵的横向空间 ——
+              // 而这一行还要继续加东西，塞到最后就是谁也看不清。
+              OutlinedButton.icon(
+                onPressed: _openLookSettings,
+                icon: const Icon(Icons.tune, size: 15),
+                label: Text(_lookSummary(),
+                    style: const TextStyle(fontSize: 12)),
               ),
-
-              _sep(scheme),
-
-              // 距离单位。**放在这里而不是全局设置里**: 它属于这一篇 ——
-              // 同一个人可能这趟在美国、下趟在欧洲
-              const Text('距离', style: TextStyle(fontSize: 12)),
-              const SizedBox(width: 6),
-              SegmentedButton<String>(
-                style: const ButtonStyle(visualDensity: VisualDensity.compact),
-                segments: const [
-                  ButtonSegment(
-                      value: 'auto',
-                      label: Text('自动', style: TextStyle(fontSize: 11))),
-                  ButtonSegment(
-                      value: 'mi',
-                      label: Text('英里', style: TextStyle(fontSize: 11))),
-                  ButtonSegment(
-                      value: 'km',
-                      label: Text('公里', style: TextStyle(fontSize: 11))),
-                ],
-                selected: {widget.c.units},
-                onSelectionChanged: (v) => widget.c.setUnits(v.first),
-              ),
-              _sep(scheme),
-
-              // 配乐。**默认"无"** —— 配乐是加分项不是必需品，
-              // 而一个用户没选过的曲子被自动配上去，是替他做主
-              const Text('配乐', style: TextStyle(fontSize: 12)),
-              const SizedBox(width: 6),
-              DropdownButton<String>(
-                value: LibraryController.musicLibrary
-                            .containsKey(widget.c.music)
-                        ? widget.c.music
-                        : (widget.c.music.startsWith('https://')
-                            ? '__url__' : ''),
-                underline: const SizedBox.shrink(),
-                style: const TextStyle(fontSize: 12),
-                items: [
-                  const DropdownMenuItem(
-                      value: '', child: Text('无', style: TextStyle(fontSize: 12))),
-                  ...LibraryController.musicLibrary.entries.map(
-                    (e) => DropdownMenuItem(
-                      value: e.key,
-                      child: Text(e.value, style: const TextStyle(fontSize: 12)),
-                    ),
-                  ),
-                  const DropdownMenuItem(
-                      value: '__url__',
-                      child: Text('自定义链接…', style: TextStyle(fontSize: 12))),
-                ],
-                onChanged: (v) {
-                  if (v == null) return;
-                  if (v == '__url__') {
-                    _askMusicUrl();
-                  } else {
-                    widget.c.setMusic(v);
-                  }
-                },
-              ),
-              if (widget.c.music.startsWith('https://')) ...[
-                const SizedBox(width: 6),
-                Tooltip(
-                  message: '外部链接: ${widget.c.music}\n'
-                      '注意: 对方随时可能防盗链、改地址或删掉文件，\n'
-                      '到那天这篇游记就没声音了，而且你不会收到通知。',
-                  child: Icon(Icons.link,
-                      size: 14, color: scheme.onSurfaceVariant),
-                ),
-              ],
-
-              if (widget.c.units == 'auto') ...[
-                const SizedBox(width: 6),
-                Tooltip(
-                  message: '按每一站所在的国家决定: 美国、英国用英里，其余用公里。\n'
-                      '中英文两个版本用同一个单位。',
-                  child: Icon(Icons.info_outline,
-                      size: 14, color: scheme.onSurfaceVariant),
-                ),
-              ],
-              if (widget.c.coverMode == 'photo') ...[
-                const SizedBox(width: 8),
-                Icon(
-                  widget.c.coverPhotoId.isEmpty
-                      ? Icons.star_border
-                      : Icons.star,
-                  size: 15,
-                  color: widget.c.coverPhotoId.isEmpty
-                      ? scheme.onSurfaceVariant
-                      : const Color(0xFFE0A800),
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  widget.c.coverPhotoId.isEmpty ? '自动' : '已指定',
-                  style: TextStyle(
-                      fontSize: 12, color: scheme.onSurfaceVariant),
-                ),
-                if (widget.c.coverPhotoId.isNotEmpty)
-                  TextButton(
-                    onPressed: () => widget.c.setCoverPhoto(''),
-                    style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 6),
-                        minimumSize: Size.zero),
-                    child:
-                        const Text('改回自动', style: TextStyle(fontSize: 11)),
-                  ),
-              ],
 
               _sep(scheme),
 
