@@ -74,7 +74,12 @@ jobs:
           retention-days: 30
 
   windows:
-    runs-on: windows-latest    # 自带 Visual Studio 2022 + C++ 工具链
+    # **钉死镜像，不用 windows-latest。**
+    # latest 已经指向 Server 2025，Flutter 在那上面探测 Visual Studio 时
+    # 挑了 "Visual Studio 16 2019" 的生成器，而镜像里装的是 2022，
+    # CMake 于是报 "could not find any instance of Visual Studio"。
+    # 这类错误看着像工具链没装，其实是版本探测错位
+    runs-on: windows-2022      # 自带 Visual Studio 2022 + C++ 工具链
     steps:
       - uses: actions/checkout@v4
 
@@ -83,6 +88,13 @@ jobs:
           flutter-version: ${{ env.FLUTTER_VERSION }}
           channel: stable
           cache: true
+
+      - name: 工具链信息
+        # **构建之前先把环境打出来。** 出问题时这几行日志能直接定位，
+        # 否则只能靠猜是 Flutter、CMake 还是 Visual Studio 的问题
+        run: |
+          flutter --version
+          flutter doctor -v
 
       - name: 依赖
         working-directory: apps/tv_desktop
