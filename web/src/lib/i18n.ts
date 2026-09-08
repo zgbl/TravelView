@@ -29,6 +29,132 @@ export const dict: Dict = {
   'nav.account': { zh: '账户', en: 'Account' },
   'nav.admin': { zh: '后台', en: 'Admin' },
   'nav.back': { zh: '返回', en: 'Back' },
+  // ---- 落地页 ----
+  'nav.download': { zh: '下载', en: 'Download' },
+  'nav.how': { zh: '怎么用', en: 'How it works' },
+  'home.kicker': { zh: '照片自己会讲故事', en: 'Your photos already know the story' },
+  'home.h1': {
+    zh: '把手机里的照片，\n变成一篇值得再看一遍的旅行。',
+    en: 'Turn the photos on your phone\ninto a trip worth watching again.',
+  },
+  'home.sub': {
+    zh: '几千张照片躺在相册里，再也没人打开过。TravelView 读出照片里的 GPS 和时间，' +
+        '还原你真正走过的那条路，替你从连拍里挑出值得留下的那几张，' +
+        '生成一个可以分享的网页 —— 有地图、有小车沿路行进、可以全屏播放。',
+    en: 'Thousands of photos sit in your camera roll, never opened again. ' +
+        'TravelView reads the GPS and timestamps already in them, rebuilds the ' +
+        'road you actually drove, picks the keepers out of your burst shots, and ' +
+        'makes a page you can share — with a real map, a car moving along your ' +
+        'route, and a full-screen player.',
+  },
+  'home.cta.try': { zh: '看一篇真的', en: 'See a real one' },
+  'home.cta.get': { zh: '免费开始', en: 'Start free' },
+  'home.cta.download': { zh: '下载桌面版', en: 'Download the app' },
+  'home.demo.title': { zh: '这是它生成的东西', en: 'This is what it makes' },
+  'home.demo.sub': {
+    zh: '下面这一页不是截图，是一篇真的游记 —— 滚动看看，或者点开全屏播放。',
+    en: 'The page below is not a screenshot. Scroll it, or open the full-screen player.',
+  },
+  'home.demo.open': { zh: '打开完整的示例', en: 'Open the full demo' },
+
+  'home.how': { zh: '三步', en: 'Three steps' },
+  'home.how.sub': {
+    zh: '没有第四步。不用打标签、不用写日记、不用整理相册。',
+    en: 'There is no fourth step. No tagging, no journaling, no album cleanup.',
+  },
+  'home.how.1.t': { zh: '把照片给它', en: 'Point it at your photos' },
+  'home.how.1.b': {
+    zh: '从手机或硬盘导入。**原图一张都不会离开你的电脑** —— 所有解析都在本地完成。',
+    en: 'Import from your phone or a folder. **No original ever leaves your computer** — everything is parsed locally.',
+  },
+  'home.how.2.t': { zh: '它把路还原出来', en: 'It rebuilds the route' },
+  'home.how.2.b': {
+    zh: '照片里的 GPS 变成停留点，停留点之间走的是真实道路 —— 不是把两个点连一条直线。' +
+        '连拍和重复的自拍自动折叠，91 张里挑出 8 张给你确认。',
+    en: 'GPS becomes stops, and stops are joined by the real roads you drove — not straight lines. ' +
+        'Bursts and near-duplicates fold together: 8 keepers out of 91, for you to confirm.',
+  },
+  'home.how.3.t': { zh: '发布，或者留在本地', en: 'Publish, or keep it local' },
+  'home.how.3.b': {
+    zh: '一个链接就能分享，也可以导出成一个能离线打开的网页包。' +
+        '只有你挑中的那些照片的压缩版本会上传。',
+    en: 'Share a link, or export a folder that opens offline. ' +
+        'Only web-sized copies of the photos you picked are ever uploaded.',
+  },
+
+  'home.f.route': { zh: '真实道路，不是连线', en: 'Real roads, not straight lines' },
+  'home.f.route.b': {
+    zh: '走过的每一段都按实际路线画出来，解说里会写出走的是哪条路 ——「沿 40 号州际公路开了 136 英里」。',
+    en: 'Every leg follows the road you actually took, and the captions name it — "136 miles on I-40".',
+  },
+  'home.f.pick': { zh: '替你挑照片', en: 'It picks for you' },
+  'home.f.pick.b': {
+    zh: '清晰度、曝光、感知哈希、人脸 —— 连拍和同一景物的重复拍摄自动折叠，只留最好的那张。',
+    en: 'Sharpness, exposure, perceptual hashing, faces — bursts and repeats collapse to the best frame.',
+  },
+  'home.f.player': { zh: '全屏播放', en: 'Full-screen player' },
+  'home.f.player.b': {
+    zh: '像放片子一样一张张看过去，每到一站，地图浮上来，小车沿着你走过的路开到下一站。可以配上你自己的音乐。',
+    en: 'Watch it like a film. At each stop the map rises and a car drives your route to the next one. Add your own music.',
+  },
+  'home.f.local': { zh: '原图不上传', en: 'Originals stay home' },
+  'home.f.local.b': {
+    zh: '解析、挑选、压缩全在你自己的机器上。发布时只上传 1600px 的网页图和 480px 缩略图。',
+    en: 'Parsing, curation and resizing all happen on your machine. Publishing uploads only 1600px web copies and 480px thumbnails.',
+  },
+  'home.f.two': { zh: '中英双语', en: 'Bilingual' },
+  'home.f.two.b': {
+    zh: '同一篇游记有中文和英文两个版本，链接自带语言 —— 发给外国朋友打开就是英文。',
+    en: 'Every story has a Chinese and an English version. The link carries the language, so it opens right for whoever you send it to.',
+  },
+  'home.f.own': { zh: '是你的东西', en: 'It stays yours' },
+  'home.f.own.b': {
+    zh: '可以导出成一个自带照片和地图的网页包，不依赖我们的服务器也能打开。',
+    en: 'Export a self-contained folder with your photos and map. It opens without us.',
+  },
+
+  'home.privacy.t': { zh: '关于隐私，说具体的', en: 'Privacy, specifically' },
+  'home.privacy.b': {
+    zh: '照片库、GPS、人脸信号，全都只在你的电脑上处理，我们的服务器一个字节都看不到。' +
+        '你点发布时，上传的是你挑中的那些照片的压缩版本 —— 原图、没选中的照片、' +
+        '整个相册的元数据，都留在原地。',
+    en: 'Your library, its GPS, and the face signals used for curation are processed on ' +
+        'your computer only — our servers never see a byte of it. When you hit publish, ' +
+        'what goes up is web-sized copies of the photos you picked. Originals, the photos ' +
+        'you did not pick, and your library metadata stay where they are.',
+  },
+
+  'home.final.t': { zh: '你的照片已经等了很久了', en: 'Your photos have been waiting' },
+  'home.final.b': {
+    zh: '挑一趟旅行开始 —— 十分钟就有一个能发出去的链接。',
+    en: 'Pick one trip. Ten minutes later you have a link worth sending.',
+  },
+
+  // ---- 下载页 ----
+  'dl.title': { zh: '下载 TravelView', en: 'Download TravelView' },
+  'dl.sub': {
+    zh: '照片处理都在本地完成，所以需要装一个应用。桌面版负责导入、挑图和发布。',
+    en: 'Photos are processed on your own device, so there is an app. The desktop app imports, curates and publishes.',
+  },
+  'dl.get': { zh: '下载', en: 'Download' },
+  'dl.soon': { zh: '还没发布', en: 'Not yet released' },
+  'dl.soon.b': {
+    zh: '这个平台的版本还在做。留个邮箱，出了就通知你。',
+    en: 'This platform is still in the works.',
+  },
+  'dl.version': { zh: '版本', en: 'Version' },
+  'dl.yours': { zh: '你在用的系统', en: 'Your system' },
+  'dl.checksum': { zh: '校验和', en: 'Checksum' },
+  'dl.notes': { zh: '更新说明', en: 'Release notes' },
+  'dl.none': {
+    zh: '还没有任何平台发布版本。',
+    en: 'No releases have been published yet.',
+  },
+  'dl.mobile.note': {
+    zh: '手机版正在做 —— 目前手机上可以打开和分享已经发布的游记，制作要在电脑上完成。',
+    en: 'Mobile apps are in progress. For now you can view and share published stories on a phone; making one happens on a computer.',
+  },
+
 
   'auth.signup.title': { zh: '创建账号', en: 'Create your account' },
   'auth.signup.intro': {

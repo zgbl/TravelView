@@ -5,6 +5,8 @@ import { betaState } from '@/lib/access';
 import { stripeStatus, verifyPrices } from '@/lib/stripe';
 import { query, one } from '@/lib/db';
 import DailyBars from '@/components/DailyBars';
+import ReleaseUpload from '@/components/ReleaseUpload';
+import { allReleases, humanBytes, platformLabel } from '@/lib/releases';
 
 export const dynamic = 'force-dynamic';
 
@@ -38,6 +40,8 @@ export default async function Admin() {
   const admin = await requireAdmin();
   // 不是管理员就当这个页面不存在 —— 403 等于告诉别人这里有东西
   if (!admin) notFound();
+
+  const releases = await allReleases();
 
   const beta = await betaState();
   const stripe = stripeStatus();
@@ -265,6 +269,60 @@ export default async function Admin() {
             </tbody>
           </table>
         </div>
+      </section>
+
+      {/* ── App 版本 ── */}
+      <section className="mt-14">
+        <h2 className="mb-1 text-lg font-semibold">App 版本</h2>
+        <p className="mb-5 text-xs text-muted">
+          上传的安装包落在 RELEASES_DIR 下，数据库里只记元数据。
+          每个平台**只有一个当前版本**，下载页给的就是它；
+          旧版本留着是为了出问题时能让用户退回去。
+        </p>
+
+        <div className="rounded-2xl border border-white/12 p-5">
+          <ReleaseUpload />
+        </div>
+
+        {releases.length > 0 && (
+          <table className="mt-6 w-full text-sm">
+            <thead className="text-xs text-muted">
+              <tr className="border-b border-white/10 text-left">
+                <th className="py-2">平台</th>
+                <th className="py-2">版本</th>
+                <th className="py-2">大小</th>
+                <th className="py-2">下载</th>
+                <th className="py-2">发布于</th>
+                <th className="py-2" />
+              </tr>
+            </thead>
+            <tbody>
+              {releases.map((r) => (
+                <tr key={r.id} className="border-b border-white/5">
+                  <td className="py-2">{platformLabel(r.platform)}</td>
+                  <td className="py-2">
+                    {r.version}
+                    {r.isCurrent && (
+                      <span className="ml-2 rounded-full bg-accentBright px-2
+                        py-0.5 text-[10px] text-ink">当前</span>
+                    )}
+                  </td>
+                  <td className="py-2 text-muted">
+                    {r.externalUrl ? '外部链接' : humanBytes(r.bytes)}
+                  </td>
+                  <td className="py-2 text-muted">{r.downloads}</td>
+                  <td className="py-2 text-muted">
+                    {r.createdAt?.slice(0, 10)}
+                  </td>
+                  <td className="py-2 text-right">
+                    <a href={r.externalUrl ?? `/api/releases/${r.id}/download`}
+                      className="text-xs text-muted hover:text-paper">下载</a>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
 
       <p className="mt-14 text-xs text-muted">

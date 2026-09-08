@@ -31,6 +31,9 @@ export default async function NavBar() {
         </Link>
 
         <div className="ml-auto flex items-center gap-5">
+          <Link href={href(L, '/download')} className={item}>
+            {t(L, 'nav.download')}
+          </Link>
           <Link href={href(L, '/pricing')} className={item}>
             {t(L, 'nav.pricing')}
           </Link>
