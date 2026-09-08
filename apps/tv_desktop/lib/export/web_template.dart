@@ -165,7 +165,11 @@ const _template = r'''<!doctype html>
 <div id="app"></div>
 <div class="lightbox" id="lb">
   <button class="lb-nav" data-d="-1" aria-label="上一张">&#8249;</button>
-  <img alt="">
+  <!-- 必须给一个占位 src。**空的 <img> 会被解析成"加载当前页面"** ——
+       在 file:// 下每个文件是独立源，于是控制台一行
+       "Unsafe attempt to load URL ... 'file:' URLs are treated as
+       unique security origins"，看着像出了大事，其实只是这里少了个 src -->
+  <img alt="" src="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==">
   <button class="lb-nav" data-d="1" aria-label="下一张">&#8250;</button>
   <div class="count"></div>
 </div>
@@ -272,13 +276,13 @@ function render(){
   // 距离单位由发布者决定（story.units），auto 时按第一站粗判美国。
   // **必须和站内解说用同一个单位** —— 封面写 MILES、正文写公里，
   // 读者会以为数据是乱的
-  const s0 = (S.stops && S.stops[0]) || null;
+  const s0 = (STORY.stops && STORY.stops[0]) || null;
   const usUnit = s0 && ((s0.lat >= 24.5 && s0.lat <= 49 &&
       s0.lon >= -125 && s0.lon <= -66.9) ||
     (s0.lat >= 51 && s0.lat <= 71.5 && s0.lon >= -170 && s0.lon <= -129) ||
     (s0.lat >= 18.5 && s0.lat <= 22.5 && s0.lon >= -160.5 && s0.lon <= -154.5));
-  const unit = (S.units === 'mi' || S.units === 'km')
-    ? S.units : (usUnit ? 'mi' : 'km');
+  const unit = (STORY.units === 'mi' || STORY.units === 'km')
+    ? STORY.units : (usUnit ? 'mi' : 'km');
   const miles = Math.round(
     unit === 'mi' ? st.distanceMeters / 1609.344 : st.distanceMeters / 1000);
   const unitUp = unit === 'mi' ? 'MILES' : 'KM';
@@ -312,7 +316,7 @@ function render(){
     if (mode === 'map') {
       html += '<div class="heromap" id="heromap"></div>'
            + '<div class="vignette"></div><div class="scrim"></div>';
-    } else if (cover) {
+    } else if (cover && cover.web && cover.web.path) {
       html += '<img src="'+cover.web.path+'" alt="">';
     }
   html += '<div class="inner"><h1>'+esc(STORY.title)+'</h1>';
@@ -349,13 +353,15 @@ function render(){
            +' &middot; 选了 '+s.photos.length+' 张</div>';
       const _n = stopNote(s);
       if (_n) html += '<p class="note">'+esc(_n).replace(/\n/g,'<br>')+'</p>';
-      if (hero) html += '<div class="hero-shot"><img src="'+hero.web.path
+      if (hero && hero.web && hero.web.path)
+        html += '<div class="hero-shot"><img src="'+hero.web.path
            +'" loading="lazy" alt="" data-photo="'+hero.id+'"></div>';
       if (rest.length){
         html += '<div class="grid">';
         rest.forEach(pid => {
           const ph = photoById[pid];
           if (!ph) return;
+          if (!(ph.thumb || (ph.web && ph.web.path))) return;   // 没有可显示的文件
           const cls = ph.web.h > ph.web.w ? ' class="portrait"' : '';
           // 网格用 480px 的缩略图。网格里一张图显示出来也就两三百像素宽，
           // 拿 1600px 去填等于让每个访客白下几十兆
