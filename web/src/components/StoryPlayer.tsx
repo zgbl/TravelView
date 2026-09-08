@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
-import { decodePolyline, mediaUrl, miles, type Story } from '@/lib/story';
+import { decodePolyline, mediaUrl, dist, distUnit, distLabel, type Story }
+  from '@/lib/story';
 import { t, type Locale } from '@/lib/i18n';
 import { Ambient, PLAYER_MUSIC } from '@/lib/ambient';
 import { carSvg, bearing, smoothTurn } from '@/lib/carMarker';
@@ -37,11 +38,14 @@ const DUR = { title: 4000, transit: 3600, photo: 4200, end: 6000 };
 const MAX_PER_STOP = 6;
 
 export default function StoryPlayer({
-  story, prefix, locale = 'zh', onClose,
+  story, prefix, locale = 'zh', startStop = 0, onClose,
 }: {
   story: Story;
   prefix?: string | null;
   locale?: Locale;
+  /// 从第几站开始播。行程很长时，读者多半想从**正在看的这一站**接着看，
+  /// 而不是回到片头重看一遍
+  startStop?: number;
   onClose: () => void;
 }) {
   const beats = useMemo<Beat[]>(() => {
@@ -59,7 +63,16 @@ export default function StoryPlayer({
     return out;
   }, [story]);
 
-  const [i, setI] = useState(0);
+  /// 起始 beat: 落在指定那一站的转场上。**从转场开始而不是从照片开始** ——
+  /// 先看小车开到这一站，才知道自己在地图的哪儿
+  const startAt = useMemo(() => {
+    if (!startStop) return 0;
+    const at = beats.findIndex(
+      (b) => b.kind === 'transit' && b.stop === startStop);
+    return at < 0 ? 0 : at;
+  }, [beats, startStop]);
+
+  const [i, setI] = useState(startAt);
   const [playing, setPlaying] = useState(true);
 
   // ── 配乐 ──
@@ -257,7 +270,8 @@ export default function StoryPlayer({
             animate-[tvUp_.9s_.3s_cubic-bezier(.2,.7,.2,1)_both]">
             <Num n={story.stats.days} k="DAYS" />
             <Num n={story.stats.stops} k="STOPS" />
-            <Num n={miles(story.stats.distanceMeters)} k="MILES" />
+            <Num n={dist(story.stats.distanceMeters, distUnit(story))}
+              k={distLabel(distUnit(story), locale)} />
             <Num n={story.stats.photos} k="PHOTOS" />
           </div>
         </Card>
@@ -288,7 +302,8 @@ export default function StoryPlayer({
           <div className="mt-8 flex flex-wrap justify-center gap-10">
             <Num n={story.stats.days} k="DAYS" />
             <Num n={story.stats.stops} k="STOPS" />
-            <Num n={miles(story.stats.distanceMeters)} k="MILES" />
+            <Num n={dist(story.stats.distanceMeters, distUnit(story))}
+              k={distLabel(distUnit(story), locale)} />
           </div>
           <button
             onClick={(e) => { e.stopPropagation(); setI(0); setPlaying(true); }}

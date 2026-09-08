@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { mediaUrl, miles, thumbUrl, type Story } from '@/lib/story';
+import { mediaUrl, dist, distUnit, distLabel, thumbUrl, type Story } from '@/lib/story';
 import StoryMap from './StoryMap';
 import StoryOverviewMap from './StoryOverviewMap';
 import PhotoLightbox from './PhotoLightbox';
@@ -38,6 +38,18 @@ export default function StoryRenderer({
   const [lightbox, setLightbox] = useState<number | null>(null);
   /// 全屏播放。**滚动阅读仍然是默认**，这只是另一种看法
   const [playing, setPlaying] = useState(false);
+  /// 播放从第几站开始。封面上的按钮是 0（从头看），
+  /// 读到一半时那个浮动按钮传的是当前这一站
+  const [playFrom, setPlayFrom] = useState(0);
+  /// 划过封面之后才出现那个"从这一站播放"的按钮 ——
+  /// 封面上已经有一个大的播放按钮了，两个一起出现只会互相打架
+  const [scrolled, setScrolled] = useState(false);
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > window.innerHeight * 0.8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
   const indexOfPhoto = (id: string) => story.photos.findIndex((p) => p.id === id);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -104,6 +116,11 @@ export default function StoryRenderer({
    * 这个产品以后不只有旅行 —— 生日、婚礼、演唱会都没有路线，
    * 那时候封面引擎该自己退回照片，而不是画一张空地图。
    */
+  // 距离单位由发布者决定，统计栏和解说文字必须一致
+  const unit = distUnit(story);
+  const unitLabel = distLabel(unit, locale);
+  const totalDist = dist(story.stats.distanceMeters, unit);
+
   const rawMode = (story as unknown as { coverMode?: string }).coverMode;
   const hasRoute = story.routes.length > 0 || story.stops.length > 1;
   const coverMode: 'map' | 'mapcard' | 'photo' =
@@ -135,10 +152,13 @@ export default function StoryRenderer({
             <div className="flex flex-wrap gap-8">
               <Stat n={story.stats.days} k="DAYS" />
               <Stat n={story.stats.stops} k="STOPS" />
-              <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
+              <Stat n={totalDist} k={unitLabel} />
               <Stat n={story.stats.photos} k="PHOTOS" />
             </div>
-            <PlayButton onClick={() => setPlaying(true)} locale={locale} />
+            <PlayButton
+              onClick={() => { setPlayFrom(0); setPlaying(true); }}
+              locale={locale}
+            />
           </div>
           <div className="relative mt-8 h-[62vh] overflow-hidden rounded-3xl">
             {!playing && <StoryCover story={story} bottomPad={70} />}
@@ -184,10 +204,13 @@ export default function StoryRenderer({
                 bg-black/25 px-6 py-4 backdrop-blur-sm">
                 <Stat n={story.stats.days} k="DAYS" />
                 <Stat n={story.stats.stops} k="STOPS" />
-                <Stat n={miles(story.stats.distanceMeters)} k="MILES" />
+                <Stat n={totalDist} k={unitLabel} />
                 <Stat n={story.stats.photos} k="PHOTOS" />
               </div>
-              <PlayButton onClick={() => setPlaying(true)} locale={locale} />
+              <PlayButton
+              onClick={() => { setPlayFrom(0); setPlaying(true); }}
+              locale={locale}
+            />
             </div>
           </div>
         </section>
@@ -204,7 +227,8 @@ export default function StoryRenderer({
           <p className="mb-6 text-sm text-muted">
             {t(locale, 'story.overview.sub', {
               stops: story.stats.stops,
-              miles: miles(story.stats.distanceMeters),
+              dist: totalDist,
+              unit: unitLabel,
             })}
           </p>
           {!playing && <StoryOverviewMap story={story} />}
@@ -313,11 +337,35 @@ export default function StoryRenderer({
         </div>
       </div>
 
+      {/* 读到一半想看播放的人，多半是想**从这里接着看**，
+          不是回到片头重来一遍。所以按钮跟着阅读位置走，
+          写清楚是从哪一站开始，不给意外。 */}
+      {!playing && scrolled && (
+        <button
+          onClick={() => { setPlayFrom(stopAt.index); setPlaying(true); }}
+          className="fixed bottom-6 right-6 z-40 flex items-center gap-2.5
+            rounded-full bg-white/95 px-5 py-3 text-ink shadow-lg
+            backdrop-blur transition hover:bg-white"
+        >
+          <span className="flex h-6 w-6 items-center justify-center
+            rounded-full bg-ink text-[10px] text-paper">▶</span>
+          <span className="text-left leading-tight">
+            <span className="block text-[13px] font-semibold">
+              {t(locale, 'player.fromHere')}
+            </span>
+            <span className="block text-[10px] text-ink/55">
+              {t(locale, 'player.fromStop', { n: stopAt.index + 1 })}
+            </span>
+          </span>
+        </button>
+      )}
+
       {playing && (
         <StoryPlayer
           story={story}
           prefix={prefix}
           locale={locale}
+          startStop={playFrom}
           onClose={() => setPlaying(false)}
         />
       )}
@@ -351,7 +399,7 @@ export default function StoryRenderer({
             <div className="flex flex-wrap justify-center gap-10">
               <Big n={story.stats.days} k="天" />
               <Big n={story.stats.stops} k="站" />
-              <Big n={miles(story.stats.distanceMeters)} k="英里" />
+              <Big n={totalDist} k={unitLabel} />
               <Big n={story.stats.photos} k="张照片" />
             </div>
           </div>

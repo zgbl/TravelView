@@ -454,7 +454,8 @@ class LibraryController extends ChangeNotifier {
   Future<FactCaption> factCaption(Stop stop, TripRoute trip,
       {bool lookup = true, String lang = 'zh'}) async {
     if (lookup) await lookupPlace(stop);
-    return FactCaption.forStop(_factsOf(stop, trip), lang: lang);
+    return FactCaption.forStop(_factsOf(stop, trip),
+        lang: lang, units: units);
   }
 
   /// 给还没有写过文字的站批量生成。**已经写过的一律不碰** ——
@@ -527,6 +528,7 @@ class LibraryController extends ChangeNotifier {
     required Map<int, String?> heroByStopSeq,
     String? coverPhotoId,
     String coverMode = 'map',
+    String units = 'auto',
     required String title,
     String? subtitle,
     required TripRoute tripForNotes,
@@ -594,6 +596,7 @@ class LibraryController extends ChangeNotifier {
         heroByStopSeq: heroByStopSeq,
         coverPhotoId: coverPhotoId,
         coverMode: coverMode,
+        units: units,
         legs: legs,
         title: title,
         subtitle: subtitle,
@@ -772,6 +775,25 @@ class LibraryController extends ChangeNotifier {
   String _tmpCoverMode = 'auto';
 
   static const coverModes = ['auto', 'map', 'mapcard', 'photo'];
+
+  /// 距离单位。auto = 按行程所在国家（美/英用英里，其余公里）。
+  /// **由用户决定，代码只在 auto 时才猜** —— 猜错一次，
+  /// 整篇游记每一站的数字都是错的。
+  String get units => currentProject?.units ?? _tmpUnits;
+  String _tmpUnits = 'auto';
+
+  static const unitOptions = ['auto', 'mi', 'km'];
+
+  Future<void> setUnits(String u) async {
+    _tmpUnits = unitOptions.contains(u) ? u : 'auto';
+    final proj = currentProject;
+    if (proj != null) {
+      proj.units = _tmpUnits;
+      proj.updatedAt = DateTime.now();
+      await _store?.save(projects);
+    }
+    notifyListeners();
+  }
 
   /// 封面上最大的那行字。空就用草稿名兜底。
   String get storyTitle =>
@@ -1078,6 +1100,7 @@ class LibraryController extends ChangeNotifier {
     _tmpTitle = proj.storyTitle;
     _tmpSubtitle = proj.storySubtitle;
     _tmpCoverMode = proj.coverMode;
+    _tmpUnits = proj.units;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;
     pickAlbum = proj.pickAlbum;

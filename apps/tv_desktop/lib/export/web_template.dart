@@ -269,7 +269,20 @@ function initStoryCover(elId, bottomPad){
 function render(){
   const cover = photoById[STORY.cover];
   const st = STORY.stats;
-  const miles = Math.round(st.distanceMeters / 1609.344);
+  // 距离单位由发布者决定（story.units），auto 时按第一站粗判美国。
+  // **必须和站内解说用同一个单位** —— 封面写 MILES、正文写公里，
+  // 读者会以为数据是乱的
+  const s0 = (S.stops && S.stops[0]) || null;
+  const usUnit = s0 && ((s0.lat >= 24.5 && s0.lat <= 49 &&
+      s0.lon >= -125 && s0.lon <= -66.9) ||
+    (s0.lat >= 51 && s0.lat <= 71.5 && s0.lon >= -170 && s0.lon <= -129) ||
+    (s0.lat >= 18.5 && s0.lat <= 22.5 && s0.lon >= -160.5 && s0.lon <= -154.5));
+  const unit = (S.units === 'mi' || S.units === 'km')
+    ? S.units : (usUnit ? 'mi' : 'km');
+  const miles = Math.round(
+    unit === 'mi' ? st.distanceMeters / 1609.344 : st.distanceMeters / 1000);
+  const unitUp = unit === 'mi' ? 'MILES' : 'KM';
+  const unitZh = unit === 'mi' ? '英里' : '公里';
 
   let html = '';
   /* Story Cover 的形态。默认由**内容**决定: 有路线就地图封面，
@@ -289,7 +302,7 @@ function render(){
     if (STORY.subtitle) html += '<div class="sub">'+esc(STORY.subtitle)+'</div>';
     html += '<div class="stats">'
          + stat(st.days,'DAYS') + stat(st.stops,'STOPS')
-         + stat(miles,'MILES') + stat(st.photos,'PHOTOS')
+         + stat(miles,unitUp) + stat(st.photos,'PHOTOS')
          + '</div>'
          + '<div class="mapwrap"><div id="heromap" style="height:100%"></div>'
          + '<div class="vignette"></div><div class="edge"></div>'
@@ -306,7 +319,7 @@ function render(){
   if (STORY.subtitle) html += '<div class="sub">'+esc(STORY.subtitle)+'</div>';
   html += '<div class="stats">'
        + stat(st.days,'DAYS') + stat(st.stops,'STOPS')
-       + stat(miles,'MILES') + stat(st.photos,'PHOTOS')
+       + stat(miles,unitUp) + stat(st.photos,'PHOTOS')
          + '</div></div></section>';
   }
 
@@ -317,7 +330,7 @@ function render(){
     html += '<section class="routemap">';
     html += '<h2>行程全览</h2>';
     html += '<div class="rm-sub">'+st.stops+' 站 &middot; '+miles
-         +' 英里 &middot; 点地图上的站可以跳到对应的照片</div>';
+         +' '+unitZh+' &middot; 点地图上的站可以跳到对应的照片</div>';
     html += '<div id="omap"></div>';
     html += '</section>';
   }
@@ -373,7 +386,7 @@ function render(){
   html += '<div class="dates">'+fmtDate(STORY.start)+' - '+fmtDate(STORY.end)+'</div>';
   html += '<div class="nums">'
        + big(st.days,'天') + big(st.stops,'站')
-       + big(miles,'英里') + big(st.photos,'张照片')
+       + big(miles,unitZh) + big(st.photos,'张照片')
        + '</div></div></section>';
   html += '<footer>路线根据照片位置推算 &middot; 地图数据 &copy; OpenStreetMap 贡献者'
        + ' &middot; 由 TravelView 生成</footer>';

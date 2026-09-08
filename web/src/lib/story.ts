@@ -129,3 +129,32 @@ export function mediaUrl(path: string, prefix?: string | null) {
 export function miles(meters: number) {
   return Math.round(meters / 1609.344);
 }
+
+/**
+ * 距离单位由**发布这篇游记的人**决定，写在 story.units 里。
+ * 'auto' 时按第一站的经纬度粗判美国，其余用公里。
+ *
+ * 页面上的统计数字和站内解说必须用同一个单位 ——
+ * 封面写 "1,240 MILES"、正文写"约 78 公里"，读者会以为数据是乱的。
+ */
+export function distUnit(story: Story): 'mi' | 'km' {
+  const u = (story as unknown as { units?: string }).units;
+  if (u === 'mi' || u === 'km') return u;
+  const s = story.stops[0];
+  if (!s) return 'km';
+  const usa = s.lat >= 24.5 && s.lat <= 49 && s.lon >= -125 && s.lon <= -66.9;
+  const ak = s.lat >= 51 && s.lat <= 71.5 && s.lon >= -170 && s.lon <= -129;
+  const hi = s.lat >= 18.5 && s.lat <= 22.5 && s.lon >= -160.5 && s.lon <= -154.5;
+  return usa || ak || hi ? 'mi' : 'km';
+}
+
+/// 按上面的单位换算出的数字
+export function dist(meters: number, unit: 'mi' | 'km') {
+  return Math.round(unit === 'mi' ? meters / 1609.344 : meters / 1000);
+}
+
+/// 统计栏上那个大写的单位名
+export function distLabel(unit: 'mi' | 'km', locale: string) {
+  if (locale === 'en') return unit === 'mi' ? 'MILES' : 'KM';
+  return unit === 'mi' ? '英里' : '公里';
+}

@@ -18,10 +18,23 @@ class FactCaption {
   /// **两种语言都要能生成。** 这段文字是事实的陈述，不是创作，
   /// 所以不需要调模型翻译 —— 同一批事实按目标语言的说法拼一遍就行，
   /// 又快又不会翻错地名。
-  static FactCaption forStop(StopFacts f, {String lang = 'zh'}) =>
-      lang == 'en'
-          ? FactCaption(title: _title(f), text: _textEn(f))
-          : FactCaption(title: _title(f), text: _text(f));
+  /// [units] 'auto' 按行程所在国家 / 'mi' 英里 / 'km' 公里。
+  /// **中英文两版必须用同一个单位** —— 同一篇里中文说 78 公里、
+  /// 英文说 48 miles，两个数都对，读者却对不上账。
+  static FactCaption forStop(
+    StopFacts f, {
+    String lang = 'zh',
+    String units = 'auto',
+  }) {
+    final miles = units == 'mi'
+        ? true
+        : units == 'km'
+            ? false
+            : f.usesMiles;
+    return lang == 'en'
+        ? FactCaption(title: _title(f), text: _textEn(f, miles))
+        : FactCaption(title: _title(f), text: _text(f, miles));
+  }
 
   // ---- 标题 ----
 
@@ -36,7 +49,7 @@ class FactCaption {
 
   // ---- 正文 ----
 
-  static String _text(StopFacts f) {
+  static String _text(StopFacts f, bool miles) {
     final parts = <String>[];
 
     final where = _where(f);
@@ -56,7 +69,7 @@ class FactCaption {
     if (f.arrivedFrom != null && f.arrivedFrom!.trim().isNotEmpty) {
       final km = f.legMeters == null || f.legMeters! < 500
           ? ''
-          : '，${_km(f.legMeters!)}';
+          : '，${_dist(f.legMeters!, miles)}';
       // 走了哪条路是地图给的事实，而且**比里程具体得多** ——
       // "沿 40 号公路开了 136 公里"读起来才像一个真走过这条路的人
       final via = f.viaRoads.isEmpty
@@ -122,10 +135,12 @@ class FactCaption {
     return '待了约 ${(h / 24).round()} 天';
   }
 
-  static String _km(double meters) {
-    final km = meters / 1000;
-    if (km < 10) return '约 ${km.toStringAsFixed(1)} 公里';
-    return '约 ${km.round()} 公里';
+  /// 距离。**单位由地点决定** —— 见 StopFacts.usesMiles
+  static String _dist(double meters, bool miles) {
+    final v = miles ? meters / 1609.344 : meters / 1000;
+    final unit = miles ? '英里' : '公里';
+    if (v < 10) return '约 ${v.toStringAsFixed(1)} $unit';
+    return '约 ${v.round()} $unit';
   }
 
   /// 路号按中文习惯读: "I 40" -> "40 号州际公路"，"US 285" -> "285 号国道"。
@@ -147,7 +162,7 @@ class FactCaption {
   // 直译出来的句子（"On September 8 afternoon arrived at..."）
   // 一眼就能看出是机器翻的。
 
-  static String _textEn(StopFacts f) {
+  static String _textEn(StopFacts f, bool miles) {
     final parts = <String>[];
     final where = _where(f);
     final when = _whenEn(f.arrive);
@@ -165,7 +180,7 @@ class FactCaption {
     if (f.arrivedFrom != null && f.arrivedFrom!.trim().isNotEmpty) {
       final km = f.legMeters == null || f.legMeters! < 500
           ? ''
-          : ' ${_milesEn(f.legMeters!)}';
+          : ' ${_distEn(f.legMeters!, miles)}';
       final via = f.viaRoads.isEmpty
           ? ''
           : ' via ${f.viaRoads.join(' and ')}';
@@ -215,12 +230,13 @@ class FactCaption {
     return 'stayed about $days ${days == 1 ? 'day' : 'days'}';
   }
 
-  /// 英文读者按英里算距离，不该看到公里
-  static String _milesEn(double meters) {
-    final mi = meters / 1609.344;
-    return mi < 10
-        ? '${mi.toStringAsFixed(1)} miles'
-        : '${mi.round()} miles';
+  /// 同上: 一篇法国游记的英文版说 "48 miles" 和中文版说"78 公里"一样错
+  static String _distEn(double meters, bool miles) {
+    final v = miles ? meters / 1609.344 : meters / 1000;
+    final unit = miles ? 'miles' : 'km';
+    return v < 10
+        ? '${v.toStringAsFixed(1)} $unit'
+        : '${v.round()} $unit';
   }
 
   static String _verbEn(String? mode) {

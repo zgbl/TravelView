@@ -28,6 +28,11 @@ class Project {
   /// Story Cover 的形态: auto（默认，由内容决定）/ map / mapcard / photo
   String coverMode;
 
+  /// 距离单位: auto（按行程所在的国家）/ mi 英里 / km 公里。
+  /// **中英文两个版本用同一个单位** —— 同一篇游记里中文说 78 公里、
+  /// 英文说 48 miles，虽然两个数都对，但读者对不上账。
+  String units;
+
   /// 发布出去的标题。**和草稿名字是两回事** ——
   /// 草稿名是给自己找东西用的（"横穿美国-第二版"），
   /// 标题是封面上最大的那行字、也是分享卡片的第一行，读者只看得到它。
@@ -57,6 +62,7 @@ class Project {
     this.note = '',
     this.coverPhotoId = '',
     this.coverMode = 'auto',
+    this.units = 'auto',
     this.storyTitle = '',
     this.storySubtitle = '',
     this.publishedStoryId = '',
@@ -76,6 +82,7 @@ class Project {
         'note': note,
         'coverPhotoId': coverPhotoId,
         'coverMode': coverMode,
+        'units': units,
         'storyTitle': storyTitle,
         'storySubtitle': storySubtitle,
         'publishedStoryId': publishedStoryId,
@@ -95,6 +102,7 @@ class Project {
         note: j['note'] as String? ?? '',
         coverPhotoId: j['coverPhotoId'] as String? ?? '',
         coverMode: j['coverMode'] as String? ?? 'auto',
+        units: j['units'] as String? ?? 'auto',
         storyTitle: j['storyTitle'] as String? ?? '',
         storySubtitle: j['storySubtitle'] as String? ?? '',
         publishedStoryId: j['publishedStoryId'] as String? ?? '',

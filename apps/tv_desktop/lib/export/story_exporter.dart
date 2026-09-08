@@ -60,6 +60,7 @@ class StoryExporter {
     required Map<int, String?> heroByStopSeq,
     String? coverPhotoId,
     String coverMode = 'auto',
+    String units = 'auto',
     required List<RouteLeg> legs,
     required String title,
     String? subtitle,
@@ -211,6 +212,9 @@ class StoryExporter {
     manifestJson['coverMode'] =
         const {'auto', 'map', 'mapcard', 'photo'}.contains(coverMode)
             ? coverMode : 'auto';
+    // 距离单位。网页上的统计数字和解说文字必须用同一个单位
+    manifestJson['units'] =
+        const {'auto', 'mi', 'km'}.contains(units) ? units : 'auto';
     await manifest.writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifestJson));
 

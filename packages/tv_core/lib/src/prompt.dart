@@ -45,6 +45,52 @@ class StopFacts {
 
   Duration get duration => leave.difference(arrive);
 
+  /**
+   * 这一站该用英里还是公里。
+   *
+   * **单位跟地点走，不跟语言走。** 一趟美国自驾，中文读者看到"78 公里"
+   * 一样别扭 —— 路牌上写的是 mile，开车时看的里程表也是 mile。
+   * 反过来，一篇法国游记的英文版说 "48 miles" 同样不对。
+   *
+   * 判断优先用反查到的国名；地名没查到时用经纬度兜底，
+   * 因为**没有地名的那一站恰恰最常见于荒郊野外的公路上**，
+   * 而那正是最需要说对单位的场合。
+   */
+  bool get usesMiles {
+    for (final n in placeNames) {
+      final s = n.trim().toLowerCase();
+      if (s.isEmpty) continue;
+      if (_mileCountries.any(s.contains)) return true;
+      // 明确是别的国家就不用再猜了
+      if (_metricHints.any(s.contains)) return false;
+    }
+    return _inUsBox(lat, lon);
+  }
+
+  /// 日常路程仍用英里的地方: 美国、英国、利比里亚、缅甸
+  static const _mileCountries = [
+    'united states', 'usa', 'u.s.', 'america', '美国', '美國',
+    'united kingdom', 'england', 'scotland', 'wales',
+    'northern ireland', 'britain', '英国', '英國',
+    'liberia', '利比里亚', 'myanmar', 'burma', '缅甸', '緬甸',
+  ];
+
+  /// 出现这些就肯定不是英里国家，避免"United States"匹配到别的词
+  static const _metricHints = [
+    'canada', '加拿大', 'mexico', '墨西哥', 'china', '中国', '中國',
+    'japan', '日本', 'france', '法国', 'germany', '德国', 'australia',
+  ];
+
+  /// 美国本土 + 阿拉斯加 + 夏威夷的粗略范围。
+  /// 只在地名查不到时用，宁可粗一点也别把加拿大算进来
+  static bool _inUsBox(double lat, double lon) {
+    final mainland =
+        lat >= 24.5 && lat <= 49.0 && lon >= -125.0 && lon <= -66.9;
+    final alaska = lat >= 51.0 && lat <= 71.5 && lon >= -170.0 && lon <= -129.0;
+    final hawaii = lat >= 18.5 && lat <= 22.5 && lon >= -160.5 && lon <= -154.5;
+    return mainland || alaska || hawaii;
+  }
+
   static StopFacts fromStop(
     Stop stop, {
     required int index,

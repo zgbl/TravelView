@@ -220,6 +220,7 @@ class _StoryPageState extends State<StoryPage> {
       heroByStopSeq: heroes,
       coverPhotoId: cover.isEmpty ? null : cover,
       coverMode: coverMode,
+      units: widget.c.units,
       title: title,
       subtitle: sub,
       tripForNotes: r,
@@ -553,6 +554,38 @@ class _StoryPageState extends State<StoryPage> {
                 selected: {widget.c.coverMode},
                 onSelectionChanged: (v) => widget.c.setCoverMode(v.first),
               ),
+
+              _sep(scheme),
+
+              // 距离单位。**放在这里而不是全局设置里**: 它属于这一篇 ——
+              // 同一个人可能这趟在美国、下趟在欧洲
+              const Text('距离', style: TextStyle(fontSize: 12)),
+              const SizedBox(width: 6),
+              SegmentedButton<String>(
+                style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                segments: const [
+                  ButtonSegment(
+                      value: 'auto',
+                      label: Text('自动', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(
+                      value: 'mi',
+                      label: Text('英里', style: TextStyle(fontSize: 11))),
+                  ButtonSegment(
+                      value: 'km',
+                      label: Text('公里', style: TextStyle(fontSize: 11))),
+                ],
+                selected: {widget.c.units},
+                onSelectionChanged: (v) => widget.c.setUnits(v.first),
+              ),
+              if (widget.c.units == 'auto') ...[
+                const SizedBox(width: 6),
+                Tooltip(
+                  message: '按每一站所在的国家决定: 美国、英国用英里，其余用公里。\n'
+                      '中英文两个版本用同一个单位。',
+                  child: Icon(Icons.info_outline,
+                      size: 14, color: scheme.onSurfaceVariant),
+                ),
+              ],
               if (widget.c.coverMode == 'photo') ...[
                 const SizedBox(width: 8),
                 Icon(
