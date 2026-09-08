@@ -198,6 +198,7 @@ export const dict: Dict = {
   'player.exit': { zh: '退出播放', en: 'Exit' },
   'player.fromHere': { zh: '从这里播放', en: 'Play from here' },
   'player.fromStop': { zh: '第 {n} 站起', en: 'from stop {n}' },
+  'player.volume': { zh: '音量', en: 'Volume' },
   'player.full': { zh: '全屏 (F)', en: 'Fullscreen (F)' },
   'player.windowed': { zh: '退出全屏 (F)', en: 'Exit fullscreen (F)' },
   'player.unmute': { zh: '打开配乐', en: 'Play music' },

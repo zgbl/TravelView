@@ -5,7 +5,7 @@ import maplibregl from 'maplibre-gl';
 import { decodePolyline, mediaUrl, dist, distUnit, distLabel, type Story }
   from '@/lib/story';
 import { t, type Locale } from '@/lib/i18n';
-import { Ambient } from '@/lib/ambient';
+import { Ambient, DEFAULT_VOL, MAX_VOL } from '@/lib/ambient';
 import { storyTracks } from '@/lib/music';
 import { carSvg, bearing, smoothTurn } from '@/lib/carMarker';
 
@@ -80,15 +80,19 @@ export default function StoryPlayer({
   // 这篇游记选了曲子才有声音；没选就当配乐功能不存在，一个按钮都不出现。
   const tracks = useMemo(() => storyTracks(story, prefix), [story, prefix]);
   const [sound, setSound] = useState(false);
+  const [vol, setVol] = useState(DEFAULT_VOL);
   const ambientRef = useRef<Ambient | null>(null);
 
   useEffect(() => {
     if (tracks.length === 0) return;
     const a = new Ambient(tracks.map((t) => t.url));
     ambientRef.current = a;
+    setVol(a.volume);
     // 播放器是被"点播放"点开的，手势还在，多半能直接出声。
-    // **拦下来也不是错误** —— 那就静静地留着按钮等用户点
-    void a.start().then((ok) => setSound(ok));
+    // **拦下来也不是错误** —— 那就静静地留着按钮等用户点。
+    // 延迟两秒: 让标题和第一张照片先站住，音乐再浮上来 ——
+    // 画面还没出来声音先响，观众会先去找声音是哪儿来的
+    void a.start(2000).then((ok) => setSound(ok));
     return () => { a.stop(); ambientRef.current = null; };
   }, [tracks]);
 
@@ -203,10 +207,11 @@ export default function StoryPlayer({
     }
   }, [i, beats, photoById, prefix]);
 
-  // 到站时给一声，让"车在动"这件事也听得见
+  // 放到片尾就让音乐收尾: **当前这首放完就停，不再从头开始。**
+  // 硬切会把最后那一刻切碎；而无限循环下去是在赶人
   useEffect(() => {
-    if (sound && beat.kind === 'transit') ambientRef.current?.transit();  // 压低音量，给地图那一刻让出空间
-  }, [i, beat.kind, sound]);
+    if (beat.kind === 'end') ambientRef.current?.finish();
+  }, [beat.kind]);
 
   // 暂停时音乐跟着停 —— 画面停了声音还在飘，很怪
   useEffect(() => {
@@ -348,6 +353,24 @@ export default function StoryPlayer({
           {playing ? '❚❚' : '▶'}
         </Ctrl>
         {/* 配乐还没有做，按钮就不出现 —— 点了没反应比没有更糟 */}
+        {/* 音量。**给一个滑块** —— 让用户去调整台电脑的音量，
+            等于让他为了这一个页面改掉所有软件的音量 */}
+        {tracks.length > 0 && sound && (
+          <input
+            type="range"
+            min={0}
+            max={MAX_VOL}
+            step={0.02}
+            value={vol}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              setVol(v);
+              ambientRef.current?.setVolume(v);
+            }}
+            className="h-1 w-24 cursor-pointer accent-white/80"
+            aria-label={t(locale, 'player.volume')}
+          />
+        )}
         {tracks.length > 0 && (
           <Ctrl onClick={toggleSound}
             label={sound ? t(locale, 'player.mute') : t(locale, 'player.unmute')}>

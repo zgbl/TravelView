@@ -186,10 +186,14 @@ class _StoryPageState extends State<StoryPage> {
     ));
   }
 
-  /// 导出成可离线打开的 Story 网页包，然后直接在浏览器里打开给用户看。
-  Future<void> _export() async {
+  /// 生成 Story 网页产物。**发布和"导出看看"共用这一段** ——
+  /// 导出和发布之间不可能有别的改动，让用户先点导出再点发布，
+  /// 等于把一个实现细节摆到他面前，还多一个"忘了重新导出"的坑。
+  ///
+  /// 返回 null = 没生成出来（没有行程、一张照片都没选）。
+  Future<ExportResult?> _buildExport() async {
     final r = route;
-    if (r == null) return;
+    if (r == null) return null;
     final heroes = <int, String?>{};
     for (final stop in r.stays) {
       final sug = suggestions[stop.seq];
@@ -206,7 +210,6 @@ class _StoryPageState extends State<StoryPage> {
         ? widget.c.storyTitle
         : (widget.c.currentProjectName ?? '我的旅行');
     final cover = widget.c.coverPhotoId;
-    final coverMode = widget.c.coverMode;
     // **只数真正进 Story 的站。** 副标题写 22 站、统计栏写 7 站，
     // 用户第一眼就会觉得数据是错的 —— 事实上错的是副标题。
     final shownStops =
@@ -216,11 +219,11 @@ class _StoryPageState extends State<StoryPage> {
         : '${_dateOnly(r.start)} - ${_dateOnly(r.end)}'
             ' · ${r.dayCount} 天 · $shownStops 站';
 
-    final res = await widget.c.exportStory(
+    return widget.c.exportStory(
       trip: r,
       heroByStopSeq: heroes,
       coverPhotoId: cover.isEmpty ? null : cover,
-      coverMode: coverMode,
+      coverMode: widget.c.coverMode,
       units: widget.c.units,
       // **没勾版权声明就不带配乐。** 声明是这条路成立的前提，
       // 不能因为用户忘了勾就默默替他上传
@@ -229,14 +232,27 @@ class _StoryPageState extends State<StoryPage> {
       subtitle: sub,
       tripForNotes: r,
     );
-    if (res == null || !mounted) return;
+  }
 
+  /// 导出并在浏览器里打开 —— 发布之前想先自己看一眼时用
+  Future<void> _export() async {
+    final res = await _buildExport();
+    if (res == null || !mounted) return;
     // 直接用默认浏览器打开，省掉"去哪个目录找"这一步
     if (Platform.isMacOS) {
       await Process.run('open', [res.indexHtml.path]);
     } else if (Platform.isWindows) {
       await Process.run('cmd', ['/c', 'start', '', res.indexHtml.path]);
     }
+  }
+
+  /// 发布。**先重新生成一次产物，再打开发布对话框。**
+  /// 用户点「发布」想的是"把这篇发出去"，不是"上传我十分钟前导出的那一份" ——
+  /// 中间他很可能又改了标题、换了封面、加了配乐。
+  Future<void> _publish() async {
+    final res = await _buildExport();
+    if (res == null || !mounted) return;
+    await PublishDialog.show(context, widget.c);
   }
 
   static String _dateOnly(DateTime? t) {
@@ -887,7 +903,7 @@ class _StoryPageState extends State<StoryPage> {
               FilledButton.icon(
                 onPressed: widget.c.exporting || widget.c.publishing
                     ? null
-                    : () => PublishDialog.show(context, widget.c),
+                    : _publish,
                 icon: const Icon(Icons.cloud_upload_outlined, size: 15),
                 label: const Text('发布', style: TextStyle(fontSize: 12)),
               ),

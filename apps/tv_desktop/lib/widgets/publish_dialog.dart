@@ -211,7 +211,8 @@ class _PublishDialogState extends State<PublishDialog> {
             children: [
               if (export == null)
                 _hint(scheme,
-                    '还没有导出。先点「导出 Story 网页」，发布上传的就是那份产物。')
+                    '还没有可发布的内容 —— 每一站都没有选中照片。'
+                    '先在上面挑一些照片再发布。')
               else
                 // 说清楚"张"和"个文件"不是一回事。
                 // 进度条数的是文件数（每张照片一张大图 + 一张缩略图），
