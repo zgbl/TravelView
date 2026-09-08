@@ -84,7 +84,10 @@ export async function POST(req: Request) {
   const rawMusic = (manifest as { music?: unknown }).music;
   if (typeof rawMusic === 'string') {
     const m = rawMusic.trim();
-    const ok = /^[a-z0-9_-]{1,32}$/i.test(m) || /^https:\/\/[^\s]{5,500}$/i.test(m);
+    // 三种合法写法: 随故事上传的文件 audio/x.mp3、外部 https 链接。
+    // **别的一律丢掉** —— 这个字段会变成页面上的 <audio src>
+    const ok = /^audio\/[A-Za-z0-9._-]{1,80}\.(mp3|m4a|aac|ogg|wav)$/i.test(m)
+      || /^https:\/\/[^\s]{5,500}$/i.test(m);
     if (ok) (manifest as { music?: string }).music = m;
     else delete (manifest as { music?: string }).music;
   } else {
@@ -97,7 +100,7 @@ export async function POST(req: Request) {
       { error: 'manifest 里出现了原图路径，拒绝发布' }, { status: 400 });
   }
   const badPath = files.find(
-    (f) => !/^((photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.(webp|jpg|jpeg)|og\.jpg)$/i
+    (f) => !/^((photos|thumbs)\/[A-Za-z0-9._-]{1,80}\.(webp|jpg|jpeg)|audio\/[A-Za-z0-9._-]{1,80}\.(mp3|m4a|aac|ogg|wav)|og\.jpg)$/i
       .test(f.path.replace(/^\/+/, '')));
   if (badPath) {
     return NextResponse.json(

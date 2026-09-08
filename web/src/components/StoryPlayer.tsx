@@ -6,7 +6,7 @@ import { decodePolyline, mediaUrl, dist, distUnit, distLabel, type Story }
   from '@/lib/story';
 import { t, type Locale } from '@/lib/i18n';
 import { Ambient } from '@/lib/ambient';
-import { storyTrack, trackUrl } from '@/lib/music';
+import { storyTrack } from '@/lib/music';
 import { carSvg, bearing, smoothTurn } from '@/lib/carMarker';
 
 /**
@@ -78,13 +78,13 @@ export default function StoryPlayer({
 
   // ── 配乐 ──
   // 这篇游记选了曲子才有声音；没选就当配乐功能不存在，一个按钮都不出现。
-  const track = useMemo(() => storyTrack(story), [story]);
+  const track = useMemo(() => storyTrack(story, prefix), [story, prefix]);
   const [sound, setSound] = useState(false);
   const ambientRef = useRef<Ambient | null>(null);
 
   useEffect(() => {
     if (!track) return;
-    const a = new Ambient(trackUrl(track));
+    const a = new Ambient(track.url);
     ambientRef.current = a;
     // 播放器是被"点播放"点开的，手势还在，多半能直接出声。
     // **拦下来也不是错误** —— 那就静静地留着按钮等用户点
@@ -308,12 +308,7 @@ export default function StoryPlayer({
           >
             {t(locale, 'player.again')}
           </button>
-          {/* 署名。Pixabay 不强制，但这是好习惯 —— 也是给用户看的示范 */}
-          {track?.credit && (
-            <p className="mt-8 text-[11px] text-white/35">
-              Music: {track.credit}
-            </p>
-          )}
+
         </Card>
       )}
 

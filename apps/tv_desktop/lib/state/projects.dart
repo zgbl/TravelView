@@ -34,8 +34,11 @@ class Project {
   String units;
 
   /// 配乐。空 = 没有配乐（播放器里连按钮都不出现）。
-  /// 曲库 id（'carefree'）或 https:// 开头的外部链接。
+  /// 本地音频文件的绝对路径，或 https:// 直链。
   String music;
+
+  /// 用户声明拥有这首曲子的使用权。换曲子会重置 —— 一次勾选管到永远等于没勾
+  bool musicRightsOk;
 
   /// 发布出去的标题。**和草稿名字是两回事** ——
   /// 草稿名是给自己找东西用的（"横穿美国-第二版"），
@@ -68,6 +71,7 @@ class Project {
     this.coverMode = 'auto',
     this.units = 'auto',
     this.music = '',
+    this.musicRightsOk = false,
     this.storyTitle = '',
     this.storySubtitle = '',
     this.publishedStoryId = '',
@@ -89,6 +93,7 @@ class Project {
         'coverMode': coverMode,
         'units': units,
         'music': music,
+        'musicRightsOk': musicRightsOk,
         'storyTitle': storyTitle,
         'storySubtitle': storySubtitle,
         'publishedStoryId': publishedStoryId,
@@ -110,6 +115,7 @@ class Project {
         coverMode: j['coverMode'] as String? ?? 'auto',
         units: j['units'] as String? ?? 'auto',
         music: j['music'] as String? ?? '',
+        musicRightsOk: j['musicRightsOk'] as bool? ?? false,
         storyTitle: j['storyTitle'] as String? ?? '',
         storySubtitle: j['storySubtitle'] as String? ?? '',
         publishedStoryId: j['publishedStoryId'] as String? ?? '',

@@ -269,7 +269,12 @@ class _PublishDialogState extends State<PublishDialog> {
                         const SizedBox(height: 4),
                         Text(c.pickedStoryTitle,
                             style: const TextStyle(fontSize: 13)),
-                        Text(c.pickedStoryUrl,
+                        Text(
+                            c.pickedStoryPublishedAt == null
+                                ? c.pickedStoryUrl
+                                : '${c.pickedStoryUrl}   '
+                                    '（上次发布 '
+                                    '${_dayClockIso(c.pickedStoryPublishedAt)}）',
                             style: TextStyle(
                                 fontSize: 11, color: scheme.onSurfaceVariant)),
                         const SizedBox(height: 4),
@@ -330,7 +335,12 @@ class _PublishDialogState extends State<PublishDialog> {
                               padding: const EdgeInsets.only(bottom: 4),
                               child: Row(children: [
                                 Expanded(
+                                  // **发布时间放在最前面。**
+                                  // 同一趟行程发过两次时，标题、日期、站数
+                                  // 全都一样 —— 时间是唯一能把两条分开的信息，
+                                  // 而用户要认的恰恰就是"哪篇是刚发的"
                                   child: Text(
+                                    '${_dayClockIso(st.publishedAt)}  '
                                     '${st.title}   ${st.start ?? ''} - '
                                     '${st.end ?? ''} · ${st.stops} 站 · '
                                     '${st.photos} 张'
@@ -420,12 +430,23 @@ class _PublishDialogState extends State<PublishDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                          done.updated
-                              ? '已更新，链接没有变'
-                              : '已发布，这个链接永久有效',
-                          style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600)),
+                      Row(children: [
+                        Expanded(
+                          child: Text(
+                              done.updated
+                                  ? '已更新，链接没有变'
+                                  : '已发布，这个链接永久有效',
+                              style: const TextStyle(
+                                  fontSize: 12, fontWeight: FontWeight.w600)),
+                        ),
+                        // **发布时间。** 连着发几次之后，两块一模一样的绿框
+                        // 谁也分不清哪个是刚才那次 —— 时间是唯一能分开它们的东西
+                        Text(_clock(c.lastPublishAt),
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: scheme.onPrimaryContainer
+                                    .withValues(alpha: .75))),
+                      ]),
                       const SizedBox(height: 6),
                       SelectableText(done.publicUrl,
                           style: const TextStyle(fontSize: 13)),
@@ -587,4 +608,33 @@ class _PublishDialogState extends State<PublishDialog> {
         ),
         child: Text(text, style: const TextStyle(fontSize: 12, height: 1.5)),
       );
+}
+
+/// 时刻。**今天的只显示时:分，不是今天的才带上日期** ——
+/// 绝大多数情况就是刚刚发的，多出来的年月日只是噪音
+String _clock(DateTime? t) {
+  if (t == null) return '';
+  final now = DateTime.now();
+  final hm = '${t.hour.toString().padLeft(2, '0')}:'
+      '${t.minute.toString().padLeft(2, '0')}';
+  final sameDay =
+      t.year == now.year && t.month == now.month && t.day == now.day;
+  return sameDay ? hm : '${t.month}/${t.day} $hm';
+}
+
+/// 服务器给的 ISO 时间转本地时刻
+String _clockIso(String? iso) {
+  if (iso == null || iso.isEmpty) return '';
+  final t = DateTime.tryParse(iso);
+  return t == null ? '' : _clock(t.toLocal());
+}
+
+/// 列表里的时刻: 带上月日，因为这里比的是好几篇不同时间发的东西
+String _dayClockIso(String? iso) {
+  if (iso == null || iso.isEmpty) return '  --  ';
+  final t = DateTime.tryParse(iso)?.toLocal();
+  if (t == null) return '  --  ';
+  return '${t.month}/${t.day} '
+      '${t.hour.toString().padLeft(2, '0')}:'
+      '${t.minute.toString().padLeft(2, '0')}';
 }

@@ -58,6 +58,8 @@ export async function GET(req: Request) {
       photos: r.photo_count,
       stops: r.stop_count,
       published: !!r.published_at,
+      // 发布时间: 桌面端要靠它区分"哪一篇是刚发的"
+      publishedAt: r.published_at,
       updates: r.update_count,
       url: `${site}/s/${r.slug}`,
     })),

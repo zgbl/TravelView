@@ -92,6 +92,11 @@ class RemoteStory {
   /// 已经更新过几次。前 5 次免费，之后每次 0.5 篇额度
   final int updates;
 
+  /// 上次发布/更新的时间（ISO 8601，UTC）。
+  /// **同一趟行程被发布过两次时，这是唯一能把两条分开的信息** ——
+  /// 标题、日期、站数全都一样
+  final String? publishedAt;
+
   const RemoteStory({
     required this.id,
     required this.slug,
@@ -103,6 +108,7 @@ class RemoteStory {
     this.updates = 0,
     this.start,
     this.end,
+    this.publishedAt,
   });
 
   factory RemoteStory.fromJson(Map<String, dynamic> j) => RemoteStory(
@@ -116,6 +122,7 @@ class RemoteStory {
         published: j['published'] == true,
         url: j['url'] as String? ?? '',
         updates: (j['updates'] as num?)?.toInt() ?? 0,
+        publishedAt: j['publishedAt'] as String?,
       );
 }
 
@@ -129,8 +136,19 @@ class RemoteStory {
 /// 原图格式（HEIC / DNG / CR2 / NEF / ARW）依然进不来。
 const _allowedExt = {'.webp', '.jpg', '.jpeg'};
 
+/// 配乐。**只有 audio/ 目录里的文件能是这些格式** —— 照片目录里
+/// 出现 mp3 说明导出出了问题，仍然按老规矩拒绝
+const _allowedAudioExt = {'.mp3', '.m4a', '.aac', '.ogg', '.wav'};
+
 String _contentTypeOf(String ext) =>
     ext == '.webp' ? 'image/webp' : 'image/jpeg';
+
+String _audioTypeOf(String ext) => switch (ext) {
+      '.mp3' => 'audio/mpeg',
+      '.m4a' || '.aac' => 'audio/mp4',
+      '.ogg' => 'audio/ogg',
+      _ => 'audio/wav',
+    };
 
 class Publisher {
   final PublishConfig config;
@@ -302,6 +320,24 @@ class Publisher {
           path: '$sub/${p.basename(e.path)}',
           file: e,
           contentType: _contentTypeOf(ext),
+        ));
+      }
+    }
+    // 配乐: audio/ 下最多一个文件，用户自己选的曲子
+    final ad = Directory(p.join(dir.path, 'audio'));
+    if (await ad.exists()) {
+      await for (final e in ad.list()) {
+        if (e is! File) continue;
+        final ext = p.extension(e.path).toLowerCase();
+        if (!_allowedAudioExt.contains(ext)) {
+          throw PublishException(
+              '配乐目录里有不该出现的文件 ${p.basename(e.path)}，'
+              '为安全起见拒绝上传');
+        }
+        out.add((
+          path: 'audio/${p.basename(e.path)}',
+          file: e,
+          contentType: _audioTypeOf(ext),
         ));
       }
     }

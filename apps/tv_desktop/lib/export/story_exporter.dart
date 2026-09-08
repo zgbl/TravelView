@@ -217,7 +217,26 @@ class StoryExporter {
     manifestJson['units'] =
         const {'auto', 'mi', 'km'}.contains(units) ? units : 'auto';
     // 配乐: 曲库 id 或 https 链接。空就是不配乐
-    if (music.trim().isNotEmpty) manifestJson['music'] = music.trim();
+    // 配乐。
+    //   https 链接  -> 原样写进 manifest，文件不在我们这儿
+    //   本地文件    -> 拷进 audio/，manifest 里记相对路径，跟着故事一起上传
+    final mus = music.trim();
+    if (mus.startsWith('https://')) {
+      manifestJson['music'] = mus;
+    } else if (mus.isNotEmpty) {
+      final srcFile = File(mus);
+      if (await srcFile.exists()) {
+        // 文件名重新起过: 用户的原文件名可能是中文、空格、emoji，
+        // 而这个名字要走 URL、要过服务器那道路径白名单
+        final ext = p.extension(mus).replaceAll('.', '').toLowerCase();
+        final name = 'track.$ext';
+        await Directory(p.join(dir.path, 'audio')).create(recursive: true);
+        await srcFile.copy(p.join(dir.path, 'audio', name));
+        manifestJson['music'] = 'audio/$name';
+      }
+      // 文件没了就当没配乐 —— 用户可能早就把那个 mp3 删了或挪走了，
+      // 这不该让整个发布失败
+    }
     await manifest.writeAsString(
         const JsonEncoder.withIndent('  ').convert(manifestJson));
 

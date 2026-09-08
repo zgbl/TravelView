@@ -632,6 +632,10 @@ class LibraryController extends ChangeNotifier {
   int publishTotal = 0;
   PublishResult? lastPublish;
 
+  /// 本次发布完成的时刻。连着发几次之后，几块一模一样的结果框
+  /// 谁也分不清哪个是刚才那次 —— 时间是唯一能分开它们的东西
+  DateTime? lastPublishAt;
+
   /// 额度不够时置为 true，UI 据此引导用户去网页付款，
   /// 而不是把 402 当成一个普通错误弹掉。
   bool needsPayment = false;
@@ -715,6 +719,7 @@ class LibraryController extends ChangeNotifier {
         },
       );
       lastPublish = res;
+      lastPublishAt = DateTime.now();
       resumeStoryId = '';
       _resumeKey = '';
       // **发完之后仍然停在"更新这一篇"上。**
@@ -726,6 +731,7 @@ class LibraryController extends ChangeNotifier {
           ? pickedStoryTitle
           : (currentProjectName ?? '');
       pickedStoryUrl = res.publicUrl;
+      pickedStoryPublishedAt = DateTime.now().toUtc().toIso8601String();
       updateExisting = true;
       await _rememberPublished(res);
       // 更新次数变了，把列表刷一下，好显示"还剩几次免费更新"
@@ -786,31 +792,47 @@ class LibraryController extends ChangeNotifier {
 
   static const unitOptions = ['auto', 'mi', 'km'];
 
-  /// 配乐。空 = 不配乐。曲库 id 或 https:// 链接。
+  /// 配乐。空 = 不配乐。
   ///
-  /// **只认 https**: http 会让整页变成混合内容被浏览器拦掉。
-  /// 外部链接我们不兜底 —— 对方防盗链、改地址、删文件，
-  /// 这篇游记就永久没声音了，而且发布者不会收到任何通知。
+  /// 存的是**用户机器上那个音频文件的绝对路径**，或者一个 https 直链。
+  /// 发布时把本地文件当成一张"照片"一起上传，落到 audio/ 下。
+  ///
+  /// **我们不提供曲库。** 内置曲库选择永远太少，而且会让我们成为
+  /// 内容的提供方、版权责任落到我们头上。用户自己传，责任在上传者 ——
+  /// 发布前要他明确声明拥有使用权。
   String get music => currentProject?.music ?? _tmpMusic;
   String _tmpMusic = '';
 
-  /// 曲库。**和网页端 web/src/lib/music.ts 的 id 必须一一对应** ——
-  /// 数据里存的是 id，对不上就是发布出去没声音
-  static const musicLibrary = <String, String>{
-    'carefree': 'Carefree · 轻快，阳光下的公路',
-    'waterlily': 'Water Lily · 安静，水边和清晨',
-    'bittersweet': 'Bittersweet · 怀旧，回看很久以前的照片',
-    'duck': 'Fluffing a Duck · 俏皮，家人和小孩',
-  };
+  /// 用户是否已经声明拥有这首曲子的使用权。**每换一首都要重新声明** ——
+  /// 一次勾选管到永远，等于没有声明。
+  bool get musicRightsOk => currentProject?.musicRightsOk ?? _tmpRights;
+  bool _tmpRights = false;
 
-  Future<void> setMusic(String m) async {
+  /// 配乐显示用的名字: 本地文件取文件名，外链取域名
+  String get musicLabel {
+    final m = music;
+    if (m.isEmpty) return '';
+    if (m.startsWith('https://')) return Uri.tryParse(m)?.host ?? '外部链接';
+    return p.basename(m);
+  }
+
+  bool get musicIsLocalFile =>
+      music.isNotEmpty && !music.startsWith('https://');
+
+  static const audioExts = ['mp3', 'm4a', 'aac', 'ogg', 'wav'];
+
+  /// 选一首曲子。[rightsOk] 是用户的版权声明，换曲子就要重来一次。
+  Future<void> setMusic(String m, {bool rightsOk = false}) async {
     final v = m.trim();
-    // 曲库 id 或 https 链接，别的一律当作"不配乐"
-    _tmpMusic = (musicLibrary.containsKey(v) || v.startsWith('https://'))
-        ? v : '';
+    final ok = v.isEmpty ||
+        v.startsWith('https://') ||
+        audioExts.contains(v.split('.').last.toLowerCase());
+    _tmpMusic = ok ? v : '';
+    _tmpRights = _tmpMusic.isEmpty ? false : rightsOk;
     final proj = currentProject;
     if (proj != null) {
       proj.music = _tmpMusic;
+      proj.musicRightsOk = _tmpRights;
       proj.updatedAt = DateTime.now();
       await _store?.save(projects);
     }
@@ -1064,6 +1086,9 @@ class LibraryController extends ChangeNotifier {
   String pickedStoryId = '';
   String pickedStoryTitle = '';
   String pickedStoryUrl = '';
+  /// 被选中那一篇上次发布的时间（ISO）。同一趟发过两次时，
+  /// 这是用户唯一能确认"我选的是不是刚才那篇"的依据
+  String? pickedStoryPublishedAt;
 
   /// 这次要发的日期范围（从导出产物的指纹里取）
   ({String start, String end})? get _exportRange {
@@ -1122,6 +1147,7 @@ class LibraryController extends ChangeNotifier {
     pickedStoryId = s?.id ?? '';
     pickedStoryTitle = s?.title ?? '';
     pickedStoryUrl = s?.url ?? '';
+    pickedStoryPublishedAt = s?.publishedAt;
     updateExisting = pickedStoryId.isNotEmpty;
     notifyListeners();
   }
@@ -1135,6 +1161,7 @@ class LibraryController extends ChangeNotifier {
     _tmpCoverMode = proj.coverMode;
     _tmpUnits = proj.units;
     _tmpMusic = proj.music;
+    _tmpRights = proj.musicRightsOk;
     rangeStart = proj.rangeStart;
     rangeEnd = proj.rangeEnd;
     pickAlbum = proj.pickAlbum;

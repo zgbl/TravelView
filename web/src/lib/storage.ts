@@ -62,8 +62,12 @@ export function verifyUpload(key: string, exp: string, sig: string) {
 // 派生图的两种格式: WebP，以及系统编不出 WebP 时退回的 JPEG。
 // 原图格式（heic/dng/cr2/nef/arw…）一个都不在里面。
 const EXT = '(webp|jpg|jpeg)';
+// 配乐: audio/ 下一个文件。**由用户自己上传，我们只托管** ——
+// 曲子的版权责任在上传者，发布时要他明确声明。
+const AUDIO_EXT = '(mp3|m4a|aac|ogg|wav)';
 // 分享预览图单独放在前缀根下: og.jpg（必须是 JPEG，next/og 不认 WebP）
-const TAIL = `((photos|thumbs)/[A-Za-z0-9._-]{1,80}\\.${EXT}|og\\.jpg)`;
+const TAIL = `((photos|thumbs)/[A-Za-z0-9._-]{1,80}\\.${EXT}`
+  + `|audio/[A-Za-z0-9._-]{1,80}\\.${AUDIO_EXT}|og\\.jpg)`;
 const LEGACY_KEY = new RegExp(`^s/[a-z0-9]{4,32}/${TAIL}$`);
 const USER_KEY = new RegExp(
   `^u/[0-9a-f-]{36}/\\d{4}/\\d{2}/[a-z0-9]{4,32}/${TAIL}$`);
