@@ -154,6 +154,7 @@ export const dict: Dict = {
     zh: '手机版正在做 —— 目前手机上可以打开和分享已经发布的游记，制作要在电脑上完成。',
     en: 'Mobile apps are in progress. For now you can view and share published stories on a phone; making one happens on a computer.',
   },
+  'dl.macHelp': { zh: 'macOS 打不开？看解决步骤', en: 'macOS can\u2019t open it? See the steps' },
 
 
   'auth.signup.title': { zh: '创建账号', en: 'Create your account' },

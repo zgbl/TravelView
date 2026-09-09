@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import NavBar from '@/components/NavBar';
 import SiteFooter from '@/components/SiteFooter';
 import { getLocale } from '@/lib/i18n.server';
-import { t } from '@/lib/i18n';
+import { href, t } from '@/lib/i18n';
 import {
   currentReleases, guessPlatform, humanBytes, platformLabel, platforms,
   type Platform, type Release,
@@ -113,6 +113,15 @@ function Card({
           </span>
         )}
       </div>
+
+      {platform === 'macos' && has && (
+        <p className="mt-4 border-t border-white/10 pt-3 text-xs">
+          <a href={href(locale, '/download/macos-open')}
+            className="text-accentBright underline underline-offset-2 hover:brightness-110">
+            {t(locale, 'dl.macHelp')} →
+          </a>
+        </p>
+      )}
 
       {has && rel!.notes && (
         <p className="mt-4 whitespace-pre-line border-t border-white/10 pt-4

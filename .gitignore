@@ -50,3 +50,6 @@ DerivedData/
 # ── 系统垃圾 ──
 .DS_Store
 _to_delete/
+# TravelView 下载页帮助截图（放 web/public/ 下供站点引用）
+!**/web/public/**/*.png
+
