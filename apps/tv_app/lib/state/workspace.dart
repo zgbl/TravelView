@@ -100,7 +100,23 @@ class Workspace {
     }
   }
 
-  /// 工作目录现在占了多少字节。设置页里"清理缓存"要显示它。
+  /// 某一类产物占了多少字节（'export' / 'bundle' / 'analysis'）。
+  ///
+  /// 分类显示是有意义的：用户看见"待上传的缩小图 180MB"能明白那是
+  /// 一次发布留下的，看见笼统的"缓存 180MB"只会怀疑我们在偷存他的照片。
+  Future<int> bytesOf(String kind) async {
+    final d = Directory(p.join(root.path, kind));
+    var total = 0;
+    try {
+      if (!await d.exists()) return 0;
+      await for (final e in d.list(recursive: true, followLinks: false)) {
+        if (e is File) total += await e.length();
+      }
+    } catch (_) {}
+    return total;
+  }
+
+  /// 工作目录现在占了多少字节。
   Future<int> usedBytes() async {
     var total = 0;
     try {

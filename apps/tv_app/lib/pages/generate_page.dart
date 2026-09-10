@@ -8,7 +8,6 @@ import '../state/account.dart';
 import '../state/story_draft.dart';
 import '../widgets/asset_thumb.dart';
 import 'publish_page.dart';
-import 'sign_in_page.dart';
 
 /// 生成回顾：把选中的照片聚成一条**有站点的路线**，并且当场给用户看结果。
 ///
@@ -139,14 +138,8 @@ class _GeneratePageState extends State<GeneratePage> {
     final settings = await AppSettings.load();
     final account = Account(settings);
 
-    if (!account.signedIn) {
-      if (!mounted) return;
-      final ok = await Navigator.of(context).push<bool>(
-        MaterialPageRoute(builder: (_) => SignInPage(account)),
-      );
-      if (ok != true) return;
-    }
-
+    // 走到这一步一定是登录状态 —— App 开屏就要求登录，
+    // 挑完照片写完字才被拦住是最伤人的那种设计
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(

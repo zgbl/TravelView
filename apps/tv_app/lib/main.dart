@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:tv_shared/tv_shared.dart';
 
+import 'pages/app_shell.dart';
+import 'ui/theme.dart';
 import 'state/mobile_image_ops.dart';
+import 'state/session.dart';
 import 'state/workspace.dart';
-import 'pages/home_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -20,16 +22,17 @@ Future<void> main() async {
 
   ImageOps.register(const MobileImageOps());
 
-  final settings = await AppSettings.load();
-  L10n.set(settings.uiLang.isEmpty ? L10n.guessFromSystem() : settings.uiLang);
+  final session = await Session.load();
+  L10n.set(session.settings.uiLang.isEmpty
+      ? L10n.guessFromSystem()
+      : session.settings.uiLang);
 
-  runApp(const TravelViewApp());
+  runApp(TravelViewApp(session));
 }
 
 class TravelViewApp extends StatelessWidget {
-  const TravelViewApp({super.key});
-
-  static const _seed = Color(0xFF2E6F6A);
+  final Session session;
+  const TravelViewApp(this.session, {super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -39,16 +42,11 @@ class TravelViewApp extends StatelessWidget {
       builder: (context, _, __) => MaterialApp(
         title: 'TravelView',
         debugShowCheckedModeBanner: false,
-        theme: _theme(Brightness.light),
-        darkTheme: _theme(Brightness.dark),
-        home: const HomePage(),
+        theme: TV.theme(Brightness.light),
+        darkTheme: TV.theme(Brightness.dark),
+        home: AppShell(session),
       ),
     );
   }
 
-  static ThemeData _theme(Brightness brightness) => ThemeData(
-        colorScheme:
-            ColorScheme.fromSeed(seedColor: _seed, brightness: brightness),
-        useMaterial3: true,
-      );
 }

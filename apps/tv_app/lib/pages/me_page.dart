@@ -1,0 +1,624 @@
+import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:tv_shared/tv_shared.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+import '../state/profile.dart';
+import '../state/session.dart';
+import '../state/workspace.dart';
+import '../ui/theme.dart';
+
+/// 个人中心。
+///
+/// 只放**用户真的需要做决定**的东西。手机 App 的设置页越长，
+/// 用户越觉得这东西复杂 —— 该由 App 自己管好的事就别拿出来问。
+class MePage extends StatefulWidget {
+  final Session session;
+  const MePage(this.session, {super.key});
+
+  @override
+  State<MePage> createState() => _MePageState();
+}
+
+class _MePageState extends State<MePage> {
+  late final ProfileStore _profile =
+      ProfileStore(widget.session.account.config);
+  _Usage? _usage;
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _profile.addListener(_onProfile);
+    _profile.load();
+    _measure();
+    PackageInfo.fromPlatform().then((i) {
+      if (mounted) setState(() => _version = '${i.version} (${i.buildNumber})');
+    });
+  }
+
+  @override
+  void dispose() {
+    _profile.removeListener(_onProfile);
+    super.dispose();
+  }
+
+  void _onProfile() => setState(() {});
+
+  Future<void> _measure() async {
+    final w = Workspace.instance;
+    final u = _Usage(
+      exportBytes: await w.bytesOf('export'),
+      bundleBytes: await w.bytesOf('bundle'),
+      analysisBytes: await w.bytesOf('analysis'),
+    );
+    if (mounted) setState(() => _usage = u);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final s = widget.session.settings;
+    final u = _usage;
+
+    return Scaffold(
+      appBar: AppBar(title: Text(tr('个人中心'))),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(TV.pad, TV.gap, TV.pad, 30),
+        children: [
+          _IdentityCard(
+            profile: _profile.profile,
+            loading: _profile.loading,
+            error: _profile.error,
+            onEditName: _editName,
+            onEditHandle: _editHandle,
+            onRetry: _profile.load,
+            onOpenHome: (url) =>
+                launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+          ),
+          const SizedBox(height: TV.gap),
+
+          _SectionTitle(tr('本机占用')),
+          _Card(
+            child: Column(
+              children: [
+                _StorageRow(
+                  label: tr('待上传的缩小图'),
+                  bytes: u?.exportBytes,
+                  color: scheme.primary,
+                ),
+                const Divider(height: 18),
+                _StorageRow(
+                  label: tr('打包产物'),
+                  bytes: u?.bundleBytes,
+                  color: scheme.tertiary,
+                ),
+                const Divider(height: 18),
+                _StorageRow(
+                  label: tr('精选用的分析图'),
+                  bytes: u?.analysisBytes,
+                  color: scheme.secondary,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  tr('这些都是可以随时重新生成的临时文件，'
+                      '删掉不会丢任何东西。照片原件一直在你的系统相册里。'),
+                  style: TextStyle(
+                      fontSize: 11.5, color: scheme.outline, height: 1.5),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      await Workspace.instance.clear();
+                      await _measure();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(tr('清理完了'))));
+                      }
+                    },
+                    icon: const Icon(Icons.cleaning_services_outlined, size: 18),
+                    label: Text(tr('全部清理')),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: TV.gap),
+
+          _SectionTitle(tr('偏好')),
+          _Card(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.language),
+                  title: Text(tr('界面语言')),
+                  trailing: SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(value: 'zh', label: Text('中文')),
+                      ButtonSegment(value: 'en', label: Text('EN')),
+                    ],
+                    selected: {L10n.lang.value},
+                    showSelectedIcon: false,
+                    onSelectionChanged: (v) async {
+                      L10n.set(v.first);
+                      s.uiLang = v.first;
+                      await s.save();
+                      if (mounted) setState(() {});
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: TV.gap),
+
+          _SectionTitle(tr('关于')),
+          _Card(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.info_outline),
+                  title: Text(tr('版本')),
+                  trailing: Text(_version,
+                      style: TextStyle(fontSize: 13, color: scheme.outline)),
+                ),
+                const Divider(height: 1),
+                // 改密码留在网页：那边已经有完整的一套（当前密码校验、
+                // 两次输入比对），手机上再做一份就是两处维护、两处会不一致
+                _LinkTile(
+                  icon: Icons.lock_outline,
+                  label: tr('修改密码'),
+                  url: '${s.siteUrl}/zh/account',
+                ),
+                const Divider(height: 1),
+                _LinkTile(
+                  icon: Icons.feedback_outlined,
+                  label: tr('意见反馈'),
+                  url: '${s.siteUrl}/zh/download',
+                ),
+                const Divider(height: 1),
+                _LinkTile(
+                  icon: Icons.privacy_tip_outlined,
+                  label: tr('隐私政策与服务条款'),
+                  url: '${s.siteUrl}/zh',
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: TV.gap),
+
+          _Card(
+            padding: EdgeInsets.zero,
+            child: ListTile(
+              leading: Icon(Icons.logout, color: scheme.error),
+              title:
+                  Text(tr('退出登录'), style: TextStyle(color: scheme.error)),
+              onTap: _signOut,
+            ),
+          ),
+          const SizedBox(height: 26),
+          Text(
+            tr('照片原件一直在你手机里，只有你选中的那些会被缩小后上传。'),
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: scheme.outline, height: 1.6),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editName() async {
+    final p = _profile.profile;
+    final ctrl = TextEditingController(text: p?.name ?? '');
+    final v = await _ask(
+      title: tr('显示名'),
+      hint: tr('别人在你的公开主页上看到的名字'),
+      controller: ctrl,
+    );
+    if (v == null) return;
+    final err = await _profile.setName(v);
+    _toast(err ?? tr('改好了'));
+  }
+
+  Future<void> _editHandle() async {
+    final p = _profile.profile;
+    final ctrl = TextEditingController(text: p?.handle ?? '');
+    final site = widget.session.settings.siteUrl
+        .replaceAll(RegExp(r'^https?://'), '');
+    final v = await _ask(
+      title: tr('公开主页地址'),
+      hint: '$site/u/…',
+      controller: ctrl,
+      helper: tr('小写字母、数字、下划线，3 到 20 位。设好之后别人可以'
+          '通过这个地址看到你公开的全部回顾。'),
+    );
+    if (v == null || v.isEmpty) return;
+    final err = await _profile.setHandle(v);
+    _toast(err ?? tr('设好了'));
+  }
+
+  Future<String?> _ask({
+    required String title,
+    required String hint,
+    required TextEditingController controller,
+    String? helper,
+  }) {
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(title),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: controller,
+              autofocus: true,
+              autocorrect: false,
+              decoration: InputDecoration(hintText: hint),
+            ),
+            if (helper != null) ...[
+              const SizedBox(height: 10),
+              Text(helper,
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.5,
+                      color: Theme.of(ctx).colorScheme.outline)),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: Text(tr('取消'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+              child: Text(tr('保存'))),
+        ],
+      ),
+    );
+  }
+
+  void _toast(String msg) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Future<void> _signOut() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('退出登录？')),
+        content: Text(tr('已经发布的回顾不受影响，链接照常能打开。')),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: Text(tr('取消'))),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: Text(tr('退出'))),
+        ],
+      ),
+    );
+    if (ok == true) await widget.session.signOut();
+  }
+}
+
+class _Usage {
+  final int exportBytes, bundleBytes, analysisBytes;
+  const _Usage({
+    required this.exportBytes,
+    required this.bundleBytes,
+    required this.analysisBytes,
+  });
+}
+
+class _StorageRow extends StatelessWidget {
+  final String label;
+  final int? bytes;
+  final Color color;
+  const _StorageRow(
+      {required this.label, required this.bytes, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Container(
+          width: 9,
+          height: 9,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 10),
+        Expanded(child: Text(label, style: const TextStyle(fontSize: 14))),
+        Text(
+          bytes == null ? '…' : fmtBytes(bytes!),
+          style: TextStyle(fontSize: 13, color: scheme.outline),
+        ),
+      ],
+    );
+  }
+}
+
+String fmtBytes(int b) {
+  if (b < 1024) return '$b B';
+  if (b < 1024 * 1024) return '${(b / 1024).round()} KB';
+  return '${(b / 1024 / 1024).toStringAsFixed(1)} MB';
+}
+
+class _LinkTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String url;
+  const _LinkTile(
+      {required this.icon, required this.label, required this.url});
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        leading: Icon(icon),
+        title: Text(label),
+        trailing: const Icon(Icons.open_in_new, size: 16),
+        onTap: () =>
+            launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
+      );
+}
+
+class _Card extends StatelessWidget {
+  final Widget child;
+  final EdgeInsets padding;
+  const _Card({required this.child, this.padding = const EdgeInsets.all(16)});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardTheme.color,
+          borderRadius: BorderRadius.circular(TV.rCard),
+          boxShadow: TV.shadow(context),
+        ),
+        child: Padding(padding: padding, child: child),
+      );
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String text;
+  const _SectionTitle(this.text);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+                color: Theme.of(context).colorScheme.outline)),
+      );
+}
+
+/// 「我是谁」那张卡。
+///
+/// 头像圈里是名字首字母 —— 不做真头像上传：服务器没有存头像的地方，
+/// 做一个只能存在本机的头像，换台手机就没了，比没有更让人困惑。
+/// 首字母 + 主色底在所有正经产品里都是合格的兜底。
+class _IdentityCard extends StatelessWidget {
+  final Profile? profile;
+  final bool loading;
+  final String? error;
+  final VoidCallback onEditName;
+  final VoidCallback onEditHandle;
+  final VoidCallback onRetry;
+  final void Function(String url) onOpenHome;
+
+  const _IdentityCard({
+    required this.profile,
+    required this.loading,
+    required this.error,
+    required this.onEditName,
+    required this.onEditHandle,
+    required this.onRetry,
+    required this.onOpenHome,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final p = profile;
+
+    if (p == null) {
+      return _Card(
+        child: Row(
+          children: [
+            if (loading)
+              const SizedBox(
+                  width: 20, height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              Icon(Icons.person_off_outlined, color: scheme.outline),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Text(
+                loading ? tr('正在读取账号…') : (error ?? tr('读不到账号信息')),
+                style: TextStyle(fontSize: 13, color: scheme.outline),
+              ),
+            ),
+            if (!loading)
+              TextButton(onPressed: onRetry, child: Text(tr('重试'))),
+          ],
+        ),
+      );
+    }
+
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      scheme.primary,
+                      scheme.primary.withValues(alpha: 0.62),
+                    ],
+                  ),
+                ),
+                child: Text(
+                  p.initial,
+                  style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 23,
+                      fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            p.displayName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: 19, fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        InkWell(
+                          onTap: onEditName,
+                          borderRadius: BorderRadius.circular(20),
+                          child: Padding(
+                            padding: const EdgeInsets.all(4),
+                            child: Icon(Icons.edit_outlined,
+                                size: 15, color: scheme.outline),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(p.email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style:
+                            TextStyle(fontSize: 12.5, color: scheme.outline)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          const Divider(height: 1),
+          const SizedBox(height: 12),
+
+          // 公开主页。没设过就是一句引导，而不是一个点开 404 的链接
+          InkWell(
+            onTap: onEditHandle,
+            borderRadius: BorderRadius.circular(TV.rControl),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Icon(Icons.public, size: 18, color: scheme.outline),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: p.handle == null
+                        ? Text(tr('还没设置公开主页地址'),
+                            style: TextStyle(
+                                fontSize: 13.5, color: scheme.outline))
+                        : Text('@${p.handle}',
+                            style: const TextStyle(
+                                fontSize: 13.5, fontWeight: FontWeight.w600)),
+                  ),
+                  Text(p.handle == null ? tr('去设置') : tr('修改'),
+                      style: TextStyle(fontSize: 12.5, color: scheme.primary)),
+                ],
+              ),
+            ),
+          ),
+
+          if (p.homeUrl != null) ...[
+            const SizedBox(height: 6),
+            InkWell(
+              onTap: () => onOpenHome(p.homeUrl!),
+              borderRadius: BorderRadius.circular(TV.rControl),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Row(
+                  children: [
+                    Icon(Icons.open_in_new, size: 18, color: scheme.outline),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        p.homeUrl!.replaceAll(RegExp(r'^https?://'), ''),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12.5, color: scheme.primary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 12),
+          // 额度：发布前才发现不够是最糟的时机，摆在这儿让人心里有数
+          Row(
+            children: [
+              _Stat(
+                label: tr('可发布额度'),
+                value: p.subscribed ? tr('订阅中 · 不限') : '${p.credits}',
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Stat extends StatelessWidget {
+  final String label;
+  final String value;
+  const _Stat({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(TV.rControl),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label,
+              style: TextStyle(fontSize: 12, color: scheme.outline)),
+          const SizedBox(width: 8),
+          Text(value,
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: scheme.primary)),
+        ],
+      ),
+    );
+  }
+}

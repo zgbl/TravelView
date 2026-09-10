@@ -27,6 +27,15 @@ dependencies:
   path_provider: ^2.1.4
   path: ^1.9.0
 
+  # 分享弹窗里的二维码
+  qr_flutter: ^4.1.0
+
+  # 版本号显示在个人中心
+  package_info_plus: ^8.1.1
+
+  # 在系统浏览器里打开自己发布的故事
+  url_launcher: ^6.3.1
+
   # 地图与分享
   flutter_map: ^7.0.2
   latlong2: ^0.9.1

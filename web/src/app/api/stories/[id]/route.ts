@@ -1,15 +1,15 @@
 import { NextResponse } from 'next/server';
-import { requireUser } from '@/lib/auth';
+import { requireUserOrToken } from '@/lib/auth';
 import { one, query } from '@/lib/db';
 import { deleteStoryMedia } from '@/lib/r2';
 import type { Story } from '@/lib/story';
 
 /** 删除自己的 Story，连同 R2 上的图片一起清掉 */
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await requireUser();
+  const user = await requireUserOrToken(req);
   if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
   const { id } = await params;
 
@@ -37,15 +37,33 @@ export async function DELETE(
   return NextResponse.json({ ok: true });
 }
 
-/** 改可见性 */
+/** 改可见性和标题 */
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await requireUser();
+  const user = await requireUserOrToken(req);
   if (!user) return NextResponse.json({ error: '请先登录' }, { status: 401 });
   const { id } = await params;
-  const { visibility } = await req.json().catch(() => ({}));
+
+  const body = await req.json().catch(() => ({}));
+
+  // 改标题。**只改这一列，不碰 manifest** —— manifest 是发布时那份产物的真相，
+  // 改它会让网页内容和已经缓存的分享卡片对不上。列表和页面标题读的就是这一列。
+  if (typeof body.title === 'string') {
+    const title = body.title.trim().slice(0, 120);
+    if (!title) {
+      return NextResponse.json({ error: '标题不能为空' }, { status: 400 });
+    }
+    const hit = await one(
+      `update stories set title = $1, updated_at = now()
+        where id = $2 and user_id = $3 returning id`,
+      [title, id, user.id]);
+    if (!hit) return NextResponse.json({ error: '找不到' }, { status: 404 });
+    return NextResponse.json({ ok: true });
+  }
+
+  const { visibility } = body;
   if (!['public', 'unlisted', 'private'].includes(visibility)) {
     return NextResponse.json({ error: '取值不对' }, { status: 400 });
   }

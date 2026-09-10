@@ -2,13 +2,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:share_plus/share_plus.dart';
 import 'package:tv_core/tv_core.dart';
 import 'package:tv_shared/tv_shared.dart';
 
 import '../state/account.dart';
 import '../state/album_source.dart';
 import '../state/story_draft.dart';
+import '../widgets/share_sheet.dart';
 import '../state/workspace.dart';
 
 /// 发布：导出派生图 → 上传 → 拿到链接 → 分享。
@@ -245,14 +245,10 @@ class _PublishPageState extends State<PublishPage> {
           SizedBox(
             height: 54,
             child: FilledButton.icon(
-              // **只发链接，不加任何前缀文字。**
-              //
-              // 微信只在整条消息就是一个裸 URL 时才去抓 Open Graph 生成卡片；
-              // 前面多一行标题，它就当普通文本处理，发出去是光秃秃的一行蓝字。
-              // 标题和封面本来就在卡片里，再写一遍反而把卡片弄没了。
-              onPressed: () => Share.share(r.publicUrl),
+              onPressed: () =>
+                  showShareSheet(context, r.publicUrl, title: widget.title),
               icon: const Icon(Icons.ios_share),
-              label: Text(tr('分享链接')),
+              label: Text(tr('分享')),
             ),
           ),
           const SizedBox(height: 10),

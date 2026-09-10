@@ -54,3 +54,26 @@ export async function requireUser() {
   if (!id) return null;
   return { id, email: session!.user!.email!, name: session!.user!.name };
 }
+
+/**
+ * 从**会话 cookie 或发布令牌**里认出用户。
+ *
+ * 网页走 cookie，桌面端和手机端走 `Authorization: Bearer tv_xxx`。
+ * 同一件事（删除自己的 Story、改标题）两边都该能做，
+ * 没有理由只让浏览器做 —— 手机上发出去的东西，得能在手机上删掉。
+ */
+export async function requireUserOrToken(req: Request) {
+  const session = await requireUser();
+  if (session) return session;
+
+  const token = (req.headers.get('authorization') ?? '')
+    .replace(/^Bearer\s+/i, '').trim();
+  if (!token) return null;
+
+  const row = await one<{ user_id: string; email: string; name: string | null }>(
+    `select u.id as user_id, u.email, u.name
+       from publish_tokens t join users u on u.id = t.user_id
+      where t.token = $1 and t.revoked_at is null`, [token]);
+  if (!row) return null;
+  return { id: row.user_id, email: row.email, name: row.name };
+}
