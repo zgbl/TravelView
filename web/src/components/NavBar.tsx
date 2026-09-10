@@ -3,6 +3,7 @@ import { requireUser } from '@/lib/auth';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
 import Logo from './Logo';
+import SignOutButton from './SignOutButton';
 
 /**
  * 全站导航。
@@ -42,11 +43,25 @@ export default async function NavBar() {
               <Link href={href(L, '/stories')} className={item}>
                 {t(L, 'nav.stories')}
               </Link>
+              {/*
+                **登录之后就要看得见自己是谁。**
+                之前这里写死一个"账户"，同一台电脑上有两个账号的人
+                （很常见：自己的 + 测试的）根本分不清现在是哪个身份在发布。
+                显示名没设就退回邮箱 —— 总有一个能认出人来。
+              */}
               <Link href={href(L, '/account')}
-                className="rounded-full border border-white/15 px-4 py-1.5
-                  text-sm hover:border-white/35">
-                {t(L, 'nav.account')}
+                className="flex items-center gap-2 rounded-full border
+                  border-white/15 px-3 py-1.5 text-sm hover:border-white/35">
+                <span className="grid h-6 w-6 place-items-center rounded-full
+                  bg-accentBright/20 text-[11px] font-semibold uppercase
+                  text-accentBright">
+                  {(user.name ?? user.email).trim().charAt(0)}
+                </span>
+                <span className="max-w-[11rem] truncate">
+                  {user.name?.trim() || user.email}
+                </span>
               </Link>
+              <SignOutButton locale={L} className={item} />
             </>
           ) : (
             <>

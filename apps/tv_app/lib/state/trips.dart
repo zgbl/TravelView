@@ -7,7 +7,16 @@ class Trip {
 
   DateTime get start => photos.first.takenAt;
   DateTime get end => photos.last.takenAt;
-  int get days => end.difference(start).inDays + 1;
+  /// 跨了几个**自然日**。
+  ///
+  /// 不能用 `end.difference(start).inDays + 1`：12月27日傍晚出发、
+  /// 28日上午回来，间隔不到 24 小时，那个算法给出 1 天，
+  /// 而界面上明明列着"第 1 天"和"第 2 天"两组照片，自相矛盾。
+  int get days =>
+      DateTime(end.year, end.month, end.day)
+          .difference(DateTime(start.year, start.month, start.day))
+          .inDays +
+      1;
 
   Iterable<PhotoRecord> get located => photos.where((p) => p.hasLocation);
 

@@ -18,7 +18,11 @@ import 'sign_in_page.dart';
 /// 因为它让人以为出了错。
 class GeneratePage extends StatefulWidget {
   final List<PhotoRecord> photos;
-  const GeneratePage(this.photos, {super.key});
+
+  /// 用户在行程页上已经写好的标题和每天的话 —— **接着用，不要重来一份。**
+  final StoryDraft draft;
+
+  const GeneratePage(this.photos, {super.key, required this.draft});
 
   @override
   State<GeneratePage> createState() => _GeneratePageState();
@@ -41,13 +45,9 @@ class _GeneratePageState extends State<GeneratePage> {
     try {
       final r = buildRoute(widget.photos);
       if (!mounted) return;
-      final start = r.stays.isEmpty
-          ? widget.photos.first.takenAt
-          : r.stays.first.arrive;
       setState(() {
         _route = r;
-        _draft = StoryDraft(
-            defaultTitle: '${start.year}.${start.month}.${start.day}');
+        _draft = widget.draft;
       });
     } catch (e) {
       if (mounted) setState(() => _error = '$e');
@@ -105,7 +105,12 @@ class _GeneratePageState extends State<GeneratePage> {
       children: [
         _Cover(widget.photos.first,
             route: route, photoCount: widget.photos.length),
-        _TitleFields(draft),
+        if (draft.subtitle.trim().isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Text(draft.subtitle.trim(),
+                style: const TextStyle(fontSize: 14)),
+          ),
         _MapStrip(located),
         _TravelModePicker(draft),
         for (final stop in route.stays) _StopCard(stop, widget.photos, draft),
@@ -272,36 +277,22 @@ class _StopCard extends StatelessWidget {
             ]),
             style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: TextFormField(
-              initialValue: draft.stopNames[stop.seq],
-              onChanged: (v) => draft.stopNames[stop.seq] = v,
-              textCapitalization: TextCapitalization.sentences,
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: tr('这是哪儿？（可以不写）'),
-                border: InputBorder.none,
-              ),
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+          // 文字在行程页上边看照片边写好了，这里只是让用户确认最终样子。
+          // **预览页不再是第二个编辑入口** —— 两个地方都能改同一段话，
+          // 用户会分不清哪个是准的。
+          if ((draft.stopNames[stop.seq] ?? '').trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 2, right: 16),
+              child: Text(draft.stopNames[stop.seq]!.trim(),
+                  style: const TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600)),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: TextFormField(
-              initialValue: draft.stopNotes[stop.seq],
-              onChanged: (v) => draft.stopNotes[stop.seq] = v,
-              textCapitalization: TextCapitalization.sentences,
-              maxLines: null,
-              decoration: InputDecoration(
-                isDense: true,
-                hintText: tr('这儿发生了什么'),
-                border: InputBorder.none,
-              ),
-              style: const TextStyle(fontSize: 13),
+          if ((draft.stopNotes[stop.seq] ?? '').trim().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 3, right: 16),
+              child: Text(draft.stopNotes[stop.seq]!.trim(),
+                  style: const TextStyle(fontSize: 13, height: 1.5)),
             ),
-          ),
           const SizedBox(height: 8),
           SizedBox(
             height: 96,
@@ -315,50 +306,6 @@ class _StopCard extends StatelessWidget {
                     width: 96, child: AssetThumb(photos[i].id, size: 256)),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// 标题和副标题。**直接摆在封面下面，不藏进设置。**
-///
-/// 全都可以不写 —— 什么都不填也能发布，标题回落到日期。
-/// 想发的时候被一个必填框拦住，比没有输入框更糟。
-class _TitleFields extends StatelessWidget {
-  final StoryDraft draft;
-  const _TitleFields(this.draft);
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          TextFormField(
-            initialValue: draft.title,
-            onChanged: (v) => draft.title = v,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: trf('给这一篇起个名字（默认用 {0}）', [draft.defaultTitle]),
-              border: InputBorder.none,
-            ),
-            style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-          ),
-          TextFormField(
-            initialValue: draft.subtitle,
-            onChanged: (v) => draft.subtitle = v,
-            textCapitalization: TextCapitalization.sentences,
-            maxLines: null,
-            decoration: InputDecoration(
-              isDense: true,
-              hintText: tr('一句话说说这趟（可以不写）'),
-              border: InputBorder.none,
-            ),
-            style: const TextStyle(fontSize: 14),
           ),
         ],
       ),

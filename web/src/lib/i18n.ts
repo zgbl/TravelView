@@ -27,6 +27,18 @@ export const dict: Dict = {
   'nav.start': { zh: '开始使用', en: 'Get started' },
   'nav.stories': { zh: '我的故事', en: 'My stories' },
   'nav.account': { zh: '账户', en: 'Account' },
+  'nav.signout': { zh: '退出登录', en: 'Sign out' },
+  'account.password': { zh: '修改密码', en: 'Change password' },
+  'account.password.current': { zh: '当前密码', en: 'Current password' },
+  'account.password.new': { zh: '新密码（至少 8 位）', en: 'New password (8+ characters)' },
+  'account.password.again': { zh: '再输一遍新密码', en: 'Repeat new password' },
+  'account.password.change': { zh: '修改密码', en: 'Change password' },
+  'account.password.mismatch': { zh: '两次输入的新密码不一样', en: "The two new passwords don't match" },
+  'account.password.failed': { zh: '改不了，请再试一次', en: 'Could not change it, please try again' },
+  'account.password.hint': {
+    zh: '改密码不会踢掉已经连接的桌面端和手机 —— 要收回某台设备，在上面的令牌列表里吊销它。',
+    en: 'Changing your password does not disconnect your desktop or phone. To revoke a device, remove its token above.',
+  },
   'nav.admin': { zh: '后台', en: 'Admin' },
   'nav.back': { zh: '返回', en: 'Back' },
   // ---- 落地页 ----

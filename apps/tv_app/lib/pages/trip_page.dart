@@ -5,6 +5,7 @@ import 'package:tv_core/tv_core.dart';
 import 'package:tv_shared/tv_shared.dart';
 
 import '../state/selection.dart';
+import '../state/story_draft.dart';
 import '../state/trips.dart';
 import '../widgets/asset_thumb.dart';
 import 'generate_page.dart';
@@ -24,6 +25,19 @@ class TripPage extends StatefulWidget {
 
 class _TripPageState extends State<TripPage> {
   late final TripSelection _sel = TripSelection(widget.trip.photos);
+  late final StoryDraft _draft = StoryDraft(
+      defaultTitle: '${widget.trip.start.year}.'
+          '${widget.trip.start.month}.${widget.trip.start.day}');
+
+  /// **一进来就把站点算好。**
+  ///
+  /// 桌面端的编辑页就是按站组织的：一站一张卡片，照片在上、文字在下。
+  /// 手机端没有理由换一套 —— 同一个人在两个屏幕上做的是同一件事，
+  /// 换个组织方式只会让他重新学一遍。
+  ///
+  /// `buildRoute` 是纯计算，几千张也就几十毫秒，不值得为它加个加载态。
+  late final TripRoute _route = buildRoute(widget.trip.photos);
+
   int _tab = 0;
 
   @override
@@ -45,8 +59,10 @@ class _TripPageState extends State<TripPage> {
         },
         child: Scaffold(
           appBar: _sel.selecting ? _selectingBar() : _normalBar(),
+          // 输入法弹出来时要把正在写的那一行顶上去，不能盖住
+          resizeToAvoidBottomInset: true,
           body: _tab == 0
-              ? _Timeline(widget.trip, _sel)
+              ? _Timeline(widget.trip, _route, _sel, _draft)
               : _TripMap(widget.trip, _sel),
           // **挑图的操作全部在屏幕下半部。**
           // 竖握手机时拇指扫得到的只有底下三分之一，把勾选和批量操作
@@ -137,7 +153,7 @@ class _TripPageState extends State<TripPage> {
             ? null
             : () => Navigator.of(context).push(
                   MaterialPageRoute(
-                    builder: (_) => GeneratePage(_sel.picked),
+                    builder: (_) => GeneratePage(_sel.picked, draft: _draft),
                   ),
                 ),
         heroTag: 'go',
@@ -155,61 +171,138 @@ class _TripPageState extends State<TripPage> {
   }
 }
 
-/// 按天分组的照片墙。**分组的是日期，不是"事件"** ——
-/// 用户脑子里记的是"第二天去了哪"，不是第 37 个聚类。
+/// 按**站**组织，和桌面端一模一样：一站一张卡片，照片在上、文字在下。
+///
+/// 桌面端那份代码里写着"先看照片，再写字，顺序是对的" —— 就是这个意思：
+/// 人要先看见那张茶园的照片，才想得起来"上山的路结了冰"。
+/// 把文字框挪到另一页、或者挪到照片前面，写出来的都是流水账。
 class _Timeline extends StatelessWidget {
   final Trip trip;
+  final TripRoute route;
   final TripSelection sel;
-  const _Timeline(this.trip, this.sel);
+  final StoryDraft draft;
+  const _Timeline(this.trip, this.route, this.sel, this.draft);
 
   @override
   Widget build(BuildContext context) {
-    final byDay = <DateTime, List<PhotoRecord>>{};
-    for (final p in trip.photos) {
-      final d = DateTime(p.takenAt.year, p.takenAt.month, p.takenAt.day);
-      byDay.putIfAbsent(d, () => []).add(p);
-    }
-    final days = byDay.keys.toList()..sort();
+    final byId = {for (final p in trip.photos) p.id: p};
+    final stops = route.stays;
+
+    // 没有位置信息的照片连不成站。**不能把它们丢掉** ——
+    // 用户拍了就是拍了，只是我们不知道在哪儿，单独归一组放最后。
+    final inStops = <String>{for (final s in stops) ...s.photoIds};
+    final orphans =
+        trip.photos.where((p) => !inStops.contains(p.id)).toList();
 
     return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 90),
-      itemCount: days.length,
-      itemBuilder: (context, i) {
-        final day = days[i];
-        final photos = byDay[day]!;
-        final dayPicked = photos.where((p) => sel.has(p.id)).length;
+      padding: const EdgeInsets.only(bottom: 100),
+      itemCount: 1 + stops.length + (orphans.isEmpty ? 0 : 1),
+      itemBuilder: (context, index) {
+        if (index == 0) return _TitleBlock(draft);
 
-        return Column(
+        final i = index - 1;
+        if (i < stops.length) {
+          final stop = stops[i];
+          final photos = stop.photoIds
+              .map((id) => byId[id])
+              .whereType<PhotoRecord>()
+              .toList();
+          return _StopSection(
+            stop: stop,
+            index: i,
+            photos: photos,
+            trip: trip,
+            sel: sel,
+            draft: draft,
+          );
+        }
+
+        return _StopSection(
+          stop: null,
+          index: stops.length,
+          photos: orphans,
+          trip: trip,
+          sel: sel,
+          draft: draft,
+        );
+      },
+    );
+  }
+}
+
+/// 一站：徽章 + 时间 + 照片网格 + 这一站的文字。
+class _StopSection extends StatelessWidget {
+  final Stop? stop;
+  final int index;
+  final List<PhotoRecord> photos;
+  final Trip trip;
+  final TripSelection sel;
+  final StoryDraft draft;
+
+  const _StopSection({
+    required this.stop,
+    required this.index,
+    required this.photos,
+    required this.trip,
+    required this.sel,
+    required this.draft,
+  });
+
+  /// 没有位置的那一组用负数当 key，不会和真实站点撞上
+  int get _seq => stop?.seq ?? -1;
+
+  @override
+  Widget build(BuildContext context) {
+    if (photos.isEmpty) return const SizedBox.shrink();
+    final scheme = Theme.of(context).colorScheme;
+    final picked = photos.where((p) => sel.has(p.id)).length;
+    final s = stop;
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 20, 8, 10),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      trf('第 {0} 天 · {1}月{2}日', [i + 1, day.month, day.day]),
-                      style: const TextStyle(
-                          fontSize: 15, fontWeight: FontWeight.w600),
+            Row(
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: s == null
+                        ? scheme.surfaceContainerHighest
+                        : scheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    s == null ? tr('没有位置') : trf('第 {0} 站', [index + 1]),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: s == null
+                          ? scheme.onSurfaceVariant
+                          : scheme.onPrimaryContainer,
                     ),
                   ),
-                  if (sel.selecting)
-                    TextButton(
-                      onPressed: () => sel.toggleDay(photos),
-                      child: Text(
-                        dayPicked == photos.length
-                            ? tr('这天都不要')
-                            : trf('这天全要 ({0})', [photos.length]),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                    ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 10),
+                if (s != null)
+                  Text(_timeLabel(s),
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                const Spacer(),
+                Text(trf('{0} / {1}', [picked, photos.length]),
+                    style: TextStyle(
+                        fontSize: 12, color: scheme.onSurfaceVariant)),
+              ],
             ),
+            const SizedBox(height: 10),
+
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 12),
               gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 3,
                 mainAxisSpacing: 3,
@@ -230,9 +323,86 @@ class _Timeline extends StatelessWidget {
                 ),
               ),
             ),
+
+            // 这一站的文字。**放在照片后面** —— 先看照片，再写字。
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: draft.stopNames[_seq],
+              onChanged: (v) => draft.stopNames[_seq] = v,
+              textCapitalization: TextCapitalization.sentences,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              decoration: InputDecoration(
+                isDense: true,
+                border: const OutlineInputBorder(),
+                labelText: tr('小标题'),
+                hintText: tr('例如 山顶的茶园'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: draft.stopNotes[_seq],
+              onChanged: (v) => draft.stopNotes[_seq] = v,
+              textCapitalization: TextCapitalization.sentences,
+              minLines: 2,
+              maxLines: 5,
+              style: const TextStyle(fontSize: 13, height: 1.5),
+              decoration: InputDecoration(
+                isDense: true,
+                border: const OutlineInputBorder(),
+                labelText: tr('说明文字'),
+                hintText: tr('这儿发生了什么'),
+              ),
+            ),
           ],
-        );
-      },
+        ),
+      ),
+    );
+  }
+
+  static String _timeLabel(Stop s) {
+    String hm(DateTime d) =>
+        '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+    return '${s.arrive.month}月${s.arrive.day}日 ${hm(s.arrive)}';
+  }
+}
+
+/// 整篇的标题和一句话，摆在第一站上面。
+class _TitleBlock extends StatelessWidget {
+  final StoryDraft draft;
+  const _TitleBlock(this.draft);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextFormField(
+            initialValue: draft.title,
+            onChanged: (v) => draft.title = v,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: trf('给这趟起个名字（默认 {0}）', [draft.defaultTitle]),
+              border: InputBorder.none,
+            ),
+            style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
+          ),
+          TextFormField(
+            initialValue: draft.subtitle,
+            onChanged: (v) => draft.subtitle = v,
+            textCapitalization: TextCapitalization.sentences,
+            maxLines: null,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: tr('一句话说说这趟'),
+              border: InputBorder.none,
+            ),
+            style: const TextStyle(fontSize: 14),
+          ),
+        ],
+      ),
     );
   }
 }

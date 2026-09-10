@@ -245,12 +245,12 @@ class _PublishPageState extends State<PublishPage> {
           SizedBox(
             height: 54,
             child: FilledButton.icon(
-              // 用 share(text) 而不是 shareUri：后者在 Android 上不少
-              // 分享目标接不住，纯文本是所有 App 都认的最小公约数
-              onPressed: () => Share.share(
-                '${widget.title}\n${r.publicUrl}',
-                subject: widget.title,
-              ),
+              // **只发链接，不加任何前缀文字。**
+              //
+              // 微信只在整条消息就是一个裸 URL 时才去抓 Open Graph 生成卡片；
+              // 前面多一行标题，它就当普通文本处理，发出去是光秃秃的一行蓝字。
+              // 标题和封面本来就在卡片里，再写一遍反而把卡片弄没了。
+              onPressed: () => Share.share(r.publicUrl),
               icon: const Icon(Icons.ios_share),
               label: Text(tr('分享链接')),
             ),

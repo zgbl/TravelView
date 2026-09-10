@@ -9,6 +9,8 @@ import { href, t } from '@/lib/i18n';
 import TokenManager from '@/components/TokenManager';
 import NameEditor from '@/components/NameEditor';
 import HandleEditor from '@/components/HandleEditor';
+import PasswordEditor from '@/components/PasswordEditor';
+import SignOutButton from '@/components/SignOutButton';
 import { siteUrl } from '@/lib/stripe';
 
 export default async function Account() {
@@ -45,11 +47,23 @@ export default async function Account() {
           <Link href={href(L, '/stories')} className="text-muted hover:text-paper">
             {t(L, 'nav.stories')}
           </Link>
+          <SignOutButton locale={L} className="text-muted hover:text-paper" />
         </div>
       </div>
 
       <div className="rounded-2xl border border-white/12 p-6">
-        <div className="text-sm text-muted">{user.email}</div>
+        <div className="flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-full
+            bg-accentBright/20 text-sm font-semibold uppercase text-accentBright">
+            {(row?.name ?? user.email).trim().charAt(0)}
+          </span>
+          <div>
+            {row?.name?.trim() && (
+              <div className="text-base font-medium">{row.name}</div>
+            )}
+            <div className="text-sm text-muted">{user.email}</div>
+          </div>
+        </div>
         <div className="mt-4 text-sm">
           {beta.free ? (
             <span className="text-accentBright">
@@ -86,6 +100,8 @@ export default async function Account() {
       </div>
 
       <NameEditor initial={row?.name ?? ''} locale={L} />
+
+      <PasswordEditor locale={L} />
 
       <HandleEditor
         initial={row?.handle ?? ''}

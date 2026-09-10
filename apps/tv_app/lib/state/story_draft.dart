@@ -18,9 +18,13 @@ class StoryDraft extends ChangeNotifier {
   String title = '';
   String subtitle = '';
 
-  /// 站序号 -> 用户写的地名 / 一句话
+  /// 站序号 -> 这一站的小标题 / 说明文字。
+  ///
+  /// **和桌面端同一个结构。** 桌面端按站组织，每一站是"照片在上、文字在下"，
+  /// 手机端没有理由换一套 —— 同一个人在两个屏幕上做的是同一件事。
   final Map<int, String> stopNames = {};
   final Map<int, String> stopNotes = {};
+
 
   /// 'drive' 开车 / 'walk' 逛城市 / 'dot' 只要圆点。
   ///
