@@ -21,13 +21,13 @@ const dir = path.join(path.dirname(fileURLToPath(import.meta.url)),
   '..', 'db', 'migrations');
 
 const db = new pg.Client({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('sslmode=disable')
+  connectionString: process.env.TRAVELVIEW_DATABASE_URL,
+  ssl: process.env.TRAVELVIEW_DATABASE_URL?.includes('sslmode=disable')
     ? undefined : { rejectUnauthorized: false },
 });
 
-if (!process.env.DATABASE_URL) {
-  console.error('没有 DATABASE_URL。先: set -a; . /etc/travelview/env; set +a');
+if (!process.env.TRAVELVIEW_DATABASE_URL) {
+  console.error('没有 TRAVELVIEW_DATABASE_URL。先: set -a; . /etc/travelview/env; set +a');
   process.exit(1);
 }
 

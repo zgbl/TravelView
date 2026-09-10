@@ -13,6 +13,7 @@
   - `accounts-and-publishing.md` 设备码登录 / 公开主页 / 发布后原地更新
   - `publish-pipeline.md` 派生图格式与发布管线
   - `map-tiles.md` 地图底图选型
+  - `mobile-plan.md` 手机端方案：三层怎么分、手机为什么不建库
   - `dev-setup.md` / `build-and-package.md` 环境与打包
 - 支付多环境切换：`docs/stripe-environments.md`（测试 / 正式怎么切，上线检查清单）
 
@@ -22,9 +23,12 @@
 packages/
   tv_core/          纯 Dart 核心引擎（哈希 / 落盘 / sidecar / catalog / 校验）
                     不依赖 Flutter，手机端和桌面端共用同一份
+  tv_shared/        两端共用的应用层（界面语言 / 设置 / 草稿 / Story 导出 /
+                    ImageOps 平台图像接口）—— 要 Flutter 但不分平台的都在这
   tv_ui/            共享 Widget（手机与桌面复用）
 apps/
   tv_app/           Flutter 手机端 (iOS / Android)
+                    只读系统相册，**不在手机上建照片库**，见 Design/mobile-plan.md
   tv_desktop/       Flutter Desktop (macOS)
 web/                配套网站（Next.js）: 注册 / 支付 / 发布 / 公开链接
                     独立开发部署，只和 App 共享 Story manifest 这一份契约

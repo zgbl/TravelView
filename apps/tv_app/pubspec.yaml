@@ -1,0 +1,41 @@
+name: tv_app
+description: TravelView 手机端 —— 从相册里长出旅行回顾
+publish_to: none
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  tv_core:
+    path: ../../packages/tv_core
+  tv_shared:
+    path: ../../packages/tv_shared
+
+  # 只读系统相册。**不复制照片** —— 手机上已经有一份了，
+  # 再在沙盒里存一份等于凭空吃掉几十 GB。
+  photo_manager: ^3.6.1
+
+  # 单独申请 ACCESS_MEDIA_LOCATION 用。
+  # Android 10+ 把照片的 GPS 当成独立的运行时权限，photo_manager 的权限请求
+  # **不包含它** —— 只写进 manifest 的话，读到的每张照片都不带位置。
+  permission_handler: ^11.3.1
+
+  # 沙盒目录（设置、缩略图缓存、导出产物）
+  path_provider: ^2.1.4
+  path: ^1.9.0
+
+  # 地图与分享
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  share_plus: ^10.1.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

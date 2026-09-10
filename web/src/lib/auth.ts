@@ -7,7 +7,7 @@ import { one } from './db';
  * Auth.js（NextAuth v5）+ 普通 Postgres。
  *
  * 为什么不用 Supabase Auth: 它会把用户表和会话绑在 Supabase 上，
- * 将来想搬到你 OCI 那台就得改代码。Auth.js 只依赖 DATABASE_URL，
+ * 将来想搬到你 OCI 那台就得改代码。Auth.js 只依赖 TRAVELVIEW_DATABASE_URL，
  * 换 host 不用动逻辑。Supabase 仍然可以用 —— 当成一个 Postgres 供应商即可。
  */
 export const { handlers, auth, signIn, signOut } = NextAuth({

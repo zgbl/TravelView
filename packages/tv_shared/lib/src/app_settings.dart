@@ -83,7 +83,15 @@ class AppSettings {
     this.uiLang = '',
   });
 
+  /// 配置目录。手机上没有"应用支持目录"这个概念可以靠环境变量猜 ——
+  /// iOS / Android 的沙盒路径要问系统要（path_provider），所以留一个注入点：
+  /// 手机端在 `main()` 里 `AppSettings.configDir = await getApplicationSupportDirectory()`
+  /// 就够了，共享代码一行都不用改。桌面端不设，走下面按平台拼的默认值。
+  static Directory? configDir;
+
   static Directory get _dir {
+    final injected = configDir;
+    if (injected != null) return injected;
     final env = Platform.environment;
     if (Platform.isMacOS) {
       final home = env['HOME'] ?? '.';

@@ -4,17 +4,33 @@
 //   dart run tool/i18n_missing.dart
 import 'dart:io';
 
-import '../lib/state/l10n_en.dart';
+/// 要扫的代码根目录。文案现在分散在三处：桌面界面、手机界面、以及两端共用的
+/// `tv_shared`。**漏掉任何一个，英文界面上就会冒出中文。**
+const _roots = [
+  'lib',
+  '../tv_app/lib',
+  '../../packages/tv_shared/lib',
+];
+
+Iterable<File> _dartFiles() sync* {
+  for (final r in _roots) {
+    final d = Directory(r);
+    if (!d.existsSync()) continue;
+    yield* d
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'));
+  }
+}
+
+import 'package:tv_shared/src/l10n_en.dart';
 
 void main() {
   final cjk = RegExp(r'[一-鿿]');
   final call = RegExp(r"tr f?\(\s*'((?:[^'\\]|\\.)*)'");
   final missing = <String, String>{};
 
-  for (final f in Directory('lib')
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.dart'))) {
+  for (final f in _dartFiles()) {
     if (f.path.endsWith('l10n_en.dart')) continue;
     final lines = f.readAsLinesSync();
     for (var i = 0; i < lines.length; i++) {

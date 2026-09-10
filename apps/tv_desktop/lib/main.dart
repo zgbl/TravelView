@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 
+import 'package:tv_shared/tv_shared.dart';
+
+import 'native/native_bridge.dart';
 import 'pages/home_page.dart';
-import 'state/l10n.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 共享层（Story 导出、缩略图）通过这个接口拿到 macOS 的 ImageIO。
+  // **必须在任何界面代码之前**，否则导出会静默降级成"没有派生图"。
+  ImageOps.register(const DesktopImageOps());
 
   // 默认的错误组件在 release 下是一片灰黑、什么信息都没有。
   // 换成能看清错误、并且明确告诉用户按 Esc 返回的样子。

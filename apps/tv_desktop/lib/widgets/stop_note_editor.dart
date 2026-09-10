@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 
 /// 一站的文字。
 ///

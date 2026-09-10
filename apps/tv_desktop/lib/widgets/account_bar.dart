@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../state/library_controller.dart';
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 
 /// 账号状态，常驻主界面顶栏。
 ///

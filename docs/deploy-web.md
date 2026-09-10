@@ -197,7 +197,7 @@ sudo nano /etc/travelview/env
 
 | 变量 | 填什么 |
 |---|---|
-| `DATABASE_URL` | 把脚本打印的数据库密码填进去 |
+| `TRAVELVIEW_DATABASE_URL` | 把脚本打印的数据库密码填进去 |
 | `STRIPE_SECRET_KEY` | 先用 `sk_test_...` 跑通 |
 | `STRIPE_PRICE_ONETIME` | Stripe 后台建一个「单篇发布」价格，复制 `price_...` |
 
@@ -207,7 +207,7 @@ sudo nano /etc/travelview/env
 
 ```bash
 set -a; . /etc/travelview/env; set +a
-psql "$DATABASE_URL" -f /opt/travelview/src/web/db/schema.sql
+psql "$TRAVELVIEW_DATABASE_URL" -f /opt/travelview/src/web/db/schema.sql
 ```
 
 ---
@@ -287,7 +287,7 @@ sudo nginx -t && sudo systemctl reload nginx
 ```bash
 # /etc/cron.daily/travelview-backup
 set -a; . /etc/travelview/env; set +a
-pg_dump "$DATABASE_URL" | gzip > /var/backups/tv-$(date +%F).sql.gz
+pg_dump "$TRAVELVIEW_DATABASE_URL" | gzip > /var/backups/tv-$(date +%F).sql.gz
 tar czf /var/backups/tv-media-$(date +%F).tgz -C /var/lib/travelview media
 find /var/backups -name 'tv-*' -mtime +30 -delete
 ```

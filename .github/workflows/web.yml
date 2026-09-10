@@ -43,6 +43,6 @@ jobs:
         # 给一组假的，只为让构建走完
         env:
           NEXT_PUBLIC_SITE_URL: https://example.com
-          DATABASE_URL: postgres://user:pass@localhost:5432/db
+          TRAVELVIEW_DATABASE_URL: postgres://user:pass@localhost:5432/db
           AUTH_SECRET: ci-placeholder-secret-not-used-anywhere
         run: npm run build

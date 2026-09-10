@@ -5,12 +5,11 @@ import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
+import 'package:tv_shared/tv_shared.dart';
+
 import '../native/native_bridge.dart';
-import 'app_settings.dart';
-import 'l10n.dart';
-import 'projects.dart';
-import '../export/story_exporter.dart';
 import '../widgets/photo_tile.dart';
+import 'catalog_source.dart';
 
 /// 桌面端的全部状态。业务逻辑一律在 tv_core 里，这里只负责调度和进度上报。
 class LibraryController extends ChangeNotifier {
@@ -589,7 +588,13 @@ class LibraryController extends ChangeNotifier {
       notifyListeners();
       final legs = await legsForStory(trip);
 
-      final exporter = StoryExporter(libraryRoot: root, catalog: cat);
+      // 产物仍然写在照片库的 views/by-trip/ 下面 —— 导出器只负责在
+      // outRoot 底下建一个以 slug 命名的子目录，"放哪"由调用方决定
+      final exporter = StoryExporter(
+        source: CatalogSource(libraryRoot: root, catalog: cat),
+        outRoot: Directory(
+            p.join(root.path, LibraryLayout.viewsDir, 'by-trip')),
+      );
       final res = await exporter.export(
         stopNames: names,
         stopNotes: notesMap,

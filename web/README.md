@@ -11,7 +11,7 @@
 cd web
 cp .env.example .env.local     # 填好数据库、Stripe、R2
 npm install
-psql "$DATABASE_URL" -f db/schema.sql
+psql "$TRAVELVIEW_DATABASE_URL" -f db/schema.sql
 npm run dev
 ```
 
@@ -30,8 +30,8 @@ npm run preflight
 | 层 | 选型 | 为什么 |
 |---|---|---|
 | 框架 | Next.js App Router + TypeScript | 页面和 API 一套代码，最快上线 |
-| 数据库 | **普通 Postgres（`pg`）** | 换 Neon / Supabase / 你 OCI 那台只改 `DATABASE_URL` |
-| 认证 | **Auth.js (NextAuth v5)** | 只依赖 `DATABASE_URL`，不绑定任何托管商 |
+| 数据库 | **普通 Postgres（`pg`）** | 换 Neon / Supabase / 你 OCI 那台只改 `TRAVELVIEW_DATABASE_URL` |
+| 认证 | **Auth.js (NextAuth v5)** | 只依赖 `TRAVELVIEW_DATABASE_URL`，不绑定任何托管商 |
 | 支付 | Stripe | 权益只在 webhook 里发放 |
 | 图片 | 任何 S3 兼容存储 | 现用 OCI Object Storage；换 R2/MinIO 只改环境变量 |
 | 地图 | MapLibre GL | 上线前把瓦片换成自托管 Protomaps |
@@ -46,7 +46,7 @@ Supabase Auth 会把用户表和会话绑在 Supabase 上，将来想搬到 OCI 
 而你明确说了要能和 TensuGo 同机部署。
 
 Supabase 仍然完全可用 —— 把它当作一个 Postgres 供应商，
-`DATABASE_URL` 指过去即可。
+`TRAVELVIEW_DATABASE_URL` 指过去即可。
 
 ## 目录
 

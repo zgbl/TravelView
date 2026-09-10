@@ -11,19 +11,34 @@
 // 它的双语由网页自己的 locale 决定，和桌面界面语言无关。
 import 'dart:io';
 
+/// 要扫的代码根目录。文案现在分散在三处：桌面界面、手机界面、以及两端共用的
+/// `tv_shared`。**漏掉任何一个，英文界面上就会冒出中文。**
+const _roots = [
+  'lib',
+  '../tv_app/lib',
+  '../../packages/tv_shared/lib',
+];
+
+Iterable<File> _dartFiles() sync* {
+  for (final r in _roots) {
+    final d = Directory(r);
+    if (!d.existsSync()) continue;
+    yield* d
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'));
+  }
+}
+
 void main(List<String> args) {
   final todoOnly = args.contains('--todo');
-  final root = Directory('lib');
   final cjk = RegExp(r'[一-鿿]');
   final lit = RegExp(r"'((?:[^'\\\n]|\\.)*)'");
 
   final missing = <String, List<String>>{};   // 文案 -> 出现的位置
   var done = 0;
 
-  for (final f in root
-      .listSync(recursive: true)
-      .whereType<File>()
-      .where((f) => f.path.endsWith('.dart'))) {
+  for (final f in _dartFiles()) {
     if (f.path.endsWith('web_template.dart')) continue;
     if (f.path.endsWith('l10n_en.dart')) continue;
 

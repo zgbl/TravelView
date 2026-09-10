@@ -40,7 +40,7 @@ sudo -u postgres psql -tAc \
 echo "==> 环境变量模板"
 if [ ! -f "$ENV_FILE" ]; then
   cat > "$ENV_FILE" <<'ENV'
-DATABASE_URL=postgres://travelview:换成上面那个密码@127.0.0.1:5432/travelview
+TRAVELVIEW_DATABASE_URL=postgres://travelview:换成上面那个密码@127.0.0.1:5432/travelview
 AUTH_SECRET=
 AUTH_URL=https://travelview.blackrice.top
 
@@ -72,5 +72,5 @@ fi
 echo
 echo "接下来:"
 echo "  1. 编辑 $ENV_FILE，填数据库密码和 Stripe 三个值"
-echo "  2. psql \"\$DATABASE_URL\" -f web/db/schema.sql   建表"
+echo "  2. psql \"\$TRAVELVIEW_DATABASE_URL\" -f web/db/schema.sql   建表"
 echo "  3. bash deploy/release.sh                        构建并上线"

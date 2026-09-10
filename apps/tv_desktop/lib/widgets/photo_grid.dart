@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 import '../pages/photo_viewer.dart';
 import 'photo_tile.dart';
 

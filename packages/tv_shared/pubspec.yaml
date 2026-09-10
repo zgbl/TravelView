@@ -1,0 +1,19 @@
+name: tv_shared
+description: TravelView 桌面端与手机端共用的应用层（界面语言 / 设置 / 草稿 / Story 导出 / 平台图像接口）
+version: 0.1.0
+publish_to: none
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  tv_core:
+    path: ../tv_core
+  path: ^1.9.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0

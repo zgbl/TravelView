@@ -66,4 +66,4 @@ stripe trigger checkout.session.completed
 
 正式上线之后仍然可以随时回到测试：把那台开发机（或本地）的 env 换回 `sk_test_`
 那一套即可，两边数据互不影响。**唯一要注意的是数据库**：如果开发环境连的是
-生产库，测试付款会把假额度发给真实用户 —— 开发环境务必用独立的 `DATABASE_URL`。
+生产库，测试付款会把假额度发给真实用户 —— 开发环境务必用独立的 `TRAVELVIEW_DATABASE_URL`。

@@ -4,8 +4,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
-import '../native/native_bridge.dart';
-import '../state/l10n.dart';
+import 'image_ops.dart';
+import 'l10n.dart';
+import 'story_source.dart';
 import 'web_template.dart';
 
 class ExportResult {
@@ -50,10 +51,14 @@ class ExportResult {
 /// **原图一张都不复制进去。** 这个目录就是将来要上传的全部内容 ——
 /// 先在本地跑通，再谈服务器。
 class StoryExporter {
-  final Directory libraryRoot;
-  final Catalog catalog;
+  /// 照片从哪来。见 [StorySource] —— 这是桌面端和手机端唯一的差别。
+  final StorySource source;
 
-  StoryExporter({required this.libraryRoot, required this.catalog});
+  /// 产物放哪。桌面端是照片库里的 `views/by-trip/`，
+  /// 手机端是沙盒里的临时工作目录。导出器只往下面建一个以 slug 命名的子目录。
+  final Directory outRoot;
+
+  StoryExporter({required this.source, required this.outRoot});
 
   Future<ExportResult> export({
     required TripRoute trip,
@@ -61,6 +66,8 @@ class StoryExporter {
     required Map<int, String?> heroByStopSeq,
     String? coverPhotoId,
     String coverMode = 'auto',
+    /// 路线上跟着走的标记: 'drive' 开车 / 'walk' 逛城市 / 'dot' 只要圆点
+    String travelMode = 'drive',
     String units = 'auto',
     List<String> music = const [],
     required List<RouteLeg> legs,
@@ -76,8 +83,7 @@ class StoryExporter {
     void Function(int done, int total, String label)? onProgress,
   }) async {
     final theSlug = slug.isEmpty ? _slugFor(title) : slug;
-    final dir = Directory(p.join(libraryRoot.path, LibraryLayout.viewsDir,
-        'by-trip', theSlug));
+    final dir = Directory(p.join(outRoot.path, theSlug));
     await Directory(p.join(dir.path, 'photos')).create(recursive: true);
     await Directory(p.join(dir.path, 'thumbs')).create(recursive: true);
 
@@ -91,7 +97,7 @@ class StoryExporter {
     for (final stop in trip.stays) {
       for (final id in stop.photoIds) {
         if (!selectedIds.contains(id)) continue;
-        final r = catalog.byId(id);
+        final r = source.byId(id);
         if (r != null) wanted.add(r);
       }
     }
@@ -99,15 +105,14 @@ class StoryExporter {
     var done = 0;
     var totalBytes = 0;
     for (final r in wanted) {
-      final rel = catalog.relPathOf(r.id);
-      if (rel == null) {
-        warnings.add(trf('{0}: 库里找不到文件', [r.origFilename]));
+      final src = source.sourceOf(r.id);
+      if (src == null) {
+        warnings.add(trf('{0}: 找不到这张照片了', [r.origFilename]));
         continue;
       }
-      final src = File(p.joinAll([libraryRoot.path, ...p.posix.split(rel)]));
 
-      final web = await NativeBridge.exportWeb(
-        src.path,
+      final web = await ImageOps.instance.exportWeb(
+        src,
         p.join(dir.path, 'photos', '${r.id}.webp'),
         maxPixels: webMaxPixels,
       );
@@ -119,8 +124,8 @@ class StoryExporter {
       }
       // 缩略图也可能退回 JPEG，路径必须用**实际导出的文件名**，
       // 不能写死 .webp —— 写死的话 manifest 会指向一个不存在的文件
-      final thumb = await NativeBridge.exportWeb(
-        src.path,
+      final thumb = await ImageOps.instance.exportWeb(
+        src,
         p.join(dir.path, 'thumbs', '${r.id}.webp'),
         maxPixels: thumbMaxPixels,
         quality: 0.72,
@@ -195,10 +200,10 @@ class StoryExporter {
     String? ogImage;
     final coverId = finalStory.coverPhotoId ??
         (fixedPhotos.isEmpty ? null : fixedPhotos.first.id);
-    final coverRel = coverId == null ? null : catalog.relPathOf(coverId);
-    if (coverRel != null) {
-      final og = await NativeBridge.exportWeb(
-        File(p.joinAll([libraryRoot.path, ...p.posix.split(coverRel)])).path,
+    final coverSrc = coverId == null ? null : source.sourceOf(coverId);
+    if (coverSrc != null) {
+      final og = await ImageOps.instance.exportWeb(
+        coverSrc,
         p.join(dir.path, 'og.jpg'),
         maxPixels: 1200,
         quality: 0.85,
@@ -215,6 +220,8 @@ class StoryExporter {
         const {'auto', 'map', 'mapcard', 'photo'}.contains(coverMode)
             ? coverMode : 'auto';
     // 距离单位。网页上的统计数字和解说文字必须用同一个单位
+    manifestJson['travelMode'] =
+        const {'drive', 'walk', 'dot'}.contains(travelMode) ? travelMode : 'drive';
     manifestJson['units'] =
         const {'auto', 'mi', 'km'}.contains(units) ? units : 'auto';
     // 配乐: 曲库 id 或 https 链接。空就是不配乐
@@ -252,7 +259,8 @@ class StoryExporter {
 
     final indexHtml = File(p.join(dir.path, 'index.html'));
     await indexHtml.writeAsString(
-        buildStoryHtml(finalStory, coverMode: coverMode));
+        buildStoryHtml(finalStory,
+            coverMode: coverMode, travelMode: travelMode));
 
     return ExportResult(
       dir: dir,

@@ -8,7 +8,7 @@
  *   node scripts/preflight.mjs
  */
 const required = {
-  DATABASE_URL: '数据库连接串',
+  TRAVELVIEW_DATABASE_URL: '数据库连接串',
   AUTH_SECRET: 'Auth.js 会话加密密钥（openssl rand -base64 32）',
   STRIPE_SECRET_KEY: 'Stripe 密钥',
   STRIPE_WEBHOOK_SECRET: 'Stripe webhook 签名密钥',

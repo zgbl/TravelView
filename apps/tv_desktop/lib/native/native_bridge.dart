@@ -2,7 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 
 class PhoneDevice {
   final String id;
@@ -55,59 +55,10 @@ class PhoneItem {
       );
 }
 
-class ExportedImage {
-  final String path;
-  final String format;
-  final int width;
-  final int height;
-  final int bytes;
-  const ExportedImage({
-    required this.path,
-    required this.format,
-    required this.width,
-    required this.height,
-    required this.bytes,
-  });
-}
-
-class PhotoSignals {
-  final double? sharpness;
-  final double? brightness;
-  final String? phash;
-  final int? faceCount;
-  const PhotoSignals({
-    this.sharpness,
-    this.brightness,
-    this.phash,
-    this.faceCount,
-  });
-}
-
 class DownloadedFile {
   final String path;
   final String origName;
   const DownloadedFile({required this.path, required this.origName});
-}
-
-/// 照片的 EXIF 元数据。macOS 走 ImageIO，原生支持 HEIC。
-class PhotoMeta {
-  final DateTime? takenAt;
-  final double? lat;
-  final double? lon;
-  final int? width;
-  final int? height;
-  final String? device;
-
-  const PhotoMeta({
-    this.takenAt,
-    this.lat,
-    this.lon,
-    this.width,
-    this.height,
-    this.device,
-  });
-
-  bool get isEmpty => takenAt == null && lat == null && width == null;
 }
 
 /// 与原生层的唯一通道。Windows 暂未实现，调用会安全降级。
@@ -190,7 +141,7 @@ class NativeBridge {
           .invokeMethod<Map>('readMetadata', {'path': path});
       if (m == null) return const PhotoMeta();
       return PhotoMeta(
-        takenAt: _parseExifDate(m['takenAt'] as String?),
+        takenAt: PhotoMeta.parseExifDate(m['takenAt'] as String?),
         lat: (m['lat'] as num?)?.toDouble(),
         lon: (m['lon'] as num?)?.toDouble(),
         width: (m['width'] as num?)?.toInt(),
@@ -290,10 +241,41 @@ class NativeBridge {
     }
   }
 
-  /// EXIF 的时间格式是 "2025:09:12 14:30:22"，不是 ISO8601。
-  static DateTime? _parseExifDate(String? s) {
-    if (s == null || s.length < 19) return null;
-    final d = s.substring(0, 10).replaceAll(':', '-');
-    return DateTime.tryParse('${d}T${s.substring(11, 19)}');
-  }
+}
+
+/// 把 [NativeBridge] 的静态方法包成共享层认识的 [ImageOps]。
+///
+/// 桌面端在 `main()` 里 `ImageOps.register(const DesktopImageOps())`，
+/// 之后 `tv_shared` 里的 Story 导出就能用上 macOS 的 ImageIO，
+/// 而共享代码里一个 `MethodChannel` 都不会出现。
+class DesktopImageOps implements ImageOps {
+  const DesktopImageOps();
+
+  @override
+  bool get supported => NativeBridge.supported;
+
+  @override
+  Future<PhotoMeta> readMetadata(String path) =>
+      NativeBridge.readMetadata(path);
+
+  @override
+  Future<bool> makeThumbnail(String path, String destPath,
+          {int maxPixels = 480, bool background = false}) =>
+      NativeBridge.makeThumbnail(path, destPath,
+          maxPixels: maxPixels, background: background);
+
+  @override
+  Future<ExportedImage?> exportWeb(String path, String destPath,
+          {int maxPixels = 1600,
+          double quality = 0.82,
+          bool forceJpeg = false}) =>
+      NativeBridge.exportWeb(path, destPath,
+          maxPixels: maxPixels, quality: quality, forceJpeg: forceJpeg);
+
+  @override
+  Future<PhotoSignals?> analyze(String path) => NativeBridge.analyze(path);
+
+  @override
+  Future<String?> rotate(String path, {bool clockwise = true}) =>
+      NativeBridge.rotate(path, clockwise: clockwise);
 }

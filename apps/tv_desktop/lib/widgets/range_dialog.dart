@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 
 /// 时间范围选择。**日期和时分都能直接改** ——
 /// 做单日内的分段行程报告时，只能选到"天"是不够的。

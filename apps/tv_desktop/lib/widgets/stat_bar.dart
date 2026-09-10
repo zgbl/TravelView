@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../state/library_controller.dart';
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 
 class StatBar extends StatelessWidget {
   final LibraryController c;

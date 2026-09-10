@@ -26,7 +26,7 @@
 | systemd 服务 | `travelview-web`（Next.js standalone，端口 **127.0.0.1:3001**） |
 | 运行用户 | 系统用户 `travelview` |
 | 数据库 | Postgres 库 `travelview`，角色 `travelview`（**与 TensuGo 的库/用户完全分开**） |
-| 数据库连接串 | 在 `/etc/travelview/env` 的 `DATABASE_URL`（含真实密码，别外泄） |
+| 数据库连接串 | 在 `/etc/travelview/env` 的 `TRAVELVIEW_DATABASE_URL`（含真实密码，别外泄） |
 | 环境变量文件 | `/etc/travelview/env`（0600，root；AUTH_SECRET/UPLOAD_SECRET 已自动生成） |
 | 发布图片目录 | `/var/lib/travelview/media/`（nginx 从磁盘直发，不经过 Node） |
 | nginx 站点文件 | `/etc/nginx/sites-available/travelview`（**已放好、尚未 enable**） |
@@ -51,7 +51,7 @@
    `/opt/travelview` 全部替换为 `/opt/travelview`（该改动已在 GitHub 上）。
 5. **初始化**：`sudo bash web/deploy/setup-server.sh` → 建系统用户、建 `travelview`
    数据库+用户、生成 `/etc/travelview/env`。
-6. **建表**：`psql "$DATABASE_URL" -f db/schema.sql` → `users / publish_tokens / stories / payments`。
+6. **建表**：`psql "$TRAVELVIEW_DATABASE_URL" -f db/schema.sql` → `users / publish_tokens / stories / payments`。
 7. **上线**：装 `travelview-web.service` → `release.sh`（npm install + next build →
    组装到带时间戳目录 → 切 `current` 软链 → systemctl restart）。
 8. **验证**（全是真实接口，已测通）：

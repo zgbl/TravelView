@@ -19,8 +19,8 @@ import pg from 'pg';
 const APPLY = process.argv.includes('--apply');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '');
 const db = new pg.Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL?.includes('sslmode=disable')
+  connectionString: process.env.TRAVELVIEW_DATABASE_URL,
+  ssl: process.env.TRAVELVIEW_DATABASE_URL?.includes('sslmode=disable')
     ? undefined : { rejectUnauthorized: false },
 });
 

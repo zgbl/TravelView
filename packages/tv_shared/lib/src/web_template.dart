@@ -12,11 +12,21 @@ import 'package:tv_core/tv_core.dart';
 ///   - 走过的路线逐渐画出来，未走的淡着
 ///   - 车头跟着道路方向转
 /// [coverMode] 片头用什么: 'map' 路线图（默认）/ 'photo' 一张照片。
+///
+/// [travelMode] 路线上跟着走的那个标记长什么样:
+///   'drive' 🚗 开车 / 'walk' 🚶 步行逛城市 / 'dot' 一个圆点，不表态。
+///
+/// **这个必须让用户选，不能猜。** 在城里逛了一天，路线上开着一辆车跑，
+/// 看的人第一眼就出戏；反过来横穿美国配一个走路的小人也一样荒唐。
+/// 而算法分不清"市内 30 公里"是开车还是坐地铁 —— 猜错的代价比问一句大。
 /// **必须显式传进来** —— Story.toJson() 里没有这个字段，
 /// 它是导出时的展示选项，不属于行程数据本身。
-String buildStoryHtml(Story story, {String coverMode = 'map'}) {
+String buildStoryHtml(Story story,
+    {String coverMode = 'map', String travelMode = 'drive'}) {
   final json = story.toJson();
   json['coverMode'] = coverMode == 'photo' ? 'photo' : 'map';
+  json['travelMode'] =
+      const {'drive', 'walk', 'dot'}.contains(travelMode) ? travelMode : 'drive';
   final data = const JsonEncoder().convert(json);
   return _template.replaceFirst('__STORY_JSON__', data);
 }
@@ -134,6 +144,9 @@ const _template = r'''<!doctype html>
   @media (max-width:900px){#mapwrap{height:52vh;top:0}}
 
   .car{font-size:26px;line-height:1;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
+  /* 不想表态是开车还是走路时用的圆点 */
+  .dot-rider{width:14px;height:14px;border-radius:50%;background:#4fbfa8;
+    border:3px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.5);margin:6px}
 
   .summary{padding:14vh 6vw;text-align:center;background:var(--card)}
   .summary .card{display:inline-block;padding:48px 56px;border-radius:22px;
@@ -414,6 +427,14 @@ function esc(s){return String(s).replace(/[&<>"]/g, c =>
 
 /* ---------- 地图与小车 ---------- */
 let map, traveledLine, carMarker, allPoints = [], cum = [], total = 0;
+
+// 路上跟着走的那个标记。发布者选的，见 travelMode。
+function travelHtml(){
+  const m = STORY.travelMode || 'drive';
+  if (m === 'walk') return '<div class="car">\u{1F6B6}</div>';
+  if (m === 'dot')  return '<div class="dot-rider"></div>';
+  return '<div class="car">\u{1F697}</div>';
+}
 const markerByStop = {};
 let activeStop = null;
 let photoPin = null;   // 当前这张照片拍摄的位置
@@ -460,7 +481,7 @@ function initMap(){
     traveledLine = L.polyline([allPoints[0]],
       {color:'#4fbfa8', weight:5, opacity:.95}).addTo(map);
     carMarker = L.marker(allPoints[0], {icon: L.divIcon({
-      className:'', html:'<div class="car">🚗</div>', iconSize:[26,26],
+      className:'', html: travelHtml(), iconSize:[26,26],
       iconAnchor:[13,13]})}).addTo(map);
     map.fitBounds(L.latLngBounds(allPoints), {padding:[40,40]});
   } else if (STORY.stops.length){

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../state/library_controller.dart';
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 import 'range_dialog.dart';
 
 /// 全局时间范围条。照片视图和行程地图共用同一个范围。

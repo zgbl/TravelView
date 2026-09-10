@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:tv_core/tv_core.dart';
 
 import '../native/native_bridge.dart';
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 import '../state/library_controller.dart';
 
 /// 从 iPhone 导入。手机上的照片全程只读。

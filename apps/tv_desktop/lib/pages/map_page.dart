@@ -5,7 +5,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:tv_core/tv_core.dart';
 
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 import '../state/library_controller.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/route_settings_dialog.dart';

@@ -130,11 +130,28 @@ M1 上的两个常见坑：CocoaPods 要装 arm64 版（用 brew 装的就是对
 
 ---
 
+## 2.5 生成手机端的 iOS / Android 工程（一次性）
+
+`apps/tv_app/` 目前只有 Dart 代码，`ios/` 和 `android/` 两个平台目录还没生成。
+跑一次脚本生成出来，然后**和 `tv_desktop/macos/` 一样提交进仓库** ——
+里面会有签名配置和权限声明，是要跟着代码走的。
+
+```bash
+cd apps/tv_app
+bash tool/setup_platforms.sh      # flutter create + 补相册权限声明
+fvm flutter pub get
+```
+
+脚本**不碰 `lib/`**，`flutter create` 在已有工程上只补缺的平台目录。
+权限声明也由脚本写，**只申请读**，见第 1 节的防线 1。
+
+---
+
 ## 3. 连接 iPhone 12 Pro Max
 
 1. **Apple 开发者账号**：免费账号即可，但签名 **7 天过期**，每周要重新 `flutter run` 一次。如果你打算持续开发几个月，$99/年的账号（证书 1 年有效 + 可用 TestFlight）会省掉大量重签的烦躁。建议先免费跑通，确认项目做得下去再付费。
 2. **手机端**：数据线连 Mac → 手机上点「信任此电脑」 → 设置 → 隐私与安全性 → 打开 **开发者模式**（需重启）。
-3. **Xcode 签名**：用 Xcode 打开 `app/ios/Runner.xcworkspace` → Signing & Capabilities → 勾 Automatically manage signing → Team 选你的 Apple ID → Bundle ID 改成唯一的（如 `com.tuxy.travelview.dev`）。
+3. **Xcode 签名**：用 Xcode 打开 `apps/tv_app/ios/Runner.xcworkspace` → Signing & Capabilities → 勾 Automatically manage signing → Team 选你的 Apple ID → Bundle ID 改成唯一的（如 `com.tuxy.travelview.dev`）。
 4. **首次安装后**：手机 设置 → 通用 → VPN 与设备管理 → 信任你的开发者证书。
 5. 验证：
 ```bash
@@ -162,12 +179,35 @@ adb pair <手机显示的IP:配对端口>    # 开发者选项 → 无线调试 
 adb connect <手机IP:调试端口>
 ```
 
+
+### 4.1 ColorOS 上的两个坑（都遇到过）
+
+**`adb: failed to install ... Failure [-99]`**
+
+不是代码的问题，是 ColorOS 的安装拦截。装的时候**手机屏幕上会弹一个确认框**，
+没在几秒内点掉就返回 -99。对策：
+
+- 开发者选项里确认「USB 安装」是开的（要先登录 HeyTap 账号才能打开）
+- 关掉「权限监控」
+- `fvm flutter run` 的时候盯着手机屏幕，弹框出来马上点「继续安装」
+- 退一步：`adb install -r -g app-debug.apk` 手动装，`-g` 会顺手把权限全给了
+
+**照片一张都读不到位置**
+
+Android 10 之后，系统从 MediaStore 返回的位置字段默认被抹掉，
+必须单独申请 `ACCESS_MEDIA_LOCATION` 才拿得到 EXIF 里的经纬度。
+manifest 里已经加了，但它是**运行时权限**，用户在系统设置里选了
+「仅允许访问选中的照片」时同样拿不到。
+
+首屏切不出行程时先看提示里的两个数字（看了几张 / 几张带位置）：
+一张都没有就是权限问题，有位置但切不出来才是阈值的事。
+
 ---
 
 ## 5. 日常开发循环
 
 ```bash
-cd app
+cd apps/tv_app        # 手机端；桌面端是 apps/tv_desktop
 
 fvm flutter run -d <id>                # 装上并进入热重载；改代码按 r 热重载，R 热重启
 fvm flutter run -d all                 # 两台手机同时装、同时热重载（对比 iOS/Android 差异神器）

@@ -7,7 +7,7 @@ import 'package:path/path.dart' as p;
 import 'package:tv_core/tv_core.dart';
 
 import '../native/native_bridge.dart';
-import '../state/l10n.dart';
+import 'package:tv_shared/tv_shared.dart';
 
 /// Flutter 自带解码器不认 HEIC，视频也不能直接当图片显示。
 /// 所以统一走系统解码器（macOS: ImageIO / AVFoundation）生成一张 JPEG 缩略图，

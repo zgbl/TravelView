@@ -11,6 +11,8 @@ dependencies:
     sdk: flutter
   tv_core:
     path: ../../packages/tv_core
+  tv_shared:
+    path: ../../packages/tv_shared
   file_selector: ^1.0.3
   path: ^1.9.0
   flutter_map: ^7.0.2
