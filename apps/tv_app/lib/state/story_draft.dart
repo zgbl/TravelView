@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:tv_core/tv_core.dart';
+import 'package:tv_shared/tv_shared.dart';
 
 /// 用户为这一篇写的东西：标题、副标题、每一站的地名和一句话，
 /// 以及路线上那个标记长什么样。
@@ -26,11 +26,105 @@ class StoryDraft extends ChangeNotifier {
   final Map<int, String> stopNotes = {};
 
 
+  /// 片头封面那张照片的 id。**空表示不表态**，由 StoryBuilder 回落到
+  /// 第一站的首图 —— 和桌面端同一条规则。
+  ///
+  /// 为什么值得单独存一个字段：这张是分享出去时别人第一眼看到的图，
+  /// 也是社交平台抓的缩略图。让"第一站拍的第一张"来决定它，
+  /// 等于让一张出发前在停车场随手拍的照片代表整趟旅行。
+  String? coverId;
+
+  /// 设为封面。**再点一次同一张就是取消** —— 用户设错了得有路回去，
+  /// 而"取消封面"做成第二个菜单项会让菜单变长。
+  void setCover(String? id) {
+    coverId = (coverId == id) ? null : id;
+    notifyListeners();
+  }
+
+  /// 这张照片被移出这一篇了 —— 它不能再当封面，否则导出时
+  /// coverPhotoId 指向一张不在 Story 里的图。
+  void dropCoverIfIs(String id) {
+    if (coverId == id) {
+      coverId = null;
+      notifyListeners();
+    }
+  }
+
+  /// 清空所有写过的字。**只清字，不动照片、配乐和封面** ——
+  /// 用户点"清空文字"时脑子里想的就是那几段话。
+  void clearText() {
+    title = '';
+    subtitle = '';
+    stopNames.clear();
+    stopNotes.clear();
+    notifyListeners();
+  }
+
   /// 'drive' 开车 / 'walk' 逛城市 / 'dot' 只要圆点。
   ///
   /// **默认 dot，不替用户表态。** 算法分不清"市内 30 公里"是开车还是坐地铁，
   /// 猜错了路线上跑一辆车，看的人第一眼就出戏。
   String travelMode = 'dot';
+
+  /// 配乐，**最多三首，轮流播放**。每项是 MusicStore 里那份副本的绝对路径，
+  /// 或 https:// 直链。
+  ///
+  /// 一趟长途行程配一首三分钟的曲子，循环七八遍会非常明显；
+  /// 三首轮着放，同样的时长听感完全不同。
+  ///
+  /// **和桌面端同一个模型**（Project.music），导出时由同一份
+  /// StoryExporter 处理：本地文件拷进 audio/ 跟着故事走，
+  /// https 直链原样写进 manifest。
+  final List<String> music = [];
+
+  /// 用户声明拥有这些曲子的使用权。**每次增删都要重新声明** ——
+  /// 一次勾选管到永远，等于没有声明。
+  ///
+  /// 发布时只有它为真才带上配乐（见 publish_page.dart）。曲子在上传那一刻
+  /// 都会弹一次警告，用户按下"我确认"就等于这一次的声明，
+  /// 所以正常情况下它是勾上的；留这个开关是让他能随手撤回。
+  bool musicRightsOk = false;
+
+  /// 配乐的规矩（最多几首、收什么格式、什么算本地文件、显示成什么名字）
+  /// **住在 tv_shared 的 [MusicRules] 里**，桌面端用的是同一份。
+  /// 这里只留一层转手，不再各写各的 —— 手机上装好的曲子发不出去，
+  /// 比什么都伤人。
+  static const maxTracks = MusicRules.maxTracks;
+  static const audioExts = MusicRules.audioExts;
+
+  static bool isLocalTrack(String m) => MusicRules.isLocal(m);
+  static String trackLabel(String m) => MusicRules.label(m);
+  static bool accepts(String v) => MusicRules.accepts(v);
+
+  /// 加一首。重复的、超过三首的、格式不对的，一律忽略（返回 false）。
+  /// **加完之后版权声明要重来** —— 新曲子没被声明过。
+  bool addMusic(String m) {
+    final v = m.trim();
+    if (v.isEmpty) return false;
+    if (!accepts(v)) return false;
+    if (music.contains(v) || music.length >= maxTracks) return false;
+    music.add(v);
+    musicRightsOk = false;
+    notifyListeners();
+    return true;
+  }
+
+  void removeMusic(String m) {
+    music.remove(m);
+    if (music.isEmpty) musicRightsOk = false;
+    notifyListeners();
+  }
+
+  /// 只改版权声明，不动曲目。没有曲子时它只能是假 ——
+  /// 一个"对空集合的声明"会一直亮着，下次加曲子时看起来像是已经声明过了。
+  void setMusicRights(bool ok) {
+    musicRightsOk = music.isEmpty ? false : ok;
+    notifyListeners();
+  }
+
+  /// 发布时真正要带上的配乐。**没声明就一首都不带** ——
+  /// 声明是这条路成立的前提，不是走过场。
+  List<String> get musicForPublish => musicRightsOk ? music : const [];
 
   String get effectiveTitle =>
       title.trim().isEmpty ? defaultTitle : title.trim();

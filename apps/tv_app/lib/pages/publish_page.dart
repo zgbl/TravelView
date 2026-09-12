@@ -82,6 +82,10 @@ class _PublishPageState extends State<PublishPage> {
           trip: widget.route,
           selectedIds: widget.photos.map((p) => p.id).toSet(),
           heroByStopSeq: const {},
+          // 用户在预览页大图上指定的那一张。没指定就传空，
+          // 由 StoryBuilder 回落到第一站首图 —— 和桌面端同一条规则。
+          coverPhotoId: widget.draft.coverId,
+          coverMode: widget.draft.coverId == null ? 'auto' : 'photo',
           legs: const [],
           title: widget.draft.effectiveTitle,
           subtitle: widget.draft.subtitle.trim().isEmpty
@@ -90,6 +94,11 @@ class _PublishPageState extends State<PublishPage> {
           stopNames: widget.draft.names,
           stopNotes: widget.draft.notes,
           travelMode: widget.draft.travelMode,
+          // 配乐。**没勾版权声明就一首都不带**（musicForPublish 里那道闸门）——
+          // 声明是这件事成立的前提，不是走过场。
+          // 和桌面端同一份 StoryExporter: 本地文件拷进 audio/ 跟着故事走，
+          // https 直链原样写进 manifest。
+          music: widget.draft.musicForPublish,
           onProgress: (d, t, label) {
             if (mounted) {
               setState(() { _done = d; _total = t; _label = label; });

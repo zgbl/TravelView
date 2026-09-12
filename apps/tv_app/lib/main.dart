@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:tv_shared/tv_shared.dart';
@@ -5,6 +7,7 @@ import 'package:tv_shared/tv_shared.dart';
 import 'pages/app_shell.dart';
 import 'ui/theme.dart';
 import 'state/mobile_image_ops.dart';
+import 'state/music_store.dart';
 import 'state/session.dart';
 import 'state/workspace.dart';
 
@@ -19,6 +22,11 @@ Future<void> main() async {
   // 派生图、打包产物这些中间文件全部落在这个临时目录里。
   // **手机上唯一会被写入的地方** —— 系统相册里的原件一个字节都不动。
   await Workspace.init();
+
+  // 用户挑过又放弃的那些配乐要有人收尸: 草稿只在内存里，App 一杀
+  // 界面上的引用就没了，文件却还躺在沙盒里。**不 await** ——
+  // 清理是尽力而为的事，不该让用户多等一秒看到首屏（同 Workspace.sweep）。
+  unawaited(MusicStore.sweep());
 
   ImageOps.register(const MobileImageOps());
 

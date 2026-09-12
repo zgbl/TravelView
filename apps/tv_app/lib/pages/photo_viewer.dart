@@ -7,6 +7,7 @@ import 'package:tv_shared/tv_shared.dart';
 
 import '../state/photo_source.dart';
 import '../state/selection.dart';
+import '../state/story_draft.dart';
 
 /// 全屏看一张照片，左右滑翻页。
 ///
@@ -23,8 +24,14 @@ class PhotoViewerPage extends StatefulWidget {
   /// 缩略图上分不出哪张更清楚、谁闭眼了，非得放大才看得出来。
   final TripSelection sel;
 
+  /// 从**预览页**点进来时带上它，多出两件只有在大图上才做得出的事：
+  /// 设为封面、把这张移出这一篇。
+  ///
+  /// 从行程页点进来时是 null —— 那时用户在挑图，多一排按钮只会碍事。
+  final StoryDraft? draft;
+
   const PhotoViewerPage(this.photos, this.index,
-      {super.key, required this.sel});
+      {super.key, required this.sel, this.draft});
 
   @override
   State<PhotoViewerPage> createState() => _PhotoViewerPageState();
@@ -72,9 +79,15 @@ class _PhotoViewerPageState extends State<PhotoViewerPage> {
             ),
           ),
           _Caption(p),
+          if (widget.draft != null) _CoverBar(widget.draft!, p.id),
           _PickBar(
             picked: picked,
-            onToggle: () => setState(() => widget.sel.toggle(p.id)),
+            // 预览页进来时，"取消选中"的意思就是把这张移出这一篇 ——
+            // 封面也得跟着撤，否则导出的 manifest 会指向一张不在里面的图
+            onToggle: () => setState(() {
+              widget.sel.toggle(p.id);
+              if (!widget.sel.has(p.id)) widget.draft?.dropCoverIfIs(p.id);
+            }),
           ),
         ],
       ),
@@ -157,6 +170,46 @@ class _PickBar extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 大图上的"设为封面"。
+///
+/// **封面只能在这里定。** 缩略图那么小，分不出哪张更清楚、谁闭着眼 ——
+/// 而封面恰恰是唯一一张会被放到最大、被别人第一眼看到的图。
+class _CoverBar extends StatelessWidget {
+  final StoryDraft draft;
+  final String photoId;
+  const _CoverBar(this.draft, this.photoId);
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: draft,
+      builder: (context, _) {
+        final isCover = draft.coverId == photoId;
+        return Container(
+          width: double.infinity,
+          color: Colors.black,
+          padding: const EdgeInsets.fromLTRB(14, 0, 14, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => draft.setCover(photoId),
+              icon: Icon(isCover ? Icons.star : Icons.star_border,
+                  size: 18,
+                  color: isCover ? Colors.amberAccent : Colors.white70),
+              label: Text(
+                isCover ? tr('这张是封面（再点取消）') : tr('设为封面'),
+                style: TextStyle(
+                    fontSize: 13,
+                    color: isCover ? Colors.amberAccent : Colors.white70),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -870,24 +870,21 @@ class LibraryController extends ChangeNotifier {
   List<String> get music => currentProject?.music ?? _tmpMusic;
   List<String> _tmpMusic = [];
 
-  static const maxTracks = 3;
+  /// 配乐的规矩（最多几首、收什么格式、什么算本地文件、显示成什么名字）
+  /// **住在 tv_shared 的 [MusicRules] 里**，手机端用的是同一份。
+  /// 这里只留一层转手，不再各写各的 —— 桌面端收下了而手机端不收，
+  /// 用户会以为是手机坏了。
+  static const maxTracks = MusicRules.maxTracks;
+  static const audioExts = MusicRules.audioExts;
+
+  static String trackLabel(String m) => MusicRules.label(m);
+  static bool isLocalTrack(String m) => MusicRules.isLocal(m);
+  static bool acceptsTrack(String v) => MusicRules.accepts(v);
 
   /// 用户是否已经声明拥有这些曲子的使用权。**每次增删都要重新声明** ——
   /// 一次勾选管到永远，等于没有声明。
   bool get musicRightsOk => currentProject?.musicRightsOk ?? _tmpRights;
   bool _tmpRights = false;
-
-  static const audioExts = ['mp3', 'm4a', 'aac', 'ogg', 'wav'];
-
-  /// 一首曲子显示用的名字: 本地文件取文件名，外链取域名
-  static String trackLabel(String m) {
-    if (m.startsWith('https://')) {
-      return Uri.tryParse(m)?.host ?? tr('外部链接');
-    }
-    return p.basename(m);
-  }
-
-  static bool isLocalTrack(String m) => !m.startsWith('https://');
 
   Future<void> _saveMusic() async {
     final proj = currentProject;
@@ -905,9 +902,7 @@ class LibraryController extends ChangeNotifier {
   Future<void> addMusic(String m) async {
     final v = m.trim();
     if (v.isEmpty) return;
-    final ok = v.startsWith('https://') ||
-        audioExts.contains(v.split('.').last.toLowerCase());
-    if (!ok) return;
+    if (!acceptsTrack(v)) return;
     final cur = List.of(music);
     if (cur.contains(v) || cur.length >= maxTracks) return;
     cur.add(v);

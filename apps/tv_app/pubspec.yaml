@@ -41,6 +41,11 @@ dependencies:
   latlong2: ^0.9.1
   share_plus: ^10.1.2
 
+  # 让用户挑一首配乐。**用系统的文档选择器，不要自己写一个音频浏览器** ——
+  # 那等于在 App 里再做一个文件管理器，还要处理音乐 App 的沙盒。
+  # 和桌面端同一个包，两端的 XTypeGroup 写法只差平台那几种类型标识。
+  file_selector: ^1.0.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

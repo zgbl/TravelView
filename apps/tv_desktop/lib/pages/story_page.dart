@@ -582,7 +582,9 @@ class _StoryPageState extends State<StoryPage> {
   Future<void> _pickMusicFile() async {
     final group = XTypeGroup(
       label: tr('音频'),
-      extensions: const ['mp3', 'm4a', 'aac', 'ogg', 'wav'],
+      // 和真正的闸门（LibraryController.acceptsTrack）用同一份白名单 ——
+      // 两处各抄一份的话，加一种新格式时总有一处会忘
+      extensions: LibraryController.audioExts,
     );
     final f = await openFile(acceptedTypeGroups: [group]);
     if (f == null) return;

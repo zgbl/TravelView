@@ -7,6 +7,26 @@
 ///
 /// 查漏用: dart run tool/i18n_scan.dart
 const Map<String, String> kEn = {
+  // ── 回顾预览 / 编辑回路 ──
+  '编辑': 'Edit',
+  '更多': 'More',
+  '重新选择照片': 'Reselect photos',
+  '回去继续编辑': 'Back to editing',
+  '清空写过的文字': 'Clear all text',
+  '清空写过的文字？': 'Clear all text?',
+  '标题、副标题和每一站写的话都会没有，撤不回来。照片和选择不受影响。': 'The title, subtitle and every stop note will be gone for good. Photos and selection are untouched.',
+  '还没写过文字': 'Nothing written yet',
+  '选中的照片里没有带位置的，连不成路线。': 'None of the selected photos have a location, so there is no route to draw.',
+  '回去多选几张': 'Go back and pick more',
+  '添加照片': 'Add photos',
+  '添加': 'Add',
+  '换封面': 'Change cover',
+  '改这一站': 'Edit this stop',
+  '这一站还没写字，点"改这一站"添两句': 'Nothing written for this stop yet — tap "Edit this stop"',
+  '共 {0} 站': '{0} stops',
+  '{0} 张照片': '{0} photos',
+  '历时 {0} 小时': '{0} hours',
+  '这张是封面（再点取消）': 'Cover photo (tap to undo)',
   // ── 通用动作 ──
   '取消': 'Cancel',
   '确定': 'OK',
@@ -74,6 +94,41 @@ const Map<String, String> kEn = {
   '用这个': 'Use this',
   '只能用 https 开头的链接 —— http 会被浏览器整页拦掉':
       'Links must start with https — http gets the whole page blocked.',
+
+  // ── 配乐（手机端）──
+  '没有配乐': 'No music',
+  '{0} 首 · 已声明': '{0} track(s) · declared',
+  '{0} 首 · 未声明': '{0} track(s) · not declared',
+  '配乐 · {0} 首：{1}': 'Music · {0} track(s): {1}',
+  '曲子由你自己上传，我们不提供曲库，上传的人就是版权责任的承担人。':
+      'You upload the music yourself — we do not ship a library, so the person '
+          'who uploads it is the one responsible for the rights.',
+  '配乐的版权由你负责': 'The soundtrack rights are yours to clear',
+  '这段音频会跟着游记一起传到网上，任何人都能听到、也能下载。'
+      '请确认你拥有它的使用权，或者它允许商用/公开分享 —— '
+      '由此产生的版权责任由你承担。':
+      'This audio is uploaded with the story — anyone can listen to it and '
+          'download it. Please make sure you own the rights, or that it is '
+          'licensed for commercial and public sharing. Any copyright claim is '
+          'your responsibility.',
+  '这个链接会直接放给读者听，我们不为它的内容和存活兜底。'
+      '请确认你拥有它的使用权，或者它允许商用/公开分享 —— '
+      '由此产生的版权责任由你承担。':
+      'Readers will hear this link directly, and we stand behind neither its '
+          'content nor its staying alive. Please make sure you own the rights, '
+          'or that it is licensed for commercial and public sharing. Any '
+          'copyright claim is your responsibility.',
+  '我确认，加进去': 'I confirm — add it',
+  '音乐存在对方服务器上，我们不复制也不保存。好处是版权关系清楚；'
+      '代价是对方一旦防盗链、改地址或删文件，这篇游记就永久没有声音了，'
+      '而且你不会收到任何通知。':
+      'The music lives on their server — we do not copy it or keep it. '
+          'Copyright stays clean, but if they block hotlinking, move, or delete '
+          'the file, this story is silent forever and you will never know.',
+  '只收 {0} 这几种格式，换个文件试试': 'Only {0} are supported — try another file.',
+  '这个文件读不到了，换一个试试':
+      'That file is no longer readable — pick another one.',
+  '这首已经在里面了': 'That track is already in the list.',
 
   // ── 发布 ──
   '发布到网站': 'Publish',
