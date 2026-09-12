@@ -42,7 +42,9 @@ if [ ! -f "$ENV_FILE" ]; then
   cat > "$ENV_FILE" <<'ENV'
 TRAVELVIEW_DATABASE_URL=postgres://travelview:换成上面那个密码@127.0.0.1:5432/travelview
 AUTH_SECRET=
-AUTH_URL=https://travelview.blackrice.top
+# 老域名 travelview.blackrice.top 也直接服务（不跳转），所以不用 AUTH_URL 钉死一个域，
+# 改成信任请求头里的 host，两个域名各自登录各自生效。
+AUTH_TRUST_HOST=true
 
 STORAGE_DRIVER=local
 MEDIA_ROOT=/var/lib/travelview/media
@@ -57,8 +59,8 @@ STRIPE_PRICE_CREDITS_5=
 STRIPE_PRICE_CREDITS_10=
 STRIPE_PRICE_CREDITS_25=
 
-NEXT_PUBLIC_SITE_URL=https://travelview.blackrice.top
-NEXT_PUBLIC_MEDIA_BASE=https://travelview.blackrice.top/media
+NEXT_PUBLIC_SITE_URL=https://yourtravelview.com
+NEXT_PUBLIC_MEDIA_BASE=https://yourtravelview.com/media
 NEXT_PUBLIC_MAP_TILES=
 ENV
   sed -i "s|^AUTH_SECRET=$|AUTH_SECRET=$(openssl rand -base64 32)|" "$ENV_FILE"

@@ -11,14 +11,20 @@ import 'package:path/path.dart' as p;
 /// 官方站点。开发时可以用 --dart-define=TV_SITE=http://localhost:3000 覆盖。
 const kDefaultSiteUrl = String.fromEnvironment(
   'TV_SITE',
-  defaultValue: 'https://travelview.blackrice.top',
+  defaultValue: 'https://yourtravelview.com',
 );
 
-/// 早期版本把 travelview.app 写进了配置文件，那个域名根本不存在，
-/// 用户升级后会看到"Failed host lookup"。这里悄悄迁移掉。
+/// 需要悄悄迁移掉的旧地址:
+///   - travelview.app 是早期版本写进配置文件的域名，根本不存在，
+///     用户升级后会看到 "Failed host lookup"。
+///   - travelview.blackrice.top 是可以用的老域名，但正式域名已换成
+///     yourtravelview.com，继续用它发出去的新链接会落在老域名上。
+///     已发布的旧链接不受影响 —— 服务器上老域名照常服务。
 const _deadSiteUrls = {
   'https://travelview.app',
   'http://travelview.app',
+  'https://travelview.blackrice.top',
+  'http://travelview.blackrice.top',
   '',
 };
 
