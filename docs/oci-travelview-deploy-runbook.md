@@ -30,7 +30,8 @@
 | 环境变量文件 | `/etc/travelview/env`（0600，root；AUTH_SECRET/UPLOAD_SECRET 已自动生成） |
 | 发布图片目录 | `/var/lib/travelview/media/`（nginx 从磁盘直发，不经过 Node） |
 | nginx 站点文件 | `/etc/nginx/sites-available/travelview`（已 enable 并 reload） |
-| 证书目录 | `/etc/ssl/travelview/`（Cloudflare Origin CA；**须覆盖 yourtravelview.com、\*.yourtravelview.com、\*.blackrice.top**） |
+| 证书 | **两对，各自独立**：`yourtravelview_origin.pem/.key`（`*.yourtravelview.com` + `yourtravelview.com`）与 `origin.pem/.key`（`*.blackrice.top`，老的那对别动）；由 SNI 决定用哪张 |
+| nginx 应用片段 | `/etc/nginx/snippets/travelview-app.conf`（站点文件里两个 443 块 include 它，改完要两个一起同步） |
 | 备份 | `/etc/cron.daily/travelview-backup` → `/var/backups/tv-*.sql.gz / tv-media-*.tgz`，保留 30 天 |
 | 正式域名 | `yourtravelview.com`（Cloudflare 橙云 → 129.80.4.27；`www` 301 到裸域） |
 | 老域名 | `travelview.blackrice.top`（**继续直接服务、不跳转**，只是账号类页面 301 到正式域名） |

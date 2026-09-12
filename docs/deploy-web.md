@@ -239,11 +239,22 @@ sudo bash web/deploy/release.sh
 nginx：
 
 ```bash
+# 站点文件 + 应用片段（片段被两个 443 块 include，两个都得放）
+sudo mkdir -p /etc/nginx/snippets
+sudo cp /opt/travelview/src/web/deploy/nginx-travelview-app.conf \
+        /etc/nginx/snippets/travelview-app.conf
 sudo cp /opt/travelview/src/web/deploy/nginx-travelview.conf \
         /etc/nginx/sites-available/travelview
 sudo ln -s /etc/nginx/sites-available/travelview /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 ```
+
+新老域名**各用一张证书**（SNI 决定用哪张），两对文件都要在位：
+
+| 域名 | 证书 |
+|---|---|
+| `yourtravelview.com` / `www.yourtravelview.com` | `/etc/ssl/travelview/yourtravelview_origin.pem` + `.key` |
+| `travelview.blackrice.top` | `/etc/ssl/travelview/origin.pem` + `.key`（老的那对，别动） |
 
 `nginx -t` 一定要过再 reload —— 配置有错直接 reload 会**连 TensuGo 一起挂**。
 
