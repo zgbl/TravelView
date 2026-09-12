@@ -29,10 +29,12 @@
 | 数据库连接串 | 在 `/etc/travelview/env` 的 `TRAVELVIEW_DATABASE_URL`（含真实密码，别外泄） |
 | 环境变量文件 | `/etc/travelview/env`（0600，root；AUTH_SECRET/UPLOAD_SECRET 已自动生成） |
 | 发布图片目录 | `/var/lib/travelview/media/`（nginx 从磁盘直发，不经过 Node） |
-| nginx 站点文件 | `/etc/nginx/sites-available/travelview`（**已放好、尚未 enable**） |
-| 证书目录 | `/etc/ssl/travelview/`（**目前是空的**，等 Cloudflare Origin CA 证书） |
+| nginx 站点文件 | `/etc/nginx/sites-available/travelview`（已 enable 并 reload） |
+| 证书目录 | `/etc/ssl/travelview/`（Cloudflare Origin CA；**须覆盖 yourtravelview.com、\*.yourtravelview.com、\*.blackrice.top**） |
 | 备份 | `/etc/cron.daily/travelview-backup` → `/var/backups/tv-*.sql.gz / tv-media-*.tgz`，保留 30 天 |
-| 域名 | `travelview.blackrice.top`（Cloudflare A 记录 **Proxied/橙云** → 129.80.4.27） |
+| 正式域名 | `yourtravelview.com`（Cloudflare 橙云 → 129.80.4.27；`www` 301 到裸域） |
+| 老域名 | `travelview.blackrice.top`（**继续直接服务、不跳转**，只是账号类页面 301 到正式域名） |
+| 环境变量 | `AUTH_URL=https://yourtravelview.com` + `NEXT_PUBLIC_SITE_URL/MEDIA_BASE` 同域（见 §9） |
 
 ---
 
@@ -136,6 +138,28 @@ sudo bash /etc/cron.daily/travelview-backup
 | 发布 402 | 额度用完（正常业务，不是故障） |
 | 文字在、图片全裂 | nginx /media/ 段没配 / NEXT_PUBLIC_MEDIA_BASE 不对 |
 | 改了 NEXT_PUBLIC_* 不生效 | 它编译进前端，必须重跑 release.sh |
+
+---
+
+## 6.5 换域名那次踩的坑（2026-09-12，务必先读）
+
+给站点加新域名时，下面这条最容易白折腾半天：
+
+**Next.js 15.5 的 standalone server 会忽略 `Host` / `X-Forwarded-Host`**，
+一律按 `HOSTNAME:PORT`（也就是 `0.0.0.0:3001`）拼绝对地址。
+后果是登录跳转把浏览器甩到 `https://0.0.0.0:3001/login`。
+
+- `next.config.mjs` 里写 `experimental.trustHostHeader: true` **没用**：
+  Next 15.5 已经不认这个键，构建时警告 `Unrecognized key(s) ... 'trustHostHeader'`，
+  值被丢掉（可以在构建产物 `server.js` 的 `nextConfig` 里看到仍是 `false`）。
+- 手工把构建产物里的 `"trustHostHeader":false` 改成 `true` **更糟**：
+  中间件的语言跳转也会变成 `https://0.0.0.0:3001/zh`。
+- **正确做法**：不碰 Next，改为在服务器上把 `AUTH_URL` 钉成正式域名。
+  代价是 Auth.js 只认这一个域：在老域名上登录会被跳到正式域名。
+
+结论：**多域名服务时，账号/登录归正式域名，老域名只负责"内容还打得开"。**
+nginx 里把老域名的 `/login /signup /account /admin /stories /link` 301 到正式域名，
+避免"在老域名上登了、被跳走、看着像没登"。
 
 ---
 

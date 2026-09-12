@@ -13,9 +13,14 @@ header-includes: |
 
 # TravelView 网站上线手册
 
-> 目标：`https://travelview.blackrice.top` 能打开、能注册、能收钱、
+> 目标：`https://yourtravelview.com` 能打开、能注册、能收钱、
 > 桌面端能发布上去，拿到永久公开链接。
 > 和 TensuGo 同机共存，**不动 TensuGo 的任何东西**。
+>
+> 域名: `yourtravelview.com` 是正式域名；`www.yourtravelview.com` 301 到裸域；
+> 老域名 `travelview.blackrice.top` 继续直接服务（已发出的公开链接不会断），
+> 但账号类页面会 301 到正式域名 —— 原因见
+> `docs/oci-travelview-deploy-runbook.md` §6.5。
 
 ---
 
@@ -83,7 +88,8 @@ sudo systemctl restart travelview-web
 
 | | TensuGo | TravelView |
 |---|---|---|
-| 域名 | 原来那个 | `travelview.blackrice.top`（Cloudflare 橙云） |
+| 域名 | 原来那个 | `yourtravelview.com`（正式域名，CF 橙云）+ `www` 301 到裸域 |
+| 老域名 | — | `travelview.blackrice.top` 内容照常服务，账号类页面 301 到正式域名 |
 | Node 端口 | 原来那个 | `127.0.0.1:3001` |
 | 代码 | 原来那里 | `/opt/travelview/` |
 | 数据库 | 各自的库和用户 | 库 `travelview`，用户 `travelview` |
@@ -153,7 +159,9 @@ A 记录开了 Proxied，访客到 Cloudflare 那一段的证书由 CF 提供；
 用 **Cloudflare Origin CA** 证书，15 年有效，只有 CF 会连它：
 
 1. Cloudflare → SSL/TLS → Origin Server → Create Certificate
-2. 主机名填 `travelview.blackrice.top`
+2. 主机名**一次全填上**：`yourtravelview.com`、`*.yourtravelview.com`、
+   `*.blackrice.top`、`blackrice.top`
+   （漏了哪个，对应域名在 CF **Full (strict)** 下就会 526）
 3. 把证书和私钥存到服务器：
 
 ```bash
@@ -243,13 +251,13 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ## 5. 冒烟测试（按顺序，一步不过就停）
 
-1. `curl -I https://travelview.blackrice.top` 返回 200
+1. `curl -I https://yourtravelview.com` 返回 200
 2. 浏览器打开，落地页出来
 3. 注册账号，能登录
 4. `/pricing` 付款，测试卡 `4242 4242 4242 4242`，任意未来日期 + 任意 CVC
 5. `/account` 看到额度到账（**没到账就是 webhook 没通，看第 6 节**）
 6. `/account` 生成发布令牌
-7. 桌面端「生成旅行回顾」→ 导出 → 发布，域名填 `https://travelview.blackrice.top`
+7. 桌面端「生成旅行回顾」→ 导出 → 发布，域名填 `https://yourtravelview.com`
 8. 打开返回的公开链接 —— 照片、地图、路线、文字都在
 9. 服务器上 `ls /var/lib/travelview/media/s/` —— 图片确实落盘了
 
@@ -260,7 +268,7 @@ sudo nginx -t && sudo systemctl reload nginx
 **权益只在 webhook 里发放**，这步不通，用户付了钱也拿不到额度。
 
 1. Stripe → Developers → Webhooks → Add endpoint
-2. 地址 `https://travelview.blackrice.top/api/stripe/webhook`
+2. 地址 `https://yourtravelview.com/api/stripe/webhook`
 3. 事件：`checkout.session.completed`、`customer.subscription.updated`、
    `customer.subscription.deleted`
 4. 把 `whsec_...` 填进 `/etc/travelview/env`，然后
@@ -378,7 +386,7 @@ sudo systemctl restart travelview-web
 ### B.3 Webhook（这一步不通，用户付了钱拿不到东西）
 
 1. Stripe → Developers → Webhooks → Add endpoint
-2. 地址 `https://travelview.blackrice.top/api/stripe/webhook`
+2. 地址 `https://yourtravelview.com/api/stripe/webhook`
 3. 事件勾这五个：
 
 ```text

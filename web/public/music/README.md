@@ -25,5 +25,5 @@
 
 ## 怎么被网站用到
 本目录在 `web/public/` 下，Next.js 会把 `public/` 原样发到站点根：
-所以文件对外地址是 `https://travelview.blackrice.top/music/<文件名>.mp3`（本地开发 `http://localhost:3000/music/<文件名>.mp3`）。
+所以文件对外地址是 `https://yourtravelview.com/music/<文件名>.mp3`（本地开发 `http://localhost:3000/music/<文件名>.mp3`）。
 功能开发时可在此直接用；正式版建议走 `/media/` 或对象存储并做压缩/时长控制。
