@@ -7,10 +7,17 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../ui/theme.dart';
 
-/// 分享面板：二维码 + 链接 + 三个动作。
+/// 分享面板。
 ///
-/// **二维码是给面对面的人用的。** 一桌人吃饭，把手机举起来让人扫，
-/// 比"你微信多少我发给你"快得多 —— 而这正是旅行回顾最常被分享的场合。
+/// **顺序就是使用频率：系统分享面板在最上面，二维码在下面。**
+///
+/// 二维码有它的场合 —— 一桌人吃饭，把手机举起来让人扫，比"你微信多少
+/// 我发给你"快得多。但那是**面对面**的场合，而绝大多数分享是隔着网络的：
+/// 发给不在场的朋友、发到群里、发朋友圈。那些场合里二维码毫无用处，
+/// 因为**用户只有一台手机，没法用自己的手机扫自己屏幕上的码**。
+///
+/// 所以最常用的那个动作必须是一颗全宽的主按钮，不能和"复制""打开"
+/// 挤成三个一样大的小图标 —— 它们不是同一个量级的动作。
 Future<void> showShareSheet(BuildContext context, String url,
     {String? title}) {
   return showModalBottomSheet<void>(
@@ -33,8 +40,54 @@ Future<void> showShareSheet(BuildContext context, String url,
                         fontSize: 16, fontWeight: FontWeight.w700)),
                 const SizedBox(height: 14),
               ],
+              // ── 主动作：交给系统分享面板 ──
+              // 微信、微博、短信、邮件全在里面，一次点击到位
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: () => Share.share(url),
+                  icon: const Icon(Icons.ios_share),
+                  label: Text(tr('分享给朋友')),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        await Clipboard.setData(ClipboardData(text: url));
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(tr('链接已复制'))),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.link, size: 18),
+                      label: Text(tr('复制')),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => launchUrl(Uri.parse(url),
+                          mode: LaunchMode.externalApplication),
+                      icon: const Icon(Icons.open_in_new, size: 18),
+                      label: Text(tr('打开')),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 22),
+              // ── 次要：当面扫码 ──
+              Text(tr('当面给对方扫'),
+                  style: TextStyle(fontSize: 12, color: scheme.outline)),
+              const SizedBox(height: 10),
               Container(
-                padding: const EdgeInsets.all(14),
+                padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(TV.rCard),
@@ -42,7 +95,7 @@ Future<void> showShareSheet(BuildContext context, String url,
                 ),
                 child: QrImageView(
                   data: url,
-                  size: 176,
+                  size: 132,
                   eyeStyle: const QrEyeStyle(
                     eyeShape: QrEyeShape.square,
                     color: TV.ink,
@@ -53,84 +106,16 @@ Future<void> showShareSheet(BuildContext context, String url,
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 10),
               Text(url,
                   textAlign: TextAlign.center,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: scheme.outline)),
-              const SizedBox(height: 18),
-              Row(
-                children: [
-                  _Action(
-                    icon: Icons.ios_share,
-                    label: tr('分享'),
-                    // 只发裸链接：微信只在整条消息就是一个 URL 时
-                    // 才去抓 Open Graph 生成卡片
-                    onTap: () => Share.share(url),
-                  ),
-                  _Action(
-                    icon: Icons.link,
-                    label: tr('复制'),
-                    onTap: () async {
-                      await Clipboard.setData(ClipboardData(text: url));
-                      if (ctx.mounted) {
-                        Navigator.pop(ctx);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(tr('链接已复制'))),
-                        );
-                      }
-                    },
-                  ),
-                  _Action(
-                    icon: Icons.open_in_new,
-                    label: tr('打开'),
-                    onTap: () => launchUrl(Uri.parse(url),
-                        mode: LaunchMode.externalApplication),
-                  ),
-                ],
-              ),
+                  style: TextStyle(fontSize: 11.5, color: scheme.outline)),
             ],
           ),
         ),
       );
     },
   );
-}
-
-class _Action extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  const _Action(
-      {required this.icon, required this.label, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(TV.rControl),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: scheme.primary.withValues(alpha: 0.12),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: scheme.primary, size: 21),
-              ),
-              const SizedBox(height: 7),
-              Text(label, style: const TextStyle(fontSize: 12)),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }

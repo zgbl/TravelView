@@ -456,6 +456,12 @@ export const dict: Dict = {
     en: 'Scan with WeChat, then forward it from inside the app',
   },
   'share.close': { zh: '关闭', en: 'Close' },
+  'share.now': { zh: '分享', en: 'Share' },
+  'share.wechat.inapp': { zh: '发给朋友', en: 'Send to a friend' },
+  'share.wechat.inapp.how': {
+    zh: '点右上角的 ··· ，选「发送给朋友」或「分享到朋友圈」',
+    en: 'Tap ··· at the top right, then "Send to Chat" or "Share to Moments"',
+  },
 
   'story.days': { zh: '天', en: 'DAYS' },
   'story.stops': { zh: '站', en: 'STOPS' },

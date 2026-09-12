@@ -7,6 +7,9 @@
 ///
 /// 查漏用: dart run tool/i18n_scan.dart
 const Map<String, String> kEn = {
+  '分享给朋友': 'Share',
+  '当面给对方扫': 'Or let someone scan this',
+  '复制': 'Copy',
   // ── 公开主页 / 可见性 ──
   '你的公开主页': 'Your public page',
   '别人从这个地址能看到你公开的全部回顾。': 'People can see all of your public stories at this address.',
