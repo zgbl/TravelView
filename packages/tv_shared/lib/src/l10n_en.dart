@@ -7,6 +7,24 @@
 ///
 /// 查漏用: dart run tool/i18n_scan.dart
 const Map<String, String> kEn = {
+  // ── 分段 / 上架必需项 ──
+  '分成 {0} 段来写': 'Write it in {0} parts',
+  '少一段': 'One fewer',
+  '多一段': 'One more',
+  '恢复自动': 'Back to auto',
+  '每段一个标题、一段话。地图上那 {0} 个地点一个都不会少，小车照样一个一个走过去。': 'One title and one note per part. All {0} places stay on the map — the marker still travels through every one.',
+  '路线上 {0} 个地点都在，分成 {1} 段来写': 'All {0} places on the route, written in {1} parts',
+  '第 {0} 段 · {1}月{2}日 {3}:{4}': 'Part {0} · {1}/{2} {3}:{4}',
+  '给这趟起个名字': 'Name this trip',
+  '不写就用 {0}': 'Defaults to {0}',
+  '挑照片': 'Pick photos',
+  '继续编辑': 'Keep editing',
+  '{0} 段': '{0} parts',
+  '删除账号': 'Delete account',
+  '永久删除账号和所有已发布的回顾': 'Permanently delete your account and every published story',
+  '账号、已发布的回顾、以及上传过的图片都会被永久删除，撤不回来。手机相册里的原件不受影响。\n\n接下来会打开网页完成这一步。': 'Your account, every published story and every uploaded image will be permanently deleted. This cannot be undone. The originals in your phone album are untouched.\n\nThe next step opens in your browser.',
+  '隐私政策': 'Privacy Policy',
+  '服务条款': 'Terms of Service',
   // ── 回顾预览 / 编辑回路 ──
   '编辑': 'Edit',
   '更多': 'More',

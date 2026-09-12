@@ -9,5 +9,5 @@
 #          version 从 0.6.9 跳到 0.7.0 时 patch 归零了，build 不会。
 #
 # 不要手工改 build。跑: python3 tools/bump-build.py
-version=0.6.1
-build=1
+version=0.6.2
+build=2

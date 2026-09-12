@@ -54,6 +54,9 @@ class GeneratePage extends StatefulWidget {
 }
 
 class _GeneratePageState extends State<GeneratePage> {
+  /// 合并前的全部地理点 —— 地图和小车走的是它
+  TripRoute? _fine;
+  /// 合并后的章 —— 写字和读的单位
   TripRoute? _route;
   String? _error;
 
@@ -69,12 +72,14 @@ class _GeneratePageState extends State<GeneratePage> {
   void initState() {
     super.initState();
     sel.addListener(_onSelChanged);
+    draft.addListener(_resplit);
     _build();
   }
 
   @override
   void dispose() {
     sel.removeListener(_onSelChanged);
+    draft.removeListener(_resplit);
     super.dispose();
   }
 
@@ -84,16 +89,26 @@ class _GeneratePageState extends State<GeneratePage> {
     _build();
   }
 
+  /// 章数是在行程页上改的，但用户可能改完直接回到这一页 ——
+  /// 重新分段是纯计算，不用重跑聚类
+  void _resplit() {
+    final fine = _fine;
+    if (fine == null) return;
+    setState(() =>
+        _route = mergeIntoChapters(fine, target: draft.chapterCount));
+  }
+
   Future<void> _build() async {
     final current = photos;
     _routeKey = current.map((p) => p.id).join(',');
     // 让一帧先画出来，否则"正在生成"这一屏根本来不及显示
     await Future<void>.delayed(const Duration(milliseconds: 16));
     try {
-      final r = buildRoute(current);
+      final fine = buildRoute(current);
       if (!mounted) return;
       setState(() {
-        _route = r;
+        _fine = fine;
+        _route = mergeIntoChapters(fine, target: draft.chapterCount);
         _error = null;
       });
     } catch (e) {
@@ -265,20 +280,24 @@ class _GeneratePageState extends State<GeneratePage> {
     final all = photos;
     final located = all.where((p) => p.hasLocation).toList();
     return ListView(
-      padding: const EdgeInsets.only(bottom: 28),
+      // **底部操作栏大约 76 高，留白必须超过它。** 原来只留了 28，
+      // 结果"路线上跟着走的标记"那排 chips 被压掉了半截字 ——
+      // 一个被切掉一半的控件，用户不知道自己能不能点。
+      padding: const EdgeInsets.only(bottom: 96),
       children: [
         _Cover(
           coverOf(all),
           route: route,
-          photoCount: all.length,
           onPick: () => _openPhoto(all, all.indexOf(coverOf(all))),
         ),
         _HeaderCard(
           draft: draft,
           route: route,
           photoCount: all.length,
+          finePoints: _fine?.stays.length ?? route.stays.length,
           onEdit: () => _back(const PreviewExit(toTop: true)),
         ),
+        // 地图画的是**合并前**的全部点 —— 章合并了，路线一个点都不少
         if (located.length >= 2) _MapStrip(located),
         _TravelModePicker(draft),
         _MusicStatus(draft),
@@ -351,7 +370,9 @@ class _GeneratePageState extends State<GeneratePage> {
                   child: OutlinedButton.icon(
                     onPressed: () => _back(const PreviewExit(toTop: true)),
                     icon: const Icon(Icons.edit_outlined, size: 18),
-                    label: Text(tr('回去继续编辑'),
+                    // 「回去继续编辑」六个字在 flex:1 里装不下，被截成
+                    // 「回去…」。缩短文案，别靠 ellipsis 遮丑。
+                    label: Text(tr('继续编辑'),
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(
@@ -392,7 +413,14 @@ class _GeneratePageState extends State<GeneratePage> {
       MaterialPageRoute(
         builder: (_) => PublishPage(
           photos: photos,
+          // 发出去的是**章**（写字的单位）
           route: _route!,
+          // 地图线画的是**合并前的全部点** —— 少一个，路线的形状
+          // 就不是他走过的那条路了
+          pathPoints: [
+            for (final st in (_fine ?? _route!).stays)
+              LatLon(st.lat, st.lon),
+          ],
           account: account,
           draft: draft,
         ),
@@ -401,20 +429,20 @@ class _GeneratePageState extends State<GeneratePage> {
   }
 }
 
+/// 片头。**只放日期，不放统计数字。**
+///
+/// 原来封面上写「2 天 · 53 站 · 1177 公里 · 105 张」，紧挨着下面那张卡片
+/// 又写一遍「共 53 站 · 105 张照片 · 历时 29 小时」—— 同一组数字两遍，
+/// 单位还不一致。重复的信息不会让人记得更牢，只会让人觉得这界面没人管。
 class _Cover extends StatelessWidget {
   final PhotoRecord photo;
   final TripRoute route;
-  final int photoCount;
   final VoidCallback onPick;
-  const _Cover(this.photo,
-      {required this.route, required this.photoCount, required this.onPick});
+  const _Cover(this.photo, {required this.route, required this.onPick});
 
   @override
   Widget build(BuildContext context) {
-    final km = route.totalKm.round();
     final start = route.stays.first.arrive;
-    final end = route.stays.last.leave;
-    final days = end.difference(start).inDays + 1;
 
     return GestureDetector(
       onTap: onPick,
@@ -448,16 +476,6 @@ class _Cover extends StatelessWidget {
                       color: Colors.white,
                       fontSize: 22,
                       fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  [
-                    trf('{0} 天', [days]),
-                    trf('{0} 站', [route.stays.length]),
-                    if (km > 0) trf('{0} 公里', [km]),
-                    trf('{0} 张', [photoCount]),
-                  ].join(' · '),
-                  style: const TextStyle(color: Colors.white70, fontSize: 13),
                 ),
               ],
             ),
@@ -499,11 +517,13 @@ class _HeaderCard extends StatelessWidget {
   final StoryDraft draft;
   final TripRoute route;
   final int photoCount;
+  final int finePoints;
   final VoidCallback onEdit;
   const _HeaderCard({
     required this.draft,
     required this.route,
     required this.photoCount,
+    required this.finePoints,
     required this.onEdit,
   });
 
@@ -512,7 +532,8 @@ class _HeaderCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     final start = route.stays.first.arrive;
     final end = route.stays.last.leave;
-    final hours = end.difference(start).inHours;
+    final days = end.difference(start).inDays + 1;
+    final km = route.totalKm.round();
     final subtitle = draft.subtitle.trim();
 
     return Padding(
@@ -545,13 +566,27 @@ class _HeaderCard extends StatelessWidget {
                       const SizedBox(height: 8),
                       Text(
                         [
-                          trf('共 {0} 站', [route.stays.length]),
-                          trf('{0} 张照片', [photoCount]),
-                          if (hours > 0) trf('历时 {0} 小时', [hours]),
+                          trf('{0} 天', [days]),
+                          trf('{0} 段', [route.stays.length]),
+                          if (km > 0) trf('{0} 公里', [km]),
+                          trf('{0} 张', [photoCount]),
                         ].join(' · '),
                         style:
                             TextStyle(fontSize: 12, color: scheme.outline),
                       ),
+                      if (finePoints > route.stays.length)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 5),
+                          child: Text(
+                            // **必须说出来。** 用户看到"53 站"变成"10 段"
+                            // 的第一反应是"我的路线被砍了" —— 不说清楚，
+                            // 他会以为丢了东西。
+                            trf('路线上 {0} 个地点都在，分成 {1} 段来写',
+                                [finePoints, route.stays.length]),
+                            style: TextStyle(
+                                fontSize: 11.5, color: scheme.primary),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -647,7 +682,7 @@ class _StopCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      trf('第 {0} 站 · {1}月{2}日 {3}:{4}', [
+                      trf('第 {0} 段 · {1}月{2}日 {3}:{4}', [
                         stop.seq,
                         a.month,
                         a.day,

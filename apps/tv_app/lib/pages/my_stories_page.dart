@@ -260,10 +260,21 @@ class _StoryCard extends StatelessWidget {
                               color: Theme.of(c)
                                   .colorScheme
                                   .surfaceContainerHighest),
-                      errorBuilder: (c, _, __) => Container(
-                        color: Theme.of(c).colorScheme.surfaceContainerHighest,
-                        child: Icon(Icons.image_not_supported_outlined,
-                            color: Theme.of(c).colorScheme.outline),
+                      // 取不到封面时**不要摆一个碎图图标** —— 那看起来像
+                      // "你这篇游记坏了"，而实际上坏的只是一张预览图。
+                      // 退回一块安静的渐变底，标题照常压在上面，
+                      // 这张卡片依然是完整的。
+                      errorBuilder: (c, _, __) => DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [
+                              Theme.of(c).colorScheme.primaryContainer,
+                              Theme.of(c).colorScheme.surfaceContainerHighest,
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),

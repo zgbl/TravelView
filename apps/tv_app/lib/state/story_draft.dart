@@ -26,6 +26,22 @@ class StoryDraft extends ChangeNotifier {
   final Map<int, String> stopNotes = {};
 
 
+  /// 这一篇分成几段（= 要写几段文字）。null 表示用自动估的那个数。
+  ///
+  /// **让用户自己定，因为只有他知道这趟有几件值得说的事。** 算法能看出
+  /// 哪里停得久，看不出哪里"值得写"：同样是停 20 分钟，一个是加油，
+  /// 一个是他等了半小时才等到的那片晚霞。
+  ///
+  /// **这个数只影响写字的段数，不影响地图。** 路线画的是合并之前的
+  /// 全部地理点（见 tv_core 的 routePath）——自驾路上每一次停车拍照的
+  /// 位置都在线上，小车照样一个点一个点地走过去，一个都不会少。
+  int? chapterCount;
+
+  void setChapterCount(int? n) {
+    chapterCount = n;
+    notifyListeners();
+  }
+
   /// 片头封面那张照片的 id。**空表示不表态**，由 StoryBuilder 回落到
   /// 第一站的首图 —— 和桌面端同一条规则。
   ///

@@ -181,10 +181,19 @@ class _MePageState extends State<MePage> {
                   url: '${s.siteUrl}/zh/download',
                 ),
                 const Divider(height: 1),
+                // **必须指向隐私政策本身，不能指向首页。**
+                // 审核员会点进来，点开不是隐私政策就是一条拒审；
+                // App Store Connect / Play Console 的元数据里也要填同一个地址。
                 _LinkTile(
                   icon: Icons.privacy_tip_outlined,
-                  label: tr('隐私政策与服务条款'),
-                  url: '${s.siteUrl}/zh',
+                  label: tr('隐私政策'),
+                  url: '${s.siteUrl}/zh/privacy',
+                ),
+                const Divider(height: 1),
+                _LinkTile(
+                  icon: Icons.description_outlined,
+                  label: tr('服务条款'),
+                  url: '${s.siteUrl}/zh/terms',
                 ),
               ],
             ),
@@ -193,11 +202,29 @@ class _MePageState extends State<MePage> {
 
           _Card(
             padding: EdgeInsets.zero,
-            child: ListTile(
-              leading: Icon(Icons.logout, color: scheme.error),
-              title:
-                  Text(tr('退出登录'), style: TextStyle(color: scheme.error)),
-              onTap: _signOut,
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.logout, color: scheme.error),
+                  title: Text(tr('退出登录'),
+                      style: TextStyle(color: scheme.error)),
+                  onTap: _signOut,
+                ),
+                const Divider(height: 1),
+                // **上架硬性要求。** Apple 审核指南 5.1.1(v) 和 Google Play
+                // 都规定：能在 app 里注册账号，就必须能在 app 里发起删除账号。
+                // 这是最常见的拒审理由之一，而且是"传上去等三天、被拒、
+                // 再等三天"的那种。
+                ListTile(
+                  leading: Icon(Icons.person_remove_outlined,
+                      color: scheme.error),
+                  title: Text(tr('删除账号'),
+                      style: TextStyle(color: scheme.error)),
+                  subtitle: Text(tr('永久删除账号和所有已发布的回顾'),
+                      style: TextStyle(fontSize: 11.5, color: scheme.outline)),
+                  onTap: _deleteAccount,
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 26),
@@ -209,6 +236,44 @@ class _MePageState extends State<MePage> {
         ],
       ),
     );
+  }
+
+  /// 删除账号。
+  ///
+  /// 实际操作在网页上完成（那边已经有完整的一套：二次确认、连带清理
+  /// 已发布的故事），**但入口必须在 app 里** —— 商店查的是"能不能在
+  /// app 里发起"，不是"在哪儿执行"。
+  ///
+  /// 先弹一次说明再跳出去：一个直接把人踢到浏览器的菜单项，
+  /// 用户不知道自己刚才点了什么。
+  Future<void> _deleteAccount() async {
+    final s = widget.session.settings;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(tr('删除账号')),
+        content: Text(
+          tr('账号、已发布的回顾、以及上传过的图片都会被永久删除，撤不回来。'
+              '手机相册里的原件不受影响。\n\n'
+              '接下来会打开网页完成这一步。'),
+          style: const TextStyle(fontSize: 13, height: 1.6),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(tr('取消'))),
+          FilledButton(
+            style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(ctx).colorScheme.error),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(tr('继续')),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await launchUrl(Uri.parse('${s.siteUrl}/zh/account'),
+        mode: LaunchMode.externalApplication);
   }
 
   Future<void> _editName() async {

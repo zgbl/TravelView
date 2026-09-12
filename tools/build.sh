@@ -37,11 +37,34 @@ esac
 # ── 1. 版本号 ──
 if [ "$BUMP" = 1 ]; then
   echo "==> 版本号 +1"
-  python3 tools/bump-build.py "${SET_ARGS[@]}"
+  # `${a[@]+"${a[@]}"}` 这个写法是为了 macOS 自带的 bash 3.2:
+  # 它在 `set -u` 下把「展开一个空数组」当成引用未定义变量，直接报错退出。
+  # 新版 bash 没这个毛病，所以 `bash -n` 和 Linux 上都测不出来。
+  python3 tools/bump-build.py ${SET_ARGS[@]+"${SET_ARGS[@]}"}
 else
   echo "==> 不 bump，用当前版本重出"
   python3 tools/bump-build.py --sync
 fi
+
+# ── fvm ──
+# tv_app 下有 .fvmrc，得用 `fvm flutter` 跑，否则用的是系统那个 flutter ——
+# **两个 flutter 版本编出来的包不一样**，而且这种错不会报错，只会在某个
+# 插件上莫名其妙地挂掉。哪个目录该用哪个，由那个目录里有没有 .fvmrc 决定，
+# 不由记性决定。
+fl() {
+  if [ -f .fvmrc ] && command -v fvm >/dev/null; then
+    fvm flutter "$@"
+  else
+    flutter "$@"
+  fi
+}
+dt() {
+  if [ -f .fvmrc ] && command -v fvm >/dev/null; then
+    fvm dart "$@"
+  else
+    dart "$@"
+  fi
+}
 
 VERSION=$(grep '^version=' VERSION | cut -d= -f2)
 BUILD=$(grep '^build=' VERSION | cut -d= -f2)
@@ -55,7 +78,7 @@ case "$TARGET" in
 
 mac)
   cd "$ROOT/apps/tv_desktop"
-  flutter build macos --release
+  fl build macos --release
   APP="build/macos/Build/Products/Release/tv_desktop.app"
   DMG="$DIST/TravelView-$VERSION.dmg"
   rm -f "$DMG"
@@ -73,9 +96,9 @@ mac)
 
 win)
   cd "$ROOT/apps/tv_desktop"
-  flutter build windows --release
+  fl build windows --release
   echo "==> 打 msix"
-  dart run msix:create
+  dt run msix:create
   echo "产物: apps/tv_desktop/build/windows/x64/runner/Release/（整个文件夹）"
   echo "      以及同目录下的 .msix"
   ;;
@@ -83,8 +106,8 @@ win)
 android)
   cd "$ROOT/apps/tv_app"
   # aab 传 Play，apk 自己和测试机装 —— 两个都要，别等要用时再补编一次
-  flutter build appbundle --release
-  flutter build apk --release
+  fl build appbundle --release
+  fl build apk --release
   cp build/app/outputs/bundle/release/app-release.aab "$DIST/TravelView-$VERSION.aab"
   cp build/app/outputs/flutter-apk/app-release.apk "$DIST/TravelView-$VERSION.apk"
   echo "产物: dist/TravelView-$VERSION.aab"
@@ -93,7 +116,7 @@ android)
 
 ios)
   cd "$ROOT/apps/tv_app"
-  flutter build ipa --release
+  fl build ipa --release
   echo "产物: apps/tv_app/build/ios/ipa/"
   echo "没配签名的话到这一步会停在 archive —— 打开 Xcode 继续"
   ;;

@@ -20,6 +20,10 @@ import '../state/workspace.dart';
 class PublishPage extends StatefulWidget {
   final List<PhotoRecord> photos;
   final TripRoute route;
+
+  /// 地图上那条线的全部地理点（合并章之前的）。见 Story.path。
+  final List<LatLon> pathPoints;
+
   final Account account;
   final StoryDraft draft;
 
@@ -27,6 +31,7 @@ class PublishPage extends StatefulWidget {
     super.key,
     required this.photos,
     required this.route,
+    this.pathPoints = const [],
     required this.account,
     required this.draft,
   });
@@ -82,6 +87,7 @@ class _PublishPageState extends State<PublishPage> {
           trip: widget.route,
           selectedIds: widget.photos.map((p) => p.id).toSet(),
           heroByStopSeq: const {},
+          pathPoints: widget.pathPoints,
           // 用户在预览页大图上指定的那一张。没指定就传空，
           // 由 StoryBuilder 回落到第一站首图 —— 和桌面端同一条规则。
           coverPhotoId: widget.draft.coverId,

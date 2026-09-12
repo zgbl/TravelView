@@ -28,6 +28,16 @@ class Story {
   final List<StoryPhoto> photos;
   final List<StoryRoute> routes;
 
+  /// 地图上那条线要走的**全部**地理点，按时间顺序。
+  ///
+  /// **和 [stops] 是两件事，不要合并。** stops 是叙事单位（章），
+  /// 一篇游记只该有十来个，否则没人写得完也没人读得完；
+  /// path 是地理轨迹，自驾路上停车拍照一天二十次，
+  /// 每一个点都得在线上，少一个路线的形状就不是他走过的那条路了。
+  ///
+  /// 有真实路网数据（[routes]）时以那个为准，path 是没有路网时的底。
+  final List<LatLon> path;
+
   const Story({
     required this.id,
     required this.slug,
@@ -41,6 +51,7 @@ class Story {
     required this.stops,
     required this.photos,
     required this.routes,
+    this.path = const [],
   });
 
   int get dayCount => days.length;
@@ -81,6 +92,10 @@ class Story {
         'stops': stops.map((e) => e.toJson()).toList(),
         'photos': photos.map((e) => e.toJson()).toList(),
         'routes': routes.map((e) => e.toJson()).toList(),
+        // 扁平的 [lat, lon] 数对，前端直接喂给 Leaflet。
+        // 几十个点几 KB，没必要为它上编码
+        if (path.isNotEmpty)
+          'path': [for (final p in path) [p.lat, p.lon]],
       };
 
   factory Story.fromJson(Map<String, dynamic> j) => Story(
@@ -104,6 +119,10 @@ class Story {
         routes: (j['routes'] as List)
             .map((e) => StoryRoute.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
+        path: [
+          for (final e in (j['path'] as List? ?? const []))
+            LatLon((e as List)[0] as double, e[1] as double),
+        ],
       );
 }
 
@@ -332,6 +351,8 @@ class StoryBuilder {
     /// 传空或者这张没被选进 Story 时，回落到第一站的首图。
     String? coverPhotoId,
     required List<RouteLeg> legs,
+    /// 地图轨迹的全部地理点（合并章之前的那份）。见 [Story.path]。
+    List<LatLon> pathPoints = const [],
     required String Function(PhotoRecord) webPathOf,
     String Function(PhotoRecord)? thumbPathOf,
     Map<int, String>? stopNames,
@@ -419,6 +440,7 @@ class StoryBuilder {
       stops: stops,
       photos: photos,
       routes: routes,
+      path: pathPoints,
     );
   }
 

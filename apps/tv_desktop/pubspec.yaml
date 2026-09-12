@@ -1,7 +1,7 @@
 name: tv_desktop
 description: TravelView 桌面端 —— 照片库管理与旅行回顾生成
 publish_to: none
-version: 0.6.1+1
+version: 0.6.2+2
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
@@ -35,5 +35,5 @@ msix_config:
   display_name: TravelView
   publisher_display_name: TravelView
   identity_name: com.travelview.desktop
-  msix_version: 0.6.1.0
+  msix_version: 0.6.2.0
   capabilities: removableStorage

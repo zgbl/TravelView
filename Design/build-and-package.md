@@ -13,6 +13,10 @@ header-includes: |
 
 # TravelView 桌面端：编译与打包
 
+> **日常出包和真机调试的命令速查在 `docs/build-and-release.md`**，
+> 那份按「开发调试 / 内测分发 / 正式发布」三种场景分开写，四个平台都全。
+> 这份留的是平台配置的细节：沙盒权限、Inno Setup、跨平台路径坑。
+
 ## 0. 一次性：生成平台工程
 
 我只写了 `lib/` 和 `pubspec.yaml`。macOS 和 Windows 的原生工程目录（Xcode 工程、

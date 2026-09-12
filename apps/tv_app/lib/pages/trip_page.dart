@@ -42,7 +42,13 @@ class _TripPageState extends State<TripPage> {
   /// 换个组织方式只会让他重新学一遍。
   ///
   /// `buildRoute` 是纯计算，几千张也就几十毫秒，不值得为它加个加载态。
-  late final TripRoute _route = buildRoute(widget.trip.photos);
+  /// **细粒度的路线，一个地理点都不合并。** 地图上那条线和小车走的就是它 ——
+  /// 自驾路上停车拍照一天二十次，每一个点都得在，少一个形状就不对了。
+  late final TripRoute _fine = buildRoute(widget.trip.photos);
+
+  /// 写字用的"章"。合并只改要写几段，不改车怎么走。
+  TripRoute get _route =>
+      mergeIntoChapters(_fine, target: _draft.chapterCount);
 
   int _tab = 0;
 
@@ -65,7 +71,8 @@ class _TripPageState extends State<TripPage> {
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _sel,
+      // 章数是在 draft 上改的，改完这一页要立刻重新分段
+      animation: Listenable.merge([_sel, _draft]),
       builder: (context, _) => PopScope(
         // 多选状态下按返回键先退出多选，不要直接退出这趟行程 ——
         // 挑了半天一个后退全没了，是最气人的那种交互
@@ -78,14 +85,18 @@ class _TripPageState extends State<TripPage> {
           // 输入法弹出来时要把正在写的那一行顶上去，不能盖住
           resizeToAvoidBottomInset: true,
           body: _tab == 0
-              ? _Timeline(widget.trip, _route, _sel, _draft, _scroll, _keyFor)
+              ? _Timeline(widget.trip, _route, _fine.stays.length, _sel, _draft,
+                  _scroll, _keyFor)
               : _TripMap(widget.trip, _sel),
           // **挑图的操作全部在屏幕下半部。**
           // 竖握手机时拇指扫得到的只有底下三分之一，把勾选和批量操作
           // 放到顶部的 AppBar 里，等于要用户换手或者挪握姿 —— 挑三百张
           // 照片的过程中每一次都要挪，这是最伤的那种设计。
-          bottomNavigationBar: _sel.selecting ? _selectingBottomBar() : _tabBar(),
-          floatingActionButton: _sel.selecting ? null : _generateButton(),
+          // **生成按钮不能是浮在内容上的 FAB。** 它原来正好压在第一站的
+          // "说明文字"输入框上 —— 而写字是这个产品最核心的动作，
+          // 用一个按钮去挡它，方向反了。
+          bottomNavigationBar:
+              _sel.selecting ? _selectingBottomBar() : _bottomBar(),
         ),
       ),
     );
@@ -147,30 +158,52 @@ class _TripPageState extends State<TripPage> {
     );
   }
 
-  Widget _generateButton() => Column(
+  /// 底部固定操作条：挑图 + 生成，下面压着 tab。
+  ///
+  /// **不用 FAB。** FAB 浮在内容上，正好压住第一站的"说明文字"输入框 ——
+  /// 而写字是这个产品最核心的动作。做成固定条，内容区留出对应的留白，
+  /// 谁也不挡谁。
+  Widget _bottomBar() => Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // 进多选的入口放在生成按钮上面，同样在拇指区。
-          // 长按照片也能进，但那是老手才会发现的路。
-          FloatingActionButton.small(
-            heroTag: 'pick',
-            tooltip: tr('挑选照片'),
-            onPressed: _sel.enterSelecting,
-            child: const Icon(Icons.check_circle_outline),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: _sel.enterSelecting,
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: Text(tr('挑照片')),
+                    style: OutlinedButton.styleFrom(
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(TV.rControl)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: FilledButton.icon(
+                      onPressed: _sel.isEmpty ? null : _openPreview,
+                      icon: const Icon(Icons.auto_awesome, size: 18),
+                      label: Text(
+                        _sel.isEmpty
+                            ? tr('一张都没选')
+                            : trf('生成回顾 · {0} 张', [_sel.count]),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          _fab(),
+          _tabBar(),
         ],
-      );
-
-  Widget _fab() => FloatingActionButton.extended(
-        onPressed: _sel.isEmpty ? null : _openPreview,
-        heroTag: 'go',
-        icon: const Icon(Icons.auto_awesome),
-        label: Text(_sel.isEmpty
-            ? tr('一张都没选')
-            : trf('生成回顾 · {0} 张', [_sel.count])),
       );
 
   /// 去预览，**并且准备好把人接回来。**
@@ -248,12 +281,13 @@ class _TripPageState extends State<TripPage> {
 class _Timeline extends StatelessWidget {
   final Trip trip;
   final TripRoute route;
+  final int finePointCount;
   final TripSelection sel;
   final StoryDraft draft;
   final ScrollController controller;
   final GlobalKey Function(int seq) keyFor;
-  const _Timeline(this.trip, this.route, this.sel, this.draft, this.controller,
-      this.keyFor);
+  const _Timeline(this.trip, this.route, this.finePointCount, this.sel,
+      this.draft, this.controller, this.keyFor);
 
   @override
   Widget build(BuildContext context) {
@@ -268,10 +302,15 @@ class _Timeline extends StatelessWidget {
 
     return ListView.builder(
       controller: controller,
-      padding: const EdgeInsets.only(bottom: 100),
+      padding: const EdgeInsets.only(bottom: 28),
       itemCount: 2 + stops.length + (orphans.isEmpty ? 0 : 1),
       itemBuilder: (context, index) {
-        if (index == 0) return _TitleBlock(draft);
+        if (index == 0) {
+          return Column(children: [
+            _TitleBlock(draft),
+            _ChapterCount(draft, route.stays.length, finePointCount),
+          ]);
+        }
         // 配乐紧跟在标题下面。**和桌面端放在同一个位置**（那一栏
         // "这篇怎么呈现"里）—— 它和标题、副标题是同一类东西：
         // 定一次就不再动的"这一篇长什么样"，不是"现在要做什么"。
@@ -464,7 +503,12 @@ class _TitleBlock extends StatelessWidget {
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
               isDense: true,
-              hintText: trf('给这趟起个名字（默认 {0}）', [draft.defaultTitle]),
+              // **提示语要短到一行放得下。** 原来那句带默认值，在手机上被
+              // 截成"给这趟起个名字（默认 202…"——一个被截断的提示
+              // 比没有提示更糟，它看起来像个 bug。
+              hintText: tr('给这趟起个名字'),
+              helperText: trf('不写就用 {0}', [draft.defaultTitle]),
+              helperStyle: const TextStyle(fontSize: 11.5),
               border: InputBorder.none,
             ),
             style: const TextStyle(fontSize: 21, fontWeight: FontWeight.w700),
@@ -1045,6 +1089,92 @@ class _TripMap extends StatelessWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// 这一篇分成几段。
+///
+/// **这是用户唯一需要理解的那个旋钮，所以它旁边那句话比旋钮本身重要。**
+///
+/// 算法能看出哪里停得久，看不出哪里"值得写"：同样停 20 分钟，
+/// 一个是加油，一个是他等了半小时才等到的那片晚霞。所以最后由他定。
+///
+/// 而他心里最大的疑问一定是"合并了，我的路线是不是就短了/少了几个地方"。
+/// 那句"路线上的 53 个地点一个都不会少"必须摆在旁边 —— 不说清楚，
+/// 他就不敢往下调，这个旋钮等于没做。
+class _ChapterCount extends StatelessWidget {
+  final StoryDraft draft;
+  final int current;
+  final int finePoints;
+  const _ChapterCount(this.draft, this.current, this.finePoints);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // 合并本来就没发生（地点本来就不多），这个旋钮是多余的界面
+    if (finePoints <= 2) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 4, 14, 0),
+      child: Card(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.segment, size: 18, color: scheme.primary),
+                  const SizedBox(width: 9),
+                  Expanded(
+                    child: Text(trf('分成 {0} 段来写', [current]),
+                        style: const TextStyle(
+                            fontSize: 14, fontWeight: FontWeight.w600)),
+                  ),
+                  IconButton(
+                    tooltip: tr('少一段'),
+                    onPressed:
+                        current <= 1 ? null : () => draft.setChapterCount(current - 1),
+                    icon: const Icon(Icons.remove_circle_outline, size: 22),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  IconButton(
+                    tooltip: tr('多一段'),
+                    onPressed: current >= finePoints
+                        ? null
+                        : () => draft.setChapterCount(current + 1),
+                    icon: const Icon(Icons.add_circle_outline, size: 22),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              Padding(
+                padding: const EdgeInsets.only(right: 6),
+                child: Text(
+                  trf('每段一个标题、一段话。地图上那 {0} 个地点一个都不会少，'
+                      '小车照样一个一个走过去。', [finePoints]),
+                  style: TextStyle(
+                      fontSize: 11.5, height: 1.5, color: scheme.outline),
+                ),
+              ),
+              if (draft.chapterCount != null)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton(
+                    onPressed: () => draft.setChapterCount(null),
+                    style: TextButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                    ),
+                    child: Text(tr('恢复自动'),
+                        style: const TextStyle(fontSize: 12)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

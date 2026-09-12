@@ -268,6 +268,10 @@ function initStoryCover(elId, bottomPad){
     L.polyline(pts, {color:'#4fbfa8', weight:4,
       lineCap:'round', lineJoin:'round'}).addTo(heroMap);
   });
+  if (!(STORY.routes||[]).length && (STORY.path||[]).length > 1){
+    L.polyline(STORY.path.map(p => [p[0], p[1]]),
+      {color:'#4fbfa8', weight:3, opacity:.85}).addTo(omap);
+  }
   (STORY.stops||[]).forEach(st => {
     L.circleMarker([st.lat, st.lon], {radius:4, color:'#0f1113', weight:2,
       fillColor:'#ffffff', fillOpacity:1}).addTo(heroMap);
@@ -306,6 +310,7 @@ function render(){
      没有就照片封面 —— 以后生日 / 婚礼 / 演唱会没有路线，
      封面引擎该自己退回照片，而不是画一张空地图。 */
   const hasRoute = (STORY.routes||[]).length > 0
+                || (STORY.path||[]).length > 1
                 || (STORY.stops||[]).length > 1;
   const mode = STORY.coverMode === 'photo' ? 'photo'
              : !hasRoute ? 'photo'
@@ -455,10 +460,20 @@ function initMap(){
     allPoints = allPoints.concat(pts);
   });
 
-  gaps().forEach(([a, b]) => {
-    L.polyline([[a.lat, a.lon], [b.lat, b.lon]],
-      {color:'#8a9a98', weight:2, opacity:.45, dashArray:'3 7'}).addTo(map);
-  });
+  // 没有路网数据时，用 STORY.path 兜底 —— 那是**合并章之前**的全部
+  // 地理点，所以自驾路上每一次停车拍照的位置都在线上，
+  // 小车照样一个点一个点地走过去。
+  // 没有它的话，十来个章之间只能连几条直线，一趟自驾的形状就没了。
+  if (allPoints.length < 2 && (STORY.path||[]).length > 1){
+    const pts = STORY.path.map(p => [p[0], p[1]]);
+    L.polyline(pts, {color:'#5a6b6a', weight:3, opacity:.55}).addTo(map);
+    allPoints = pts;
+  } else {
+    gaps().forEach(([a, b]) => {
+      L.polyline([[a.lat, a.lon], [b.lat, b.lon]],
+        {color:'#8a9a98', weight:2, opacity:.45, dashArray:'3 7'}).addTo(map);
+    });
+  }
 
   STORY.stops.forEach((s, i) => {
     const m = L.circleMarker([s.lat, s.lon], {radius:5, color:'#ffffff',

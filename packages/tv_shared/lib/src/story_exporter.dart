@@ -71,6 +71,8 @@ class StoryExporter {
     String units = 'auto',
     List<String> music = const [],
     required List<RouteLeg> legs,
+    /// 地图轨迹的全部地理点（合并章之前的那份）。见 Story.path。
+    List<LatLon> pathPoints = const [],
     required String title,
     String? subtitle,
     Map<int, String>? stopNames,
@@ -153,6 +155,7 @@ class StoryExporter {
       heroByStopSeq: heroByStopSeq,
       coverPhotoId: coverPhotoId,
       legs: legs,
+      pathPoints: pathPoints,
       webPathOf: (r) => 'photos/${p.basename(exported[r.id]!.path)}',
       thumbPathOf: (r) => thumbs[r.id] ?? 'thumbs/${r.id}.webp',
       stopNames: stopNames,
@@ -191,6 +194,10 @@ class StoryExporter {
       stops: story.stops,
       photos: fixedPhotos,
       routes: story.routes,
+      // **别漏掉 path。** 这里是手工重建 Story 而不是 copyWith，
+      // 新加的字段不写就会静悄悄地丢 —— 丢了的表现是网页上没有路线，
+      // 而且不报任何错。
+      path: story.path,
     );
 
     // ── 分享预览图 og.jpg ──
