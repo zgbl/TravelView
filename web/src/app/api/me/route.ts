@@ -24,9 +24,10 @@ export async function GET(req: Request) {
     handle: string | null;
     story_credits: number;
     subscription_status: string | null;
+    profile_public: boolean;
     created_at: string;
   }>(`select email, name, handle, coalesce(story_credits, 0) as story_credits,
-             subscription_status, created_at
+             subscription_status, profile_public, created_at
         from users where id = $1`, [user.id]);
   if (!row) return NextResponse.json({ error: '找不到账号' }, { status: 404 });
 
@@ -38,6 +39,10 @@ export async function GET(req: Request) {
     // 有 handle 才有公开主页。没有的话让客户端引导用户去设一个，
     // 而不是给一个点开是 404 的链接
     homeUrl: row.handle ? `${site}/u/${row.handle}` : null,
+    // 主页是公开可浏览，还是"只有拿到链接的人才看得到"。
+    // **这个开关一直在库里（008_profiles.sql），只是从来没暴露出去** ——
+    // 页面早就照它执行了，用户却没有任何地方能改它
+    profilePublic: row.profile_public,
     credits: row.story_credits,
     subscribed: row.subscription_status === 'active',
     since: row.created_at,
@@ -55,6 +60,7 @@ const Body = z.object({
   name: z.string().trim().max(40).optional(),
   handle: z.string().trim().toLowerCase()
     .regex(/^[a-z0-9_]{3,20}$/, 'BAD_HANDLE').optional(),
+  profilePublic: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request) {
@@ -74,6 +80,11 @@ export async function PATCH(req: Request) {
     // 空字符串存 null，别在库里留一堆空串
     await one('update users set name = $2 where id = $1',
       [user.id, parsed.data.name || null]);
+  }
+
+  if (parsed.data.profilePublic !== undefined) {
+    await one('update users set profile_public = $2 where id = $1',
+      [user.id, parsed.data.profilePublic]);
   }
 
   const handle = parsed.data.handle;

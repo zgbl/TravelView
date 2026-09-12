@@ -194,7 +194,18 @@ export async function POST(req: Request) {
   }
 
   // ── 新建 ──
-  const slug = randomBytes(5).toString('hex'); // 不可猜测的公开地址
+  /**
+   * 公开地址。**随机、不可猜、看不出先后** —— 不用自增 id、不用标题转拼音。
+   *
+   * 为什么是 9 字节而不是 5: "仅凭链接可见"这个承诺的全部分量都压在
+   * 地址猜不到上面。5 字节是 40 位，约 1.1e12 —— 单独盯一篇是猜不动，
+   * 但**碰撞式扫描**是另一回事: 库里有 10 万篇时，每次随机猜中的概率
+   * 约一千一百万分之一，1000 次/秒扫几个小时就能偶然撞出一篇别人的。
+   * 9 字节是 72 位，同样的扫法要几百万年。
+   *
+   * 老故事的 slug 存在库里，不受影响，照常能打开。
+   */
+  const slug = randomBytes(9).toString('hex');
   // 按用户和年月分目录: 单个用户几万张图时目录还翻得动，也方便整体迁移
   let prefix = mediaPrefixFor(userId, slug);
   const common = [

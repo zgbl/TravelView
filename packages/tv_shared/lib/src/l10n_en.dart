@@ -7,6 +7,21 @@
 ///
 /// 查漏用: dart run tool/i18n_scan.dart
 const Map<String, String> kEn = {
+  // ── 公开主页 / 可见性 ──
+  '你的公开主页': 'Your public page',
+  '别人从这个地址能看到你公开的全部回顾。': 'People can see all of your public stories at this address.',
+  '自己改一个': 'Choose my own',
+  '换一个': 'Try another',
+  '就用这个': 'Use this',
+  '改成这个': 'Change to this',
+  '只能用小写字母、数字、下划线，3 到 20 位': 'Lowercase letters, digits and underscores, 3–20 characters',
+  '改了之后，之前分享出去的主页链接就打不开了。已经发布的每一篇回顾自己的链接不受影响。': 'Any page link you already shared will stop working. Links to individual published stories are unaffected.',
+  '主页可以被公开浏览': 'Page is publicly browsable',
+  '主页隐身': 'Page is hidden',
+  '别人打开你的主页能看到你全部公开的回顾。': 'Anyone opening your page sees all of your public stories.',
+  '别人打不开你的主页。已经分享出去的每一篇回顾，拿到链接的人照样能看。': 'Nobody can open your page. Every story you already shared still opens for anyone with the link.',
+  '主页已公开': 'Page is now public',
+  '主页已隐身': 'Page is now hidden',
   // ── 分段 / 上架必需项 ──
   '分成 {0} 段来写': 'Write it in {0} parts',
   '少一段': 'One fewer',

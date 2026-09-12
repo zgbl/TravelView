@@ -72,6 +72,7 @@ class _MePageState extends State<MePage> {
             error: _profile.error,
             onEditName: _editName,
             onEditHandle: _editHandle,
+            onSetProfilePublic: _setProfilePublic,
             onRetry: _profile.load,
             onOpenHome: (url) =>
                 launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication),
@@ -276,6 +277,11 @@ class _MePageState extends State<MePage> {
         mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _setProfilePublic(bool v) async {
+    final err = await _profile.setProfilePublic(v);
+    _toast(err ?? (v ? tr('主页已公开') : tr('主页已隐身')));
+  }
+
   Future<void> _editName() async {
     final p = _profile.profile;
     final ctrl = TextEditingController(text: p?.name ?? '');
@@ -289,20 +295,40 @@ class _MePageState extends State<MePage> {
     _toast(err ?? tr('改好了'));
   }
 
+  /// 设公开主页地址。
+  ///
+  /// **不让用户从一个空框开始想。** 原来这里是一个空输入框加一句
+  /// "小写字母、数字、下划线，3 到 20 位" —— 那是把数据库约束摊给用户看。
+  /// 他要现想一个名字、猜哪些字符能用、还可能撞名被打回来，
+  /// 而这一切发生在他只想赶紧把游记发出去的时候。
+  ///
+  /// 现在是：**我们按他的显示名先生成一个，他点「就用这个」就完了。**
+  /// 想改的人永远能改，不想改的人一次点击走完。
+  ///
+  /// **地址和显示名是两件事，不能绑死。** 显示名随时可以改（改了页面上
+  /// 就换个名字），地址一旦定下来就尽量别动 —— 那是别人转发到
+  /// Facebook 上的链接，改一次，所有转发过的链接全死。
+  /// 所以地址只在第一次由显示名推导，之后各走各的。
   Future<void> _editHandle() async {
     final p = _profile.profile;
-    final ctrl = TextEditingController(text: p?.handle ?? '');
-    final site = widget.session.settings.siteUrl
-        .replaceAll(RegExp(r'^https?://'), '');
-    final v = await _ask(
-      title: tr('公开主页地址'),
-      hint: '$site/u/…',
-      controller: ctrl,
-      helper: tr('小写字母、数字、下划线，3 到 20 位。设好之后别人可以'
-          '通过这个地址看到你公开的全部回顾。'),
+    final site =
+        widget.session.settings.siteUrl.replaceAll(RegExp(r'^https?://'), '');
+    final current = p?.handle ?? '';
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (_) => _HandleSheet(
+        site: site,
+        current: current,
+        suggestion: current.isNotEmpty
+            ? current
+            : HandleRules.suggest(
+                name: p?.name, email: p?.email),
+      ),
     );
-    if (v == null || v.isEmpty) return;
-    final err = await _profile.setHandle(v);
+    if (picked == null || picked.isEmpty) return;
+    final err = await _profile.setHandle(picked);
     _toast(err ?? tr('设好了'));
   }
 
@@ -475,6 +501,7 @@ class _IdentityCard extends StatelessWidget {
   final String? error;
   final VoidCallback onEditName;
   final VoidCallback onEditHandle;
+  final void Function(bool) onSetProfilePublic;
   final VoidCallback onRetry;
   final void Function(String url) onOpenHome;
 
@@ -484,6 +511,7 @@ class _IdentityCard extends StatelessWidget {
     required this.error,
     required this.onEditName,
     required this.onEditHandle,
+    required this.onSetProfilePublic,
     required this.onRetry,
     required this.onOpenHome,
   });
@@ -641,6 +669,34 @@ class _IdentityCard extends StatelessWidget {
             ),
           ],
 
+          // **可见性紧贴着主页地址放。** 它说的就是"这个地址别人能不能
+          // 随便逛"这一件事，放到下面的"偏好"里，用户不会把两者联系起来。
+          if (p.handle != null) ...[
+            const SizedBox(height: 4),
+            SwitchListTile(
+              value: p.profilePublic,
+              onChanged: onSetProfilePublic,
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(
+                p.profilePublic ? tr('主页可以被公开浏览') : tr('主页隐身'),
+                style: const TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w600),
+              ),
+              subtitle: Text(
+                // **关掉之后到底还能不能分享，必须说清楚。**
+                // 用户最怕的是"我一关，之前发出去的链接是不是全废了"——
+                // 没有这句话，想保护隐私的人反而不敢关。
+                p.profilePublic
+                    ? tr('别人打开你的主页能看到你全部公开的回顾。')
+                    : tr('别人打不开你的主页。已经分享出去的每一篇回顾，'
+                        '拿到链接的人照样能看。'),
+                style: TextStyle(
+                    fontSize: 11.5, height: 1.45, color: scheme.outline),
+              ),
+            ),
+          ],
+
           const SizedBox(height: 12),
           // 额度：发布前才发现不够是最糟的时机，摆在这儿让人心里有数
           Row(
@@ -683,6 +739,180 @@ class _Stat extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: scheme.primary)),
         ],
+      ),
+    );
+  }
+}
+
+/// 选公开主页地址。
+///
+/// **主角是那一行完整的地址，不是输入框。** 用户要判断的是
+/// "yourtravelview.com/u/lixiaoming 这个地址我满不满意"，
+/// 不是"我该在这个框里填什么"。所以地址整行大字摆在最上面，
+/// 输入框默认根本不出现 —— 想自己改的人点一下才展开。
+class _HandleSheet extends StatefulWidget {
+  final String site;
+  final String current;
+  final String suggestion;
+  const _HandleSheet({
+    required this.site,
+    required this.current,
+    required this.suggestion,
+  });
+
+  @override
+  State<_HandleSheet> createState() => _HandleSheetState();
+}
+
+class _HandleSheetState extends State<_HandleSheet> {
+  late String _handle = widget.suggestion;
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.suggestion);
+  bool _editing = false;
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  bool get _valid => HandleRules.isValid(_handle);
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    // 已经有地址的人进来是"改"，措辞和风险提示都不一样
+    final changing = widget.current.isNotEmpty;
+
+    return Padding(
+      // 输入法弹出来时把内容顶上去，别盖住按钮
+      padding: EdgeInsets.only(
+          bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(tr('你的公开主页'),
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Text(
+                tr('别人从这个地址能看到你公开的全部回顾。'),
+                style: TextStyle(
+                    fontSize: 12.5, height: 1.5, color: scheme.outline),
+              ),
+              const SizedBox(height: 16),
+
+              // 地址整行大字 —— 这是用户真正要判断的东西
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 14),
+                decoration: BoxDecoration(
+                  color: scheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(TV.rControl),
+                ),
+                child: RichText(
+                  text: TextSpan(
+                    style: TextStyle(fontSize: 15, color: scheme.outline),
+                    children: [
+                      TextSpan(text: '${widget.site}/u/'),
+                      TextSpan(
+                        text: _handle.isEmpty ? '…' : _handle,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: _valid ? scheme.onSurface : scheme.error,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              if (_editing) ...[
+                const SizedBox(height: 10),
+                TextField(
+                  controller: _ctrl,
+                  autofocus: true,
+                  autocorrect: false,
+                  textCapitalization: TextCapitalization.none,
+                  onChanged: (v) =>
+                      setState(() => _handle = v.trim().toLowerCase()),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    prefixText: '${widget.site}/u/',
+                    prefixStyle:
+                        TextStyle(fontSize: 13, color: scheme.outline),
+                    errorText: _handle.isEmpty || _valid
+                        ? null
+                        : tr('只能用小写字母、数字、下划线，3 到 20 位'),
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                children: [
+                  if (!_editing)
+                    TextButton.icon(
+                      onPressed: () => setState(() => _editing = true),
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: Text(tr('自己改一个')),
+                    ),
+                  TextButton.icon(
+                    onPressed: () {
+                      final next = HandleRules.vary(widget.suggestion);
+                      setState(() {
+                        _handle = next;
+                        _ctrl.text = next;
+                      });
+                    },
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: Text(tr('换一个')),
+                  ),
+                ],
+              ),
+
+              if (changing) ...[
+                const SizedBox(height: 6),
+                // **改地址是有代价的，必须说。** 这个产品的产出就是一条
+                // 转发出去的链接；改了地址，之前分享到 Facebook、微信上的
+                // 那些链接会全部失效，而且没有任何人会来通知他。
+                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.warning_amber_rounded,
+                      size: 15, color: scheme.error),
+                  const SizedBox(width: 7),
+                  Expanded(
+                    child: Text(
+                      tr('改了之后，之前分享出去的主页链接就打不开了。'
+                          '已经发布的每一篇回顾自己的链接不受影响。'),
+                      style: TextStyle(
+                          fontSize: 11.5, height: 1.5, color: scheme.error),
+                    ),
+                  ),
+                ]),
+              ],
+
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: FilledButton(
+                  onPressed: _valid
+                      ? () => Navigator.of(context).pop(_handle)
+                      : null,
+                  child: Text(changing ? tr('改成这个') : tr('就用这个')),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

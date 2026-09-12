@@ -18,6 +18,12 @@ class Profile {
   final int credits;
   final bool subscribed;
 
+  /// 公开主页是"谁都能浏览"，还是"只有拿到链接的人才看得到"。
+  ///
+  /// **默认公开。** 这个产品的意义就是把东西分享出去，
+  /// 默认藏起来等于默认关掉了自己的功能。想藏的人自己去关。
+  final bool profilePublic;
+
   const Profile({
     required this.email,
     this.name,
@@ -25,6 +31,7 @@ class Profile {
     this.homeUrl,
     this.credits = 0,
     this.subscribed = false,
+    this.profilePublic = true,
   });
 
   /// 界面上叫他什么。**永远有一个能认出人的名字** ——
@@ -52,6 +59,7 @@ class Profile {
         homeUrl: j['homeUrl'] as String?,
         credits: (j['credits'] as num?)?.toInt() ?? 0,
         subscribed: j['subscribed'] == true,
+        profilePublic: j['profilePublic'] != false,
       );
 }
 
@@ -87,6 +95,11 @@ class ProfileStore extends ChangeNotifier {
   /// 撞名或保留字返回 TAKEN。**规则不在客户端复制一份** ——
   /// 两边迟早会不一致，报错直接用服务器那句。
   Future<String?> setHandle(String handle) => _patch({'handle': handle});
+
+  /// 主页要不要被公开浏览。关掉之后 /u/<handle> 对别人是 404，
+  /// **但每一篇已发布的回顾自己的链接照样能打开** —— 那是两件事。
+  Future<String?> setProfilePublic(bool v) =>
+      _patch({'profilePublic': v});
 
   Future<String?> _patch(Map<String, Object?> body) async {
     try {

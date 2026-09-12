@@ -76,6 +76,17 @@ export async function generateMetadata(
       images,
     },
     twitter: { card: 'summary_large_image', title: story.title, description: desc },
+    // **unlisted 的不让搜索引擎收录。**
+    //
+    // "仅凭链接可见"这个承诺，靠的是地址猜不到 —— 但地址一旦被贴到
+    // 任何一个公开页面上（论坛、群里转出去被人存档、带 referer 的统计页），
+    // 爬虫就会顺着爬进来，然后它就出现在搜索结果里了。
+    // 那时候用户根本不知道发生了什么，他以为自己只发给了三个朋友。
+    //
+    // og 卡片照常保留 —— 那是分享给人看的，和被索引是两回事。
+    robots: story.visibility === 'public'
+      ? undefined
+      : { index: false, follow: false },
   };
 }
 

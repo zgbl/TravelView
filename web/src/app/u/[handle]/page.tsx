@@ -54,6 +54,10 @@ export async function generateMetadata(
     description: data.owner.bio ?? undefined,
     alternates: { canonical: `${siteUrl()}/u/${data.owner.handle}` },
     openGraph: { type: 'profile', title: name },
+    // 隐身的主页对非本人是 404，但**元数据这一层也要拦一道**：
+    // 搜索引擎可能在他关掉之前就收录过，noindex 是让它撤下来的那个信号。
+    // 只靠 404 的话，快照会在搜索结果里挂很久。
+    robots: data.owner.profile_public ? undefined : { index: false, follow: false },
   };
 }
 

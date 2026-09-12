@@ -12,6 +12,7 @@
 library tv_shared;
 
 export 'src/app_settings.dart';
+export 'src/handle_rules.dart';
 export 'src/image_ops.dart';
 export 'src/l10n.dart';
 export 'src/music.dart';
