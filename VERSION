@@ -1,0 +1,13 @@
+# TravelView 的版本号 —— 桌面端和手机端共用这一个数字。
+#
+# 两端永远同版本：用户不会分「我装的是桌面 0.6.3 还是手机 0.6.7」，
+# 收到 bug 报告时也只有一个号要对。
+#
+# version  对外显示的版本，改 base 时（0.6 → 0.7）手工改这一行
+# build    只增不减的构建号，给 App Store / Play 用 —— 它们要求每次
+#          上传都比上一次大，**永远不能回退**，所以它和 version 分开记：
+#          version 从 0.6.9 跳到 0.7.0 时 patch 归零了，build 不会。
+#
+# 不要手工改 build。跑: python3 tools/bump-build.py
+version=0.6.1
+build=1

@@ -53,3 +53,6 @@ _to_delete/
 # TravelView 下载页帮助截图（放 web/public/ 下供站点引用）
 !**/web/public/**/*.png
 
+
+# 出包产物（tools/build.sh 写的）
+/dist/

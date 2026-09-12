@@ -1,5 +1,6 @@
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tv_core/tv_core.dart';
 
 import 'package:tv_shared/tv_shared.dart';
@@ -399,12 +400,35 @@ class _IssueSummary extends StatelessWidget {
   }
 }
 
-class _StatusBar extends StatelessWidget {
+/// 底部状态栏。右下角常驻版本号。
+///
+/// **版本号要一眼看得到，不能藏进"关于"对话框。** 用户报 bug 时
+/// 第一件要问的就是"你装的是哪一版"，而让他去菜单里翻三层，
+/// 十个人有九个会回一句"最新的吧"。
+class _StatusBar extends StatefulWidget {
   final LibraryController c;
   const _StatusBar({required this.c});
 
   @override
+  State<_StatusBar> createState() => _StatusBarState();
+}
+
+class _StatusBarState extends State<_StatusBar> {
+  String _version = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // 从 pubspec 的 version 读，**不写死** —— 写死的版本号
+    // 迟早会和实际构建对不上，而那正是它最该可信的时候
+    PackageInfo.fromPlatform().then((i) {
+      if (mounted) setState(() => _version = '${i.version} (${i.buildNumber})');
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final c = widget.c;
     final scheme = Theme.of(context).colorScheme;
     final error = c.lastError;
     return Container(
@@ -438,6 +462,16 @@ class _StatusBar extends StatelessWidget {
             Text(
               trf('生成缩略图 {0}/{1}', [c.warmDone, c.warmTotal]),
               style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant),
+            ),
+          ],
+          if (_version.isNotEmpty) ...[
+            const SizedBox(width: 14),
+            SelectableText(
+              // 可选中 —— 用户报 bug 时要能直接复制走
+              'v$_version',
+              style: TextStyle(
+                  fontSize: 11,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.7)),
             ),
           ],
         ],

@@ -117,3 +117,72 @@ dart run msix:create
   `architecture.md` 6.5 节，是接下来的重点。
 - **EXIF 还没解析**。导入时用文件修改时间当拍摄时间，GPS 为空。
   这个可以先在桌面端用 Dart 的 EXIF 库补上，不必等手机端。
+
+---
+
+## 版本号
+
+**唯一真相是根目录的 `VERSION` 文件**，两个 app 的 pubspec 里那行是它的副本。
+手工改 pubspec 会在下一次 bump 时被覆盖 —— 这是故意的：两个地方各写各的
+版本号，迟早会对不上，而对不上的那天你正在查一个线上 bug，手里那个号是错的。
+
+```
+version=0.6.1   # 对外显示，改 base（0.6 → 0.7）时手工改这一行
+build=1         # 只增不减的构建号，不要手工改
+```
+
+**桌面端和手机端永远同版本。** 用户不会分「我装的是桌面 0.6.3 还是手机 0.6.7」，
+收到 bug 报告时也只有一个号要对。
+
+### 出包：用 `tools/build.sh`，别手工跑 flutter build
+
+```
+bash tools/build.sh mac        # macOS .app + .dmg
+bash tools/build.sh win        # Windows Release 目录 + .msix（必须在 Windows 上跑）
+bash tools/build.sh android    # .aab（传 Play）+ .apk（自己装）
+bash tools/build.sh ios        # 到 ipa/archive，之后进 Xcode
+```
+
+**bump 是这个脚本的第一步，不是一条写在文档里的提醒。** 忘记 bump 的代价是
+上传被商店拒绝，而那通常发生在你已经等了二十分钟编译之后。
+
+- `--no-bump` 用当前版本重出一次（上一次传挂了、要原号重来时用）
+- `--set 0.7.0` 顺手换 base（build 照样 +1）
+
+产物统一落在根目录 `dist/`（已在 .gitignore 里），文件名带版本号：
+`TravelView-0.6.2.dmg` / `.aab` / `.apk`。
+
+只想动版本号、不编译：
+
+```
+python3 tools/bump-build.py
+```
+
+0.6.1 → 0.6.2，build 跟着 +1，写进两个 pubspec（`version: 0.6.2+2`）。
+其它用法：`--set 0.7.0` 换 base（build 照样 +1）、`--sync` 只把 VERSION
+写进 pubspec 不动号。
+
+### 为什么 version 和 build 要分开记
+
+App Store 和 Play 要求每次上传的构建号**比上一次大，永远不能回退**。
+version 从 0.6.9 跳到 0.7.0 时 patch 归零了，build 不会 —— 所以它必须是
+一个独立的、只增不减的计数器，而不是版本号的第三段。
+
+### 各平台从哪儿读这个号
+
+| 平台 | 显示版本 | 构建号 | 来源 |
+|---|---|---|---|
+| Android | `versionName` | `versionCode` | `flutter.versionName/versionCode`，自动取 pubspec |
+| iOS / macOS | `CFBundleShortVersionString` | `CFBundleVersion` | Info.plist 里的 `$(FLUTTER_BUILD_NAME)` / `$(FLUTTER_BUILD_NUMBER)` |
+| Windows MSIX | `msix_version` | — | 四段、末段必须为 0，由脚本单独写一次 |
+
+macOS 的 `Runner.xcodeproj` 里还有 `MARKETING_VERSION = 1.0`，
+**那个不用改** —— Info.plist 用的是 `$(FLUTTER_BUILD_NAME)`，走的是 pubspec。
+
+### 界面上在哪儿看得到
+
+- 手机端：我的 → 版本
+- 桌面端：底部状态栏右下角，`v0.6.1 (1)`，可选中复制
+
+两处都从 `package_info_plus` 读，**不写死** —— 写死的版本号迟早会和实际
+构建对不上，而那正是它最该可信的时候。

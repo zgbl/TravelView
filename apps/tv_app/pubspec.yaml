@@ -1,8 +1,7 @@
 name: tv_app
 description: TravelView 手机端 —— 从相册里长出旅行回顾
 publish_to: none
-version: 0.1.0+1
-
+version: 0.6.1+1
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
