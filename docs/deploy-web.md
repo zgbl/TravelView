@@ -297,21 +297,18 @@ sudo nginx -t && sudo systemctl reload nginx
    **不是登录密码** —— 开了两步验证之后登录密码根本连不上 SMTP。
 2. 填进 `/etc/travelview/env`：
 
-```
+```bash
 SMTP_HOST=smtp.zoho.com
-```
-```
 SMTP_PORT=465
-```
-```
 SMTP_USER=travelview@zoho.com
+SMTP_PASS=那个应用专用密码
+# ⚠ 值里有空格和 < >，**引号不能省**
+MAIL_FROM="TravelView <travelview@zoho.com>"
 ```
-```
-SMTP_PASS=<那个应用专用密码>
-```
-```
-MAIL_FROM=TravelView <travelview@zoho.com>
-```
+
+> **为什么引号不能省**：`release.sh` 是用 `set -a; . /etc/travelview/env` 读这个文件的。
+> 不加引号时 shell 会把 `<` 当成重定向而报 syntax error，于是
+> **改了发信配置反而让部署整体失败**，报错信息还跟发信毫无关系。
 
 3. `sudo systemctl restart travelview-web`
    （只改了 env、没动代码时，这一步就够了；服务只读
@@ -320,15 +317,11 @@ MAIL_FROM=TravelView <travelview@zoho.com>
    `/opt/travelview/web`** —— 后者是构建产物目录，里面只有 `current` 软链和
    编译结果，没有 `scripts/`：
 
+```bash
+sudo bash -c 'cd /opt/travelview/src/web && set -a && . /etc/travelview/env && set +a && node scripts/migrate.mjs --apply'
 ```
-cd /opt/travelview/src/web
-```
-```
-set -a; . /etc/travelview/env; set +a
-```
-```
-node scripts/migrate.mjs --apply
-```
+
+   （`/etc/travelview/env` 是 0600 root，整条要用 sudo 跑；建好后用 `psql "$TRAVELVIEW_DATABASE_URL" -c \d password_resets` 确认表在）
 
    报 `Cannot find module .../scripts/migrate.mjs`，十有八九是**代码还没拉到
    这台机器上**（新加的迁移和接口都还在 GitHub 上）。先让它上线：
@@ -343,6 +336,34 @@ sudo bash /usr/local/bin/travelview-autodeploy.sh
 
 - **`MAIL_FROM` 里的地址必须就是 `SMTP_USER` 或它在 Zoho 里的别名**，
   否则 Zoho 直接拒发。这是防伪造发件人的通用规则，不是配置写错。
+- **`553 Sender is not allowed to relay emails`**（2026-09-13 实际踩到）：
+  认证是**通过**的（认证失败会是 `535`），`MAIL FROM` 和 `RCPT` 都返回 250，
+  拒绝发生在 DATA 之后 —— 这是 **Zoho 账号侧不允许投递**，不是代码或配置的问题。
+  现场抓完整的 SMTP 对话（在服务器上跑）：
+
+```bash
+sudo tee /tmp/smtp-check.js <<'JS'
+const nm = require('/opt/travelview/src/web/node_modules/nodemailer');
+const port = Number(process.env.SMTP_PORT);
+const t = nm.createTransport({
+  host: process.env.SMTP_HOST, port, secure: port === 465,
+  auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
+  logger: true, debug: true,
+});
+t.sendMail({ from: process.env.SMTP_USER, to: process.env.SMTP_USER,
+  subject: 'check', text: 'check' })
+  .then((i) => console.log('OK', i.response))
+  .catch((e) => console.log('FAIL', e.response || e.message));
+JS
+sudo bash -c 'set -a; . /etc/travelview/env; set +a; node /tmp/smtp-check.js'; rm -f /tmp/smtp-check.js
+```
+
+  这一条同时能排除「连错数据中心」：US 区 `smtp.zoho.com`、欧洲区 `smtp.zoho.eu`、
+  印度区 `smtp.zoho.in` —— 连错区是在认证阶段就 `535`，
+  三种都试一遍就能分清是「区不对」还是「账号不让发」。
+  真落到账号不让发，就要去 Zoho 后台看：邮箱验证是否完成、
+  POP/IMAP 里 **SMTP Access** 是否打开、账号若在组织里是否被管理员限制了外发。
+  在修好之前，`/forgot` 会如实返回「发信失败，稍后再试」，不会假装信已发出。
 - 端口 465 是隐式 SSL；用 587 的话走 STARTTLS，代码里按端口自动切。
 - 欧洲区账号（zoho.eu）host 换成 `smtp.zoho.eu`。
 - 服务器出站 465 端口要通 —— 云厂商默认封 25，但 465/587 一般是开的。

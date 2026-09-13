@@ -67,7 +67,10 @@ SMTP_HOST=smtp.zoho.com
 SMTP_PORT=465
 SMTP_USER=travelview@zoho.com
 SMTP_PASS=
-MAIL_FROM=TravelView <travelview@zoho.com>
+# ⚠ 必须带引号: 值里有空格和 < >。不加引号时 `set -a; . /etc/travelview/env`
+# （release.sh 就是这么读 env 的）会把这行的 < 当成 shell 重定向，直接 syntax error ——
+# 表现为"改了发信配置，部署反而挂了"，而且报错跟发信完全看不出关系。
+MAIL_FROM="TravelView <travelview@zoho.com>"
 
 NEXT_PUBLIC_SITE_URL=https://yourtravelview.com
 NEXT_PUBLIC_MEDIA_BASE=https://yourtravelview.com/media
