@@ -9,6 +9,7 @@ set -euo pipefail
 
 APP_ROOT=/opt/travelview
 MEDIA_ROOT=/var/lib/travelview/media
+RELEASES_ROOT=/var/lib/travelview/releases
 ENV_FILE=/etc/travelview/env
 DB_NAME=travelview
 DB_USER=travelview
@@ -18,7 +19,8 @@ id -u travelview >/dev/null 2>&1 || \
   useradd --system --home-dir "$APP_ROOT" --shell /usr/sbin/nologin travelview
 
 echo "==> 目录"
-mkdir -p "$APP_ROOT/web/releases" "$MEDIA_ROOT" /etc/travelview /etc/ssl/travelview
+mkdir -p "$APP_ROOT/web/releases" "$MEDIA_ROOT" "$RELEASES_ROOT" \
+         /etc/travelview /etc/ssl/travelview
 chown -R travelview:travelview "$APP_ROOT" /var/lib/travelview
 chmod 750 /etc/travelview
 
@@ -48,6 +50,9 @@ AUTH_TRUST_HOST=true
 
 STORAGE_DRIVER=local
 MEDIA_ROOT=/var/lib/travelview/media
+# 后台上传的安装包落哪。**必须在 current 之外** —— current 是每次部署重指的
+# 软链、旧版本只留 5 个，放它下面等于第 6 次部署就把传上去的包一起删了。
+RELEASES_DIR=$RELEASES_ROOT
 UPLOAD_SECRET=
 
 STRIPE_SECRET_KEY=

@@ -372,6 +372,33 @@ sudo bash -c 'set -a; . /etc/travelview/env; set +a; node /tmp/smtp-check.js'; r
 
 ---
 
+## 6.6 上传安装包（后台上传）
+
+后台 `/admin` 的「App 版本」可以直接传安装包，也可以只填外部下载地址。
+
+**体积这条路上有三道闸，任何一道都够把上传卡死** —— 2026-09-13 就卡在第一道：
+
+| 闸 | 上限 | 在哪改 |
+|---|---|---|
+| nginx | 上传接口单独放宽到 **512m**（其他路径仍是给照片定的 12m） | `/etc/nginx/snippets/travelview-app.conf` |
+| Cloudflare | 免费版 **100MB 请求体上限，改不了** | 比这大的包只能走 R2 |
+| 应用自身 | `maxReleaseBytes` = 500MB | `web/src/lib/releases.ts` |
+| 浏览器 | 30 分钟超时 | `web/src/components/ReleaseUpload.tsx` |
+
+> 54MB 的安卓包走这条路没问题。**超过 100MB 的包过不了 Cloudflare** ——
+> 先传到 R2，再把直链填进「外部下载地址」。注意填的是 R2 的**公开访问地址**，
+> 不是 `dash.cloudflare.com` 后台那种管理页地址（填串了下载页会 404）。
+
+安装包落在 `RELEASES_DIR`（这台机是 `/var/lib/travelview/releases`）。
+**绝不能落在部署目录里**：`current` 是每次部署重指的软链，旧版本只保留 5 个，
+放在它下面等于第 6 次部署就把传上去的包一起删了。
+
+上传页有进度条（百分比 / MB/s / 剩余时间）；传完会切成
+「服务器正在校验并落盘」—— 那是两件不同的事，混成一句"上传中"等于骗人。
+服务端边写盘边算 sha256，不再把整个包读进内存。
+
+---
+
 ## 7. 分享到 Facebook
 
 公开链接粘进去，卡片必须有大图和标题。不对就用

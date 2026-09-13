@@ -1,6 +1,9 @@
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile, rm } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
+import { mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { Readable, Transform } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { query, one } from '@/lib/db';
@@ -70,12 +73,41 @@ export async function POST(req: Request) {
     const ext = (path.extname(file.name) || '').toLowerCase()
       .replace(/[^a-z0-9.]/g, '');
     filename = `TravelView-${version}-${platform}${ext}`;
-    const buf = Buffer.from(await file.arrayBuffer());
-    bytes = buf.length;
-    checksum = createHash('sha256').update(buf).digest('hex');
     const dest = releasePath(platform, version, filename);
     await mkdir(path.dirname(dest), { recursive: true });
-    await writeFile(dest, buf);
+
+    /**
+     * **边写盘边算 sha256，而不是先读进内存。**
+     *
+     * 原来是 `await file.arrayBuffer()` → `Buffer.from()` → 再算哈希:
+     * 一个 100MB 的包会在内存里同时存在三份（File 自己一份、arrayBuffer 一份、
+     * Buffer 一份），而这台机和 TensuGo 共用 —— 传两次就够把内存吃紧。
+     */
+    const hash = createHash('sha256');
+    let n = 0;
+    const tap = new Transform({
+      transform(chunk, _enc, cb) {
+        hash.update(chunk);
+        n += chunk.length;
+        cb(null, chunk);
+      },
+    });
+    const t0 = Date.now();
+    try {
+      await pipeline(
+        Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]),
+        tap,
+        createWriteStream(dest));
+    } catch (e) {
+      // 半截文件不要留在磁盘上冒充一个完整安装包
+      await rm(dest, { force: true }).catch(() => {});
+      const m = e instanceof Error ? e.message : String(e);
+      return NextResponse.json({ error: `写盘失败: ${m}` }, { status: 500 });
+    }
+    bytes = n;
+    checksum = hash.digest('hex');
+    console.log(`[releases] ${filename} ${(bytes / 1048576).toFixed(1)}MB `
+      + `落盘 ${Date.now() - t0}ms -> ${dest}`);
   }
 
   try {
