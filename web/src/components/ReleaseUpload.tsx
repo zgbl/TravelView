@@ -61,7 +61,7 @@ export default function ReleaseUpload() {
       </label>
 
       <label className="text-xs text-muted md:col-span-2">
-        或者外部下载地址（App Store / 商店链接，https）
+        或者外部下载地址（R2 直链 / App Store / 商店链接，https）
         <input name="externalUrl" placeholder="https://apps.apple.com/..."
           className={field} />
       </label>

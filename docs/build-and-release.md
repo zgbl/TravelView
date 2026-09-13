@@ -257,6 +257,32 @@ open ~/Codes/Github3/TravelView/dist
 > `Failed to foreground app; open returned 1` 不是编译错误。
 > 它的意思只是"没能把窗口提到最前面"，App 已经起来了。
 
+### Windows 包：不用去 Windows 机器，GitHub 直接出
+
+`.github/workflows/desktop.yml` 已经配好了：**macOS 和 Windows 两个包一起出**。
+
+- 推一个 `v` 开头的 tag → 两个包都编，而且自动建一个 GitHub Release
+- 在 Actions 页面手点 Run → 只出包，挂在那次运行的 Artifacts 里
+- 平时改桌面端代码推上来 → 只编译验证，不出包
+
+出一版的做法（版本号用 `VERSION` 里那个）：
+
+```
+cd ~/Codes/Github3/TravelView
+```
+```
+git tag v0.6.5
+```
+```
+git push origin v0.6.5
+```
+
+十几分钟后去 GitHub 的 Releases 页面下载 `TravelView-0.6.5-windows.zip`
+和 `TravelView-0.6.5-macos.dmg`，再按下面的办法登记到下载页。
+
+> Windows 版目前**只能验证界面**：读 EXIF/GPS、生成缩略图、导出网页图的
+> 原生实现还只有 macOS 那一份。发出去之前要在下载页写清楚。
+
 ### 上线供人下载
 
 安装包**不进 R2**，也不进数据库：它落在网站服务器的 `RELEASES_DIR`
@@ -270,10 +296,21 @@ R2 存的是游记的图片，两回事。
    写更新说明、选 `dist/` 里那个文件
 3. 勾**「设为当前版本」**，下载页才会指向它
 
-如果确实想让文件躺在 R2（比如省服务器磁盘或走 CDN）：
-自己把 dmg 传进 R2 的公开桶，拿到 `https://` 直链，然后在同一个上传表单里
-**填「外部下载地址」而不是选文件** —— 后台支持二选一，元数据照样入库，
-下载页照样显示，只是文件由 R2 提供。
+走 R2（省服务器磁盘、而且下载走 CDN，是现在实际在用的方式）：
+
+1. 把包传进 R2 桶（`yourtravelview-assets`，按 `v0.6/` 这样分目录）
+2. **桶必须是公开可读的**，否则那个地址只有你自己能打开：
+   Cloudflare → R2 → 这个桶 → Settings → Public access，
+   要么开 `r2.dev` 子域，要么绑一个自己的域名（推荐
+   `assets.yourtravelview.com`，以后换存储不用改已经发出去的链接）
+3. 拼出直链，例如
+   `https://assets.yourtravelview.com/v0.6/TravelView-0.6.4.dmg`
+   —— **Cloudflare 后台那个 `dash.cloudflare.com/...` 地址不是下载链接**，
+   那是控制台页面，别人打开只会看到登录页
+4. 在 `/admin` 的上传表单里**填「外部下载地址」、不选文件**，
+   平台和版本号照填，勾「设为当前版本」
+
+下载页和首页的下载按钮都会自动指向它。
 
 **macOS 包目前没签名**，别人下载后 Gatekeeper 会拦。下载页必须写清楚
 右键 →「打开」怎么做，否则十个人有八个以为是病毒。

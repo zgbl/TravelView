@@ -1,10 +1,12 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import NavBar from '@/components/NavBar';
 import SiteFooter from '@/components/SiteFooter';
 import StoryRenderer from '@/components/StoryRenderer';
 import { featuredStory, featuredHref } from '@/lib/featured';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
+import { currentReleases, guessPlatform, platformLabel } from '@/lib/releases';
 
 /**
  * 落地页。
@@ -22,6 +24,19 @@ export default async function Home() {
   const L = await getLocale();
   // 展示的是一篇**真发布过的**游记，由 FEATURED_STORY_SLUG 指定
   const featured = await featuredStory();
+
+  /**
+   * 首屏直接给"下载我这个系统的版本"。
+   *
+   * **别让想装的人先去下载页再挑一次。** 他的系统我们能猜出来，
+   * 猜对了就省他两步；猜错了旁边的「全部平台」照样在。
+   * 那个平台还没发布时这个按钮不出现 —— 给一个点了说"还没发布"的按钮，
+   * 比没有按钮更让人恼火。
+   */
+  const ua = (await headers()).get('user-agent') ?? '';
+  const mine = guessPlatform(ua);
+  const rows = mine ? await currentReleases() : [];
+  const myRelease = rows.find((r) => r.platform === mine);
 
   return (
     <main className="bg-ink text-paper">
@@ -50,11 +65,29 @@ export default async function Home() {
                 transition hover:brightness-110">
               {t(L, 'home.cta.get')}
             </Link>
-            <Link href={href(L, '/download')}
-              className="rounded-full border border-white/20 px-7 py-3
-                transition hover:border-white/40">
-              {t(L, 'home.cta.download')}
-            </Link>
+            {myRelease && mine ? (
+              <a
+                href={myRelease.externalUrl
+                  ?? `/api/releases/${myRelease.id}/download`}
+                className="rounded-full border border-white/20 px-7 py-3
+                  transition hover:border-white/40"
+              >
+                {t(L, 'home.cta.download.mine',
+                  { os: platformLabel(mine), version: myRelease.version })}
+              </a>
+            ) : (
+              <Link href={href(L, '/download')}
+                className="rounded-full border border-white/20 px-7 py-3
+                  transition hover:border-white/40">
+                {t(L, 'home.cta.download')}
+              </Link>
+            )}
+            {myRelease && (
+              <Link href={href(L, '/download')}
+                className="px-3 py-3 text-sm text-muted hover:text-paper">
+                {t(L, 'home.cta.download.all')}
+              </Link>
+            )}
             <a href="#demo" className="px-3 py-3 text-sm text-muted hover:text-paper">
               {t(L, 'home.cta.try')} ↓
             </a>

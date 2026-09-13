@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/admin';
 import { betaState } from '@/lib/access';
 import { stripeStatus, verifyPrices } from '@/lib/stripe';
 import { query, one } from '@/lib/db';
+import { dayOf } from '@/lib/date';
 import DailyBars from '@/components/DailyBars';
 import ReleaseUpload from '@/components/ReleaseUpload';
 import { allReleases, humanBytes, platformLabel } from '@/lib/releases';
@@ -36,18 +37,48 @@ function series(rows: { day: string; n: number }[], days = DAYS) {
   return out;
 }
 
+/**
+ * 后台的每一块都可能因为**某张表还没建**而抛错（迁移没跑全是最常见的原因）。
+ *
+ * 以前任何一块抛错，整个后台就是一个 500 白屏，digest 一串数字，
+ * 站长连"哪儿坏了"都看不出来 —— 而这一页恰恰是出问题时唯一的仪表盘。
+ * 现在坏掉的那块退回默认值，页面顶部如实列出是哪一块、什么原因。
+ */
+async function safe<T>(label: string, fn: () => Promise<T>, fallback: T):
+  Promise<[T, string | null]> {
+  try {
+    return [await fn(), null];
+  } catch (e) {
+    console.error(`[admin] ${label} 失败`, e);
+    return [fallback, `${label}: ${(e as Error).message ?? e}`];
+  }
+}
+
 export default async function Admin() {
   const admin = await requireAdmin();
   // 不是管理员就当这个页面不存在 —— 403 等于告诉别人这里有东西
   if (!admin) notFound();
 
-  const releases = await allReleases();
+  const problems: string[] = [];
+  function keep(err: string | null) {
+    if (err) problems.push(err);
+  }
 
-  const beta = await betaState();
+  const [releases, relErr] = await safe(
+    '安装包列表（app_releases 表）', allReleases, []);
+  keep(relErr);
+
+  const [beta, betaErr] = await safe('内测名额', betaState,
+    { free: true, users: 0, limit: 100, remaining: 100 });
+  keep(betaErr);
+
   const stripe = stripeStatus();
-  const prices = await verifyPrices();
+  const [prices, priceErr] = await safe(
+    'Stripe 价格校验', verifyPrices,
+    [] as Awaited<ReturnType<typeof verifyPrices>>);
+  keep(priceErr);
 
-  const [totals] = await query<{
+  const [[totals], totalsErr] = await safe('总量统计', () => query<{
     users: string; stories: string; photos: string;
     views: string; paying: string; tokens: string;
   }>(`select
@@ -59,35 +90,49 @@ export default async function Admin() {
           where story_credits > 0 or subscription_status = 'active')::text
           as paying,
         (select count(*) from publish_tokens where revoked_at is null)::text
-          as tokens`);
+          as tokens`),
+    [{ users: '0', stories: '0', photos: '0', views: '0', paying: '0',
+       tokens: '0' }]);
+  keep(totalsErr);
 
-  const signups = series(await query<{ day: string; n: number }>(
-    `select to_char(created_at::date,'YYYY-MM-DD') as day, count(*)::int as n
-       from users where created_at > now() - interval '${DAYS} days'
-      group by 1`));
+  const [signupRows, signupErr] = await safe('注册曲线',
+    () => query<{ day: string; n: number }>(
+      `select to_char(created_at::date,'YYYY-MM-DD') as day, count(*)::int as n
+         from users where created_at > now() - interval '${DAYS} days'
+        group by 1`), []);
+  keep(signupErr);
+  const signups = series(signupRows);
 
-  const views = series(await query<{ day: string; n: number }>(
-    `select to_char(day,'YYYY-MM-DD') as day, sum(count)::int as n
-       from view_daily where day > current_date - ${DAYS}
-      group by 1`));
+  const [viewRows, viewErr] = await safe('浏览曲线（view_daily 表）',
+    () => query<{ day: string; n: number }>(
+      `select to_char(day,'YYYY-MM-DD') as day, sum(count)::int as n
+         from view_daily where day > current_date - ${DAYS}
+        group by 1`), []);
+  keep(viewErr);
+  const views = series(viewRows);
 
-  const published = series(await query<{ day: string; n: number }>(
-    `select to_char(created_at::date,'YYYY-MM-DD') as day, count(*)::int as n
-       from stories where created_at > now() - interval '${DAYS} days'
-      group by 1`));
+  const [pubRows, pubErr] = await safe('发布曲线',
+    () => query<{ day: string; n: number }>(
+      `select to_char(created_at::date,'YYYY-MM-DD') as day, count(*)::int as n
+         from stories where created_at > now() - interval '${DAYS} days'
+        group by 1`), []);
+  keep(pubErr);
+  const published = series(pubRows);
 
-  const recent = await query<{
+  const [recent, recentErr] = await safe('最近注册', () => query<{
     email: string; created_at: string; stories: string;
   }>(`select u.email, u.created_at,
              (select count(*) from stories s where s.user_id = u.id)::text
                as stories
-        from users u order by u.created_at desc limit 12`);
+        from users u order by u.created_at desc limit 12`), []);
+  keep(recentErr);
 
-  const top = await query<{
+  const [top, topErr] = await safe('最多人看的', () => query<{
     slug: string; title: string; view_count: string; email: string;
   }>(`select s.slug, s.title, s.view_count::text, u.email
         from stories s join users u on u.id = s.user_id
-       order by s.view_count desc limit 8`);
+       order by s.view_count desc limit 8`), []);
+  keep(topErr);
 
   const pct = Math.min(100, Math.round((beta.users / beta.limit) * 100));
 
@@ -104,6 +149,24 @@ export default async function Admin() {
           </Link>
         </div>
       </div>
+
+      {/* 哪一块坏了就说哪一块，并给出最常见的那个原因。
+          **不要把错误吞掉** —— 吞掉之后数字会静悄悄地变成 0，那更糟 */}
+      {problems.length > 0 && (
+        <section className="mb-8 rounded-2xl border border-red-500/40
+          bg-red-500/[.07] p-5">
+          <div className="text-sm font-semibold">这几块没能加载出来</div>
+          <ul className="mt-2 space-y-1 text-xs leading-relaxed text-muted">
+            {problems.map((p) => <li key={p}>· {p}</li>)}
+          </ul>
+          <p className="mt-3 text-xs text-muted">
+            多半是数据库迁移没跑全。在服务器上:
+            <code className="ml-1 rounded bg-black/30 px-1.5 py-0.5">
+              cd /opt/travelview/src/web &amp;&amp; node scripts/migrate.mjs --apply
+            </code>
+          </p>
+        </section>
+      )}
 
       {/* 唯一真正要盯的数字: 离开始收费还差多少人 */}
       <section className="rounded-2xl border border-accentBright/30
@@ -312,7 +375,7 @@ export default async function Admin() {
                   </td>
                   <td className="py-2 text-muted">{r.downloads}</td>
                   <td className="py-2 text-muted">
-                    {r.createdAt?.slice(0, 10)}
+                    {dayOf(r.createdAt)}
                   </td>
                   <td className="py-2 text-right">
                     <a href={r.externalUrl ?? `/api/releases/${r.id}/download`}

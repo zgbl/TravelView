@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { query, one } from './db';
+import { toIso } from './date';
 
 /**
  * App 安装包。
@@ -38,7 +39,8 @@ type Row = {
   id: string; platform: string; version: string; filename: string | null;
   bytes: string | number; checksum: string | null; external_url: string | null;
   notes: string; is_current: boolean; downloads: string | number;
-  created_at: string;
+  // pg 对 timestamptz 返回的是 Date 对象，不是字符串 —— 这里如实写
+  created_at: string | Date;
 };
 
 function toRelease(r: Row): Release {
@@ -53,7 +55,8 @@ function toRelease(r: Row): Release {
     notes: r.notes,
     isCurrent: r.is_current,
     downloads: Number(r.downloads),
-    createdAt: r.created_at,
+    // 在边界上统一成 ISO 字符串: 上层（后台页、/api/releases）都按字符串用它
+    createdAt: toIso(r.created_at),
   };
 }
 

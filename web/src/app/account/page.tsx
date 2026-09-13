@@ -6,6 +6,7 @@ import { betaState } from '@/lib/access';
 import { requireAdmin } from '@/lib/admin';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
+import { dayOf } from '@/lib/date';
 import TokenManager from '@/components/TokenManager';
 import NameEditor from '@/components/NameEditor';
 import HandleEditor from '@/components/HandleEditor';
@@ -22,7 +23,7 @@ export default async function Account() {
     handle: string | null;
     story_credits: number;
     subscription_status: string | null;
-    subscription_until: string | null;
+    subscription_until: string | Date | null;
   }>(`select name, handle, story_credits, subscription_status, subscription_until
         from users where id = $1`, [user.id]);
 
@@ -76,7 +77,7 @@ export default async function Account() {
               {t(L, 'billing.subscribed')}
               {row?.subscription_until &&
                 ` (${t(L, 'billing.renews',
-                  { date: row.subscription_until.slice(0, 10) })})`}
+                  { date: dayOf(row.subscription_until) })})`}
             </span>
           ) : (
             <span>

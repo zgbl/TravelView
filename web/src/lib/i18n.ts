@@ -493,6 +493,12 @@ export const dict: Dict = {
   'outro.author.cta': { zh: '回到我的故事', en: 'Back to my stories' },
   'outro.author.cta2': { zh: 'TravelView 主页', en: 'TravelView home' },
 
+  'home.cta.download.mine': {
+    zh: '下载 {os} 版 {version}',
+    en: 'Download for {os} \u2014 {version}',
+  },
+  'home.cta.download.all': { zh: '全部平台', en: 'All platforms' },
+
   // ── 忘记密码 ──
   'forgot.link': { zh: '忘记密码？', en: 'Forgot your password?' },
   'forgot.title': { zh: '重置密码', en: 'Reset your password' },

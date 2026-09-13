@@ -7,6 +7,7 @@ import { CREDIT_PLANS, SUBSCRIPTION_PLANS, stripeStatus } from '@/lib/stripe';
 import { reconcileCheckout } from '@/lib/reconcile';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
+import { dayOf } from '@/lib/date';
 import CheckoutButtons from '@/components/CheckoutButtons';
 import BillingPortalButton from '@/components/BillingPortalButton';
 
@@ -44,7 +45,7 @@ export default async function Billing({
   const row = await one<{
     story_credits: number;
     subscription_status: string | null;
-    subscription_until: string | null;
+    subscription_until: string | Date | null;
     stripe_customer_id: string | null;
   }>(`select story_credits, subscription_status, subscription_until,
              stripe_customer_id
@@ -132,7 +133,7 @@ export default async function Billing({
               {t(L, 'billing.subscribed')}
               {row?.subscription_until &&
                 `（${t(L, 'billing.renews',
-                  { date: row.subscription_until.slice(0, 10) })}）`}
+                  { date: dayOf(row.subscription_until) })}）`}
             </span>
           ) : (
             <span>
@@ -233,7 +234,7 @@ export default async function Billing({
               {payments.map((p, i) => (
                 <tr key={i} className="border-t border-white/10">
                   <td className="py-2 text-muted">
-                    {String(p.created_at).slice(0, 10)}
+                    {dayOf(p.created_at)}
                   </td>
                   <td className="py-2">
                     {t(L, `plan.${p.kind}.name`)}

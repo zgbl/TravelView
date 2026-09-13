@@ -2,13 +2,14 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { requireAdmin } from '@/lib/admin';
 import { query } from '@/lib/db';
+import { dayOf } from '@/lib/date';
 import UserRow from '@/components/UserRow';
 
 export const dynamic = 'force-dynamic';
 
 type Row = {
   id: string; email: string; name: string | null;
-  created_at: string; is_admin: boolean; banned_at: string | null;
+  created_at: string | Date; is_admin: boolean; banned_at: string | null;
   story_credits: number; subscription_status: string | null;
   stories: string; views: string;
 };
@@ -67,7 +68,7 @@ export default async function AdminUsers({
             {users.map((u) => (
               <UserRow key={u.id} u={{
                 ...u,
-                created_at: String(u.created_at).slice(0, 10),
+                created_at: dayOf(u.created_at),
                 banned: !!u.banned_at,
                 self: u.id === admin.id,
               }} />
