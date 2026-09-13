@@ -305,8 +305,22 @@ class LibraryController extends ChangeNotifier {
   /// 上一次导出时路线的实际情况，导出完成后显示给用户看
   String? lastRouteSummary;
 
+  /// 还有几段没拿到道路数据（退回直线的）。
+  ///
+  /// 飞行段不算 —— 那是**故意**画直线的，不是失败。
+  int get missingRoadCount {
+    if (roadLegs.isEmpty) return 0;
+    return roadLegs
+        .where((l) => l.provider == 'direct' && l.mode != TravelMode2.flight)
+        .length;
+  }
+
   /// 算一次，永久存在照片库里。之后换模板、改范围、换电脑都不再请求网络。
-  Future<void> computeRoads(TripRoute trip) async {
+  ///
+  /// [onlyMissing] = 只补算上次退回直线的那几段。
+  /// **30 段里坏了 1 段，没有理由把 30 段全部重来一遍** ——
+  /// 成功的那些早就存在 catalog/routes.json 里了，重跑既慢又白白消耗额度。
+  Future<void> computeRoads(TripRoute trip, {bool onlyMissing = false}) async {
     if (_root == null || routing) return;
     if (settings.routeMode == 'direct') {
       roadLegs = const [];
@@ -321,10 +335,27 @@ class LibraryController extends ChangeNotifier {
       return;
     }
 
+    // 补算：先挑出哪几段是坏的。行程没变时 roadLegs 和 trip.legs 一一对应
+    final redo = <int>[];
+    if (onlyMissing) {
+      if (roadLegs.length != trip.legs.length) {
+        // 行程本身变了（改了时间范围、换了聚类），补算无从谈起，整条重来
+        onlyMissing = false;
+      } else {
+        for (var i = 0; i < roadLegs.length; i++) {
+          final l = roadLegs[i];
+          if (l.provider == 'direct' && l.mode != TravelMode2.flight) {
+            redo.add(i);
+          }
+        }
+        if (redo.isEmpty) return;
+      }
+    }
+
     routing = true;
     routeError = null;
     routeDone = 0;
-    routeTotal = trip.legs.length;
+    routeTotal = onlyMissing ? redo.length : trip.legs.length;
     notifyListeners();
 
     try {
@@ -340,15 +371,27 @@ class LibraryController extends ChangeNotifier {
           ? TravelMode2.walking
           : TravelMode2.driving;
 
-      roadLegs = await planner.planTrip(
-        trip,
-        mode: mode,
-        onProgress: (d, t) {
-          routeDone = d;
-          routeTotal = t;
+      if (onlyMissing) {
+        final fixed = List<RouteLeg>.of(roadLegs);
+        for (var n = 0; n < redo.length; n++) {
+          fixed[redo[n]] =
+              await planner.planLeg(trip.legs[redo[n]], mode: mode);
+          routeDone = n + 1;
           notifyListeners();
-        },
-      );
+        }
+        await _routeCache!.save();
+        roadLegs = fixed;
+      } else {
+        roadLegs = await planner.planTrip(
+          trip,
+          mode: mode,
+          onProgress: (d, t) {
+            routeDone = d;
+            routeTotal = t;
+            notifyListeners();
+          },
+        );
+      }
 
       final fellBack = roadLegs
           .where((l) => l.provider == 'direct' && l.mode != TravelMode2.flight)
@@ -359,6 +402,8 @@ class LibraryController extends ChangeNotifier {
         routeError = trf('{0} 段没能取到道路路线，已退回直线。',
                 [fellBack]) +
             (why == null ? '' : trf('原因: {0}', [why]));
+      } else if (onlyMissing) {
+        status = tr('缺的那几段已经补上了');
       }
     } catch (e) {
       routeError = '$e';
@@ -668,6 +713,12 @@ class LibraryController extends ChangeNotifier {
         siteUrl: settings.siteUrl,
         token: settings.publishToken,
       );
+
+  /// 当前登录的是谁。
+  ///
+  /// **"已登录"不算答案。** 一台电脑上可能登过自己的、家人的、测试的账号，
+  /// 用户得能一眼看出这次发布会发到谁名下。
+  late final ProfileStore profile = ProfileStore(() => publishConfig);
 
   Future<void> savePublishSettings({
     required String siteUrl,
@@ -1033,6 +1084,7 @@ class LibraryController extends ChangeNotifier {
       settings.publishToken = token;
       await settings.save();
       status = tr('已登录');
+      unawaited(profile.load());
       return true;
     } on LoginException catch (e) {
       loginError = e.message;
@@ -1051,6 +1103,7 @@ class LibraryController extends ChangeNotifier {
   Future<void> logout() async {
     settings.publishToken = '';
     await settings.save();
+    profile.clear();
     notifyListeners();
   }
 
@@ -1259,6 +1312,50 @@ class LibraryController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// 有没有一份"正在做的活"值得在新建前提醒一句。
+  bool get hasUnsavedWork =>
+      currentProjectName == null &&
+      (hasRange || _tmpTitle.isNotEmpty || _tmpSubtitle.isNotEmpty);
+
+  /// 开一趟新的行程。
+  ///
+  /// **"保存"不等于"开始下一趟"。** 存完一趟之后，界面上每一样东西
+  /// 都还是上一趟的：标题、封面、时间范围、发布关联。用户想做下一趟，
+  /// 只能一个一个去清，或者干脆不知道从哪儿下手。
+  ///
+  /// 这里把这些一次清干净，只留下照片库本身。**已发布的那一篇不受影响** ——
+  /// 清掉的只是"这份草稿对应网站上哪一篇"的关联，
+  /// 所以下一趟发布是新的一篇，不会覆盖上一趟。
+  void newProject() {
+    currentProjectName = null;
+    _tmpTitle = '';
+    _tmpSubtitle = '';
+    _tmpCover = '';
+    _tmpCoverMode = 'auto';
+    _tmpUnits = 'auto';
+    _tmpMusic = [];
+    _tmpRights = false;
+
+    // 发布关联属于上一趟，留着就会把上一趟覆盖掉
+    updateExisting = false;
+    pickedStoryId = '';
+    pickedStoryTitle = '';
+    pickedStoryUrl = '';
+    pickedStoryPublishedAt = null;
+    resumeStoryId = '';
+    _resumeKey = '';
+    lastExport = null;
+
+    // 时间范围就是"哪一趟" —— 不清掉，用户看到的还是上一趟的照片
+    rangeStart = null;
+    rangeEnd = null;
+
+    status = tr('新行程：在上面选一段时间范围，就从那段照片开始');
+    _invalidate();
+    _persist();
+    notifyListeners();
+  }
+
   Future<void> deleteProject(Project proj) async {
     final store = _store;
     if (store == null) return;
@@ -1324,6 +1421,8 @@ class LibraryController extends ChangeNotifier {
     view = settings.view;
     clusterPreset = settings.clusterPreset;
     currentProjectName = settings.currentProject;
+    // 存着令牌就去问一次"我是谁" —— 顶栏要显示名字，不是一句"已登录"
+    if (isLinked) unawaited(profile.load());
     // 必须先把值取出来 —— openLibrary 内部会调 _persist()，
     // 那会用当前（还是空的）范围覆盖掉 settings，之前就是这样把自己覆盖没的
     final path = settings.lastLibraryPath;

@@ -5,8 +5,10 @@ import 'package:tv_core/tv_core.dart';
 import 'package:tv_shared/tv_shared.dart';
 
 import '../state/account.dart';
+import '../state/album_source.dart';
 import '../state/selection.dart';
 import '../state/story_draft.dart';
+import '../state/workspace.dart';
 import '../ui/theme.dart';
 import '../widgets/asset_thumb.dart';
 import 'photo_viewer.dart';
@@ -165,6 +167,15 @@ class _GeneratePageState extends State<GeneratePage> {
                 title: Text(tr('回去继续编辑')),
               ),
             ),
+            PopupMenuItem(
+              value: 'read',
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.auto_stories_outlined, size: 20),
+                title: Text(tr('整篇看一遍')),
+              ),
+            ),
             const PopupMenuDivider(),
             PopupMenuItem(
               value: 'discard',
@@ -188,8 +199,88 @@ class _GeneratePageState extends State<GeneratePage> {
         _back(const PreviewExit(reselect: true));
       case 'edit':
         _back(const PreviewExit(toTop: true));
+      case 'read':
+        await _readThrough();
       case 'discard':
         await _confirmDiscard();
+    }
+  }
+
+  /// 发布之前，先按读者看到的样子从头到尾看一遍。
+  ///
+  /// **在 App 里看，不跳浏览器。** 这一步的全部意义是"发出去之前发现问题"，
+  /// 跳出去再跳回来，人就散了。
+  ///
+  /// 为此要现做一份产物：派生图按 1200/360 生成，比发布那份小一圈 ——
+  /// 这份只给自己在手机屏幕上看，等几百张 1600px 图慢慢缩没有意义。
+  /// 产物落在工作目录里，下次发布会照常重新生成，不会把这份当成已发布的。
+  Future<void> _readThrough() async {
+    final route = _route;
+    if (route == null) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+    final progress = ValueNotifier<String>(tr('正在准备…'));
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => AlertDialog(
+        content: Row(children: [
+          const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2)),
+          const SizedBox(width: 14),
+          Expanded(
+            child: ValueListenableBuilder<String>(
+              valueListenable: progress,
+              builder: (_, v, __) => Text(v, style: const TextStyle(fontSize: 13)),
+            ),
+          ),
+        ]),
+      ),
+    );
+
+    try {
+      final title = draft.effectiveTitle;
+      final out = Workspace.instance.exportDir('$title-preview');
+      await Workspace.instance.ensure(out);
+      final res = await StoryExporter(
+        source: AlbumSource(photos),
+        outRoot: out,
+      ).export(
+        trip: route,
+        selectedIds: photos.map((p) => p.id).toSet(),
+        heroByStopSeq: const {},
+        pathPoints: [
+          for (final st in (_fine ?? route).stays) LatLon(st.lat, st.lon),
+        ],
+        coverPhotoId: draft.coverId,
+        coverMode: draft.coverId == null ? 'auto' : 'photo',
+        legs: const [],
+        title: title,
+        subtitle:
+            draft.subtitle.trim().isEmpty ? null : draft.subtitle.trim(),
+        stopNames: draft.names,
+        stopNotes: draft.notes,
+        travelMode: draft.travelMode,
+        webMaxPixels: 1200,
+        thumbMaxPixels: 360,
+        onProgress: (d, t, label) =>
+            progress.value = t == 0 ? label : '$label  $d/$t',
+      );
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 收起进度框
+      await StoryViewerPage.open(
+          context, () => StoryBundle.openDirectory(res.dir));
+      // 看完就删。这份只是给自己看一眼的低清产物，留着会在手机上越堆越多，
+      // 发布时照样会重新生成一份高清的
+      await Workspace.instance.dropStory('$title-preview');
+    } catch (e) {
+      if (mounted) Navigator.of(context).pop();
+      messenger.showSnackBar(SnackBar(content: Text('$e')));
+    } finally {
+      progress.dispose();
     }
   }
 

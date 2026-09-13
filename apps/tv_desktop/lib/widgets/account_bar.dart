@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
+import '../pages/stories_page.dart';
 import '../state/library_controller.dart';
 import 'package:tv_shared/tv_shared.dart';
 
@@ -23,6 +24,8 @@ class _AccountBarState extends State<AccountBar> {
   void initState() {
     super.initState();
     widget.c.addListener(_tick);
+    // 名字是 ProfileStore 异步取回来的，它自己会通知一次
+    widget.c.profile.addListener(_tick);
   }
 
   void _tick() {
@@ -32,6 +35,7 @@ class _AccountBarState extends State<AccountBar> {
   @override
   void dispose() {
     widget.c.removeListener(_tick);
+    widget.c.profile.removeListener(_tick);
     super.dispose();
   }
 
@@ -62,23 +66,61 @@ class _AccountBarState extends State<AccountBar> {
       );
     }
 
+    final me = c.profile.profile;
+    // 名字还在路上（或这次没问到）时退回"已登录" —— 顶栏不能空着或跳动
+    final label = me?.displayName ?? tr('已登录');
+
     return PopupMenuButton<String>(
-      tooltip: tr('账号'),
+      tooltip: me?.email ?? tr('账号'),
       onSelected: (v) {
         if (v == 'account') _open('$_base/account');
-        if (v == 'stories') _open('$_base/stories');
+        // **不跳浏览器。** 自己发的东西要能在 App 里看
+        if (v == 'stories') StoriesPage.show(context, c.publishConfig);
         if (v == 'logout') c.logout();
       },
       itemBuilder: (_) => [
+        // 谁在登录状态，菜单第一行就说清楚：名字 + 邮箱。
+        // 同一台电脑登过几个账号的人，靠这一行分辨
+        if (me != null)
+          PopupMenuItem(
+            enabled: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(me.displayName,
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w600)),
+                Text(me.email,
+                    style: TextStyle(fontSize: 11, color: scheme.outline)),
+              ],
+            ),
+          ),
+        if (me != null) const PopupMenuDivider(),
         PopupMenuItem(value: 'account', child: Text(tr('账户页'))),
         PopupMenuItem(value: 'stories', child: Text(tr('我发布的故事'))),
         const PopupMenuDivider(),
         PopupMenuItem(value: 'logout', child: Text(tr('退出登录'))),
       ],
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.check_circle, size: 14, color: scheme.primary),
-        const SizedBox(width: 5),
-        Text(tr('已登录'), style: const TextStyle(fontSize: 12)),
+        CircleAvatar(
+          radius: 9,
+          backgroundColor: scheme.primary,
+          child: Text(
+            me?.initial ?? '?',
+            style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: scheme.onPrimary),
+          ),
+        ),
+        const SizedBox(width: 6),
+        ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 140),
+          child: Text(label,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 12)),
+        ),
         const Icon(Icons.arrow_drop_down, size: 16),
       ]),
     );

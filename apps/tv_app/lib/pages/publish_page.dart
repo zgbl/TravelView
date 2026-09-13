@@ -288,6 +288,22 @@ class _PublishPageState extends State<PublishPage> {
           const SizedBox(height: 10),
           SizedBox(
             height: 48,
+            // 发完的第一件事多半是"我自己先看一眼"。**在 App 里看** ——
+            // 这是刚发出去的自己的东西，没有理由把人推去浏览器
+            child: OutlinedButton.icon(
+              onPressed: () => StoryViewerPage.open(
+                context,
+                () => StoryBundle.openUrl(r.publicUrl),
+                onShare: (ctx, url) =>
+                    showShareSheet(ctx, url, title: widget.title),
+              ),
+              icon: const Icon(Icons.auto_stories_outlined),
+              label: Text(tr('看一遍')),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 48,
             child: TextButton(
               onPressed: () => Navigator.of(context)
                   .popUntil((route) => route.isFirst),

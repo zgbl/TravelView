@@ -30,6 +30,14 @@ class ProjectBar extends StatelessWidget {
           ),
         ),
         const SizedBox(width: 12),
+        // **"新建"排在最前面。** 存完一趟之后，用户的下一个问题就是
+        // "那我怎么开始下一趟"，这个按钮必须在他找的第一个地方
+        OutlinedButton.icon(
+          onPressed: () => _newProject(context),
+          icon: const Icon(Icons.add, size: 15),
+          label: Text(tr('新建行程'), style: const TextStyle(fontSize: 12)),
+        ),
+        const SizedBox(width: 8),
         FilledButton.tonalIcon(
           onPressed: () => _save(context),
           icon: const Icon(Icons.save_outlined, size: 15),
@@ -55,6 +63,46 @@ class ProjectBar extends StatelessWidget {
       ],
       ),
     );
+  }
+
+  /// 开下一趟。当前这趟**没存过**才拦一下 —— 存过的按"新建"本来就是
+  /// 已经做完了，再弹一个框只是碍事。
+  Future<void> _newProject(BuildContext context) async {
+    if (c.hasUnsavedWork) {
+      final choice = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(tr('开始新的行程？')),
+          content: SizedBox(
+            width: 400,
+            child: Text(
+              tr('当前这趟还没保存过。新建会清掉标题、封面、配乐和时间范围，'
+                  '重新从选一段时间开始。\n\n照片库和已经发布的回顾都不受影响。'),
+              style: const TextStyle(fontSize: 13, height: 1.6),
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: Text(tr('取消'))),
+            TextButton(
+                onPressed: () => Navigator.of(ctx).pop('discard'),
+                child: Text(tr('不保存，直接新建'))),
+            FilledButton(
+                onPressed: () => Navigator.of(ctx).pop('save'),
+                child: Text(tr('先保存，再新建'))),
+          ],
+        ),
+      );
+      if (choice == null) return;
+      if (choice == 'save') {
+        if (!context.mounted) return;
+        await _saveAs(context);
+        // 保存对话框被取消了就不要接着清 —— 那等于把他的活丢了
+        if (c.currentProjectName == null) return;
+      }
+    }
+    c.newProject();
   }
 
   Future<void> _save(BuildContext context) async {

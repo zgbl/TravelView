@@ -12,6 +12,10 @@ dependencies:
   tv_core:
     path: ../tv_core
   path: ^1.9.0
+  # App 内阅读器的概览地图。两端本来就各自依赖同一个版本，
+  # 阅读器搬到共享层，依赖也跟着搬过来
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
 
 dev_dependencies:
   flutter_test:

@@ -7,6 +7,47 @@
 ///
 /// 查漏用: dart run tool/i18n_scan.dart
 const Map<String, String> kEn = {
+  // ── 道路路线：补算 ──
+  '补算这 {0} 段': 'Fill in these {0}',
+  '补算缺的 {0} 段': 'Fill in the {0} missing',
+  '全部重算': 'Recompute all',
+  '缺的那几段已经补上了': 'The missing legs are filled in',
+
+  // ── 新建行程 ──
+  '新建行程': 'New trip',
+  '开始新的行程？': 'Start a new trip?',
+  '当前这趟还没保存过。新建会清掉标题、封面、配乐和时间范围，重新从选一段时间开始。\n\n照片库和已经发布的回顾都不受影响。':
+      'This trip has never been saved. Starting a new one clears the title, '
+          'cover, music and date range, and begins again from picking a range.'
+          '\n\nYour photo library and every published story are untouched.',
+  '不保存，直接新建': 'Discard and start new',
+  '先保存，再新建': 'Save, then start new',
+  '新行程：在上面选一段时间范围，就从那段照片开始':
+      'New trip — pick a date range above to start from those photos',
+
+  // ── App 内阅读器 ──
+  '看一遍': 'Read it',
+  '整篇看一遍': 'Read it through',
+  '打开行程': 'Opening story',
+  '重试': 'Retry',
+  '分享': 'Share',
+  '这一站': 'This stop',
+  '天': 'Days',
+  '照片': 'Photo',
+  '站': 'Stops',
+  '里程': 'Distance',
+  '正在准备…': 'Getting it ready…',
+  '刷新': 'Refresh',
+  '在浏览器里打开': 'Open in browser',
+  '链接已复制': 'Link copied',
+  '还没有发布过故事': 'Nothing published yet',
+  '{0} 张照片': '{0} photos',
+  '连不上服务器: {0}': 'Cannot reach the server: {0}',
+  '这份产物里没有 story.json': 'This export has no story.json',
+  '这篇故事打不开了（可能已被删除或设为私密）':
+      'This story is unavailable (deleted, or set to private)',
+  '取不到这篇故事（HTTP {0}）': 'Could not load this story (HTTP {0})',
+  '这篇故事的图片地址不完整': 'This story is missing its media location',
   '分享给朋友': 'Share',
   '当面给对方扫': 'Or let someone scan this',
   '复制': 'Copy',
@@ -60,7 +101,6 @@ const Map<String, String> kEn = {
   '改这一站': 'Edit this stop',
   '这一站还没写字，点"改这一站"添两句': 'Nothing written for this stop yet — tap "Edit this stop"',
   '共 {0} 站': '{0} stops',
-  '{0} 张照片': '{0} photos',
   '历时 {0} 小时': '{0} hours',
   '这张是封面（再点取消）': 'Cover photo (tap to undo)',
   // ── 通用动作 ──
@@ -102,7 +142,6 @@ const Map<String, String> kEn = {
   '封面': 'Cover',
   '整屏地图': 'Full-screen map',
   '地图卡片': 'Map card',
-  '照片': 'Photo',
   '距离单位': 'Distance units',
   '英里': 'Miles',
   '公里': 'Kilometres',
@@ -233,9 +272,7 @@ const Map<String, String> kEn = {
   'English': 'English',
 
   
-  '站': 'Stops',
   '天数': 'Days',
-  '里程': 'Distance',
   '拍摄时间': 'Taken',
   '位置': 'Location',
   '尺寸': 'Dimensions',

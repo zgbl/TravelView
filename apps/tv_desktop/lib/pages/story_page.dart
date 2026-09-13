@@ -9,6 +9,7 @@ import '../widgets/ai_settings_dialog.dart';
 import '../widgets/publish_dialog.dart';
 import '../widgets/photo_tile.dart';
 import '../widgets/stop_note_editor.dart';
+import 'dart:async';
 import 'dart:io';
 
 import 'photo_viewer.dart';
@@ -46,17 +47,51 @@ class _StoryPageState extends State<StoryPage> {
   final _titleFocus = FocusNode();
   final _subtitleFocus = FocusNode();
 
+  /// 标题不是敲一下存一下。
+  ///
+  /// **每敲一个键就 setStoryTitle，中文就打不进去了**：那一下会写盘、
+  /// 会 notifyListeners、会把整页重建一遍，而中文输入法正在这个框里
+  /// 攒候选字（marked text），重建把这个状态冲掉，用户看到的就是
+  /// "只能输入英文"—— 英文每个字母都是当场上屏的，所以察觉不到。
+  ///
+  /// 所以：**打字期间真相在 TextEditingController 里**，停手 600ms、
+  /// 或者焦点离开、或者要导出/发布时，才提交给 controller。
+  Timer? _commitTimer;
+
+  void _scheduleCommit() {
+    _commitTimer?.cancel();
+    _commitTimer = Timer(const Duration(milliseconds: 600), _commitTitles);
+  }
+
+  void _commitTitles() {
+    _commitTimer?.cancel();
+    _commitTimer = null;
+    if (_title.text == widget.c.storyTitle &&
+        _subtitle.text == widget.c.storySubtitle) {
+      return;
+    }
+    widget.c.setStoryTitle(_title.text, subtitle: _subtitle.text);
+  }
+
   @override
   void initState() {
     super.initState();
     _title = TextEditingController(text: widget.c.storyTitle);
     _subtitle = TextEditingController(text: widget.c.storySubtitle);
+    // 焦点一离开就落定，不用等防抖
+    _titleFocus.addListener(() {
+      if (!_titleFocus.hasFocus) _commitTitles();
+    });
+    _subtitleFocus.addListener(() {
+      if (!_subtitleFocus.hasFocus) _commitTitles();
+    });
     widget.c.addListener(_onChanged);
     _recompute();
   }
 
   @override
   void dispose() {
+    _commitTimer?.cancel();
     widget.c.removeListener(_onChanged);
     _title.dispose();
     _subtitle.dispose();
@@ -74,6 +109,9 @@ class _StoryPageState extends State<StoryPage> {
   void _onChanged() {
     // 换了草稿，标题输入框要跟着换 —— 但不能在用户正打字时抢走光标
     if (!_titleFocus.hasFocus && !_subtitleFocus.hasFocus) {
+      // 外面换了草稿或点了「新建行程」。**先撤掉还没到点的那次提交** ——
+      // 否则 600ms 后它会把上一趟的标题又写回去
+      _commitTimer?.cancel();
       if (_title.text != widget.c.storyTitle) {
         _title.text = widget.c.storyTitle;
       }
@@ -192,6 +230,8 @@ class _StoryPageState extends State<StoryPage> {
   ///
   /// 返回 null = 没生成出来（没有行程、一张照片都没选）。
   Future<ExportResult?> _buildExport() async {
+    // 用户很可能刚打完标题就点了发布，防抖还没到点 —— 先落定
+    _commitTitles();
     final r = route;
     if (r == null) return null;
     final heroes = <int, String?>{};
@@ -234,7 +274,19 @@ class _StoryPageState extends State<StoryPage> {
     );
   }
 
-  /// 导出并在浏览器里打开 —— 发布之前想先自己看一眼时用
+  /// 生成产物，然后**在 App 里从头看一遍**。
+  ///
+  /// 发布前想确认的就是"读者会看到什么"，而那需要的是读，不是文件。
+  /// 浏览器那条路还在（「导出网页」），但它解决的是另一件事：
+  /// 把产物交出去 —— 发给别人、自己存一份、丢到自己的服务器上。
+  Future<void> _read() async {
+    final res = await _buildExport();
+    if (res == null || !mounted) return;
+    await StoryViewerPage.open(
+        context, () => StoryBundle.openDirectory(res.dir));
+  }
+
+  /// 导出并在浏览器里打开 —— 想把产物本身拿去用时
   Future<void> _export() async {
     final res = await _buildExport();
     if (res == null || !mounted) return;
@@ -718,7 +770,7 @@ class _StoryPageState extends State<StoryPage> {
               child: TextField(
                 controller: _title,
                 focusNode: _titleFocus,
-                onChanged: (v) => widget.c.setStoryTitle(v),
+                onChanged: (_) => _scheduleCommit(),
                 style: const TextStyle(
                     fontSize: 17, fontWeight: FontWeight.w600),
                 decoration: InputDecoration(
@@ -738,8 +790,7 @@ class _StoryPageState extends State<StoryPage> {
               child: TextField(
                 controller: _subtitle,
                 focusNode: _subtitleFocus,
-                onChanged: (v) =>
-                    widget.c.setStoryTitle(_title.text, subtitle: v),
+                onChanged: (_) => _scheduleCommit(),
                 style: const TextStyle(fontSize: 12),
                 decoration: InputDecoration(
                   isDense: true,
@@ -891,12 +942,23 @@ class _StoryPageState extends State<StoryPage> {
                       Text('${widget.c.exportDone}/${widget.c.exportTotal}',
                           style: const TextStyle(fontSize: 12)),
                     ])
-                  : OutlinedButton.icon(
-                      onPressed: totalSelected == 0 ? null : _export,
-                      icon: const Icon(Icons.ios_share, size: 15),
-                      label: Text(tr('导出网页'),
-                          style: const TextStyle(fontSize: 12)),
-                    ),
+                  : Row(mainAxisSize: MainAxisSize.min, children: [
+                      // 「看一遍」排在「导出网页」前面：发布前更常做的是读一遍，
+                      // 而不是去找那个目录
+                      FilledButton.tonalIcon(
+                        onPressed: totalSelected == 0 ? null : _read,
+                        icon: const Icon(Icons.auto_stories_outlined, size: 15),
+                        label: Text(tr('看一遍'),
+                            style: const TextStyle(fontSize: 12)),
+                      ),
+                      const SizedBox(width: 8),
+                      OutlinedButton.icon(
+                        onPressed: totalSelected == 0 ? null : _export,
+                        icon: const Icon(Icons.ios_share, size: 15),
+                        label: Text(tr('导出网页'),
+                            style: const TextStyle(fontSize: 12)),
+                      ),
+                    ]),
               const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: widget.c.exporting || widget.c.publishing

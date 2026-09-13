@@ -3,7 +3,6 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'package:tv_shared/tv_shared.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import '../state/profile.dart';
 import '../state/session.dart';
 import '../state/workspace.dart';
 import '../ui/theme.dart';
@@ -22,7 +21,7 @@ class MePage extends StatefulWidget {
 
 class _MePageState extends State<MePage> {
   late final ProfileStore _profile =
-      ProfileStore(widget.session.account.config);
+      ProfileStore(() => widget.session.account.config);
   _Usage? _usage;
   String _version = '';
 

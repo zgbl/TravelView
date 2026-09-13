@@ -104,6 +104,17 @@ class _MapPageState extends State<MapPage> {
                         color: Theme.of(context).colorScheme.onErrorContainer),
                   ),
                 ),
+                // 用户看到这条提示时想做的第一件事就是"那把它补上" ——
+                // 别让他回工具栏去找按钮
+                if (r != null && !r.isEmpty && widget.c.missingRoadCount > 0)
+                  TextButton(
+                    onPressed: widget.c.routing
+                        ? null
+                        : () => widget.c.computeRoads(r, onlyMissing: true),
+                    child: Text(
+                        trf('补算这 {0} 段', [widget.c.missingRoadCount]),
+                        style: const TextStyle(fontSize: 12)),
+                  ),
                 TextButton(
                   onPressed: () =>
                       RouteSettingsDialog.show(context, widget.c),
@@ -190,15 +201,44 @@ class _MapPageState extends State<MapPage> {
                           style: const TextStyle(fontSize: 12)),
                     ],
                   )
-                : FilledButton.tonalIcon(
-                    onPressed: r == null || r.isEmpty
-                        ? null
-                        : () => widget.c.computeRoads(r),
-                    icon: const Icon(Icons.alt_route, size: 15),
-                    label: Text(
-                        widget.c.roadLegs.isEmpty ? tr('贴合道路') : tr('重算路线'),
-                        style: const TextStyle(fontSize: 12)),
-                  ),
+                : Row(mainAxisSize: MainAxisSize.min, children: [
+                    // 缺几段就只补几段。**成功的那些已经永久存在照片库里了**，
+                    // 整条重来既慢又白白消耗供应商额度
+                    if (widget.c.missingRoadCount > 0)
+                      FilledButton.tonalIcon(
+                        onPressed: r == null || r.isEmpty
+                            ? null
+                            : () =>
+                                widget.c.computeRoads(r, onlyMissing: true),
+                        icon: const Icon(Icons.healing_outlined, size: 15),
+                        label: Text(
+                            trf('补算缺的 {0} 段',
+                                [widget.c.missingRoadCount]),
+                            style: const TextStyle(fontSize: 12)),
+                      ),
+                    if (widget.c.missingRoadCount > 0)
+                      const SizedBox(width: 8),
+                    widget.c.missingRoadCount > 0
+                        ? OutlinedButton.icon(
+                            onPressed: r == null || r.isEmpty
+                                ? null
+                                : () => widget.c.computeRoads(r),
+                            icon: const Icon(Icons.alt_route, size: 15),
+                            label: Text(tr('全部重算'),
+                                style: const TextStyle(fontSize: 12)),
+                          )
+                        : FilledButton.tonalIcon(
+                            onPressed: r == null || r.isEmpty
+                                ? null
+                                : () => widget.c.computeRoads(r),
+                            icon: const Icon(Icons.alt_route, size: 15),
+                            label: Text(
+                                widget.c.roadLegs.isEmpty
+                                    ? tr('贴合道路')
+                                    : tr('重算路线'),
+                                style: const TextStyle(fontSize: 12)),
+                          ),
+                  ]),
           IconButton(
             tooltip: tr('道路路线服务设置'),
             onPressed: () => RouteSettingsDialog.show(context, widget.c),

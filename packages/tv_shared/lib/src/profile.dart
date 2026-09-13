@@ -64,9 +64,15 @@ class Profile {
 }
 
 class ProfileStore extends ChangeNotifier {
-  ProfileStore(this.config);
+  /// 传的是**取配置的函数**，不是配置本身。
+  ///
+  /// 桌面端的令牌会在运行中变（登录、退出都在同一个窗口里发生），
+  /// 存一份快照下来，退出后再登录就还在拿旧令牌问"我是谁"。
+  ProfileStore(this._config);
 
-  final PublishConfig config;
+  final PublishConfig Function() _config;
+
+  PublishConfig get config => _config();
 
   Profile? profile;
   String? error;
@@ -74,7 +80,19 @@ class ProfileStore extends ChangeNotifier {
 
   String get _base => config.siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
 
+  /// 退出登录时把"我是谁"一起清掉 —— 顶栏不能还挂着上一个人的名字。
+  void clear() {
+    profile = null;
+    error = null;
+    loading = false;
+    notifyListeners();
+  }
+
   Future<void> load() async {
+    if (config.token.trim().isEmpty) {
+      clear();
+      return;
+    }
     loading = true;
     notifyListeners();
     try {

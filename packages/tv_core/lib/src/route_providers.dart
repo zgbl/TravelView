@@ -140,17 +140,35 @@ class OrsRouteProvider implements RouteProvider {
   }) async {
     final url =
         Uri.parse('$baseUrl/v2/directions/${_profile(mode)}/geojson');
-    final body = jsonEncode({
-      'coordinates': [from.toGeoJson(), to.toGeoJson()],
-      // 要 steps 才有路名；ORS 默认就带 instructions，这里写明白
-      'instructions': true,
-    });
     if (apiKey.trim().isEmpty) {
       throw const RouteProviderException(
           'openrouteservice', '还没有填 API key（设置里填上即可）');
     }
-    final j = await _postJson(url, body,
-        headers: {'Authorization': apiKey}, timeout: timeout, provider: name);
+
+    // 站点是照片聚出来的，坐标落在停车场、景区步道、湖边甚至沙漠里很正常，
+    // 而 ORS 默认只在 **350 米** 内找可通行的路，找不到就整段 404（code 2010）。
+    // 先放宽到 5 公里；还找不到才用 -1（不限距离）再试一次。
+    // **不能一上来就 -1**：那会让一个本该报错的坐标被吸到几十公里外的路上。
+    Future<Map<String, dynamic>> ask(num radius) => _postJson(
+          url,
+          jsonEncode({
+            'coordinates': [from.toGeoJson(), to.toGeoJson()],
+            'radiuses': [radius, radius],
+            // 要 steps 才有路名；ORS 默认就带 instructions，这里写明白
+            'instructions': true,
+          }),
+          headers: {'Authorization': apiKey},
+          timeout: timeout,
+          provider: name,
+        );
+
+    Map<String, dynamic> j;
+    try {
+      j = await ask(5000);
+    } on RouteProviderException catch (e) {
+      if (!e.toString().contains('2010')) rethrow;
+      j = await ask(-1);
+    }
 
     final features = j['features'] as List?;
     if (features == null || features.isEmpty) return null;

@@ -3,7 +3,6 @@ import 'package:tv_core/tv_core.dart';
 import 'package:tv_shared/tv_shared.dart';
 
 import '../state/session.dart';
-import '../state/stories_store.dart';
 import '../ui/theme.dart';
 import '../widgets/share_sheet.dart';
 
@@ -243,7 +242,16 @@ class _StoryCard extends StatelessWidget {
           child: Material(
             color: Theme.of(context).cardTheme.color,
             child: InkWell(
-              onTap: () =>
+              // **点开是"看"，不是"分享"。**
+              // 用户回到这个列表最常做的事是再看一眼自己做的东西；
+              // 分享是第二位的，留在长按和详情页的分享按钮上。
+              onTap: () => StoryViewerPage.open(
+                context,
+                () => StoryBundle.openUrl(story.url),
+                onShare: (ctx, url) =>
+                    showShareSheet(ctx, url, title: story.title),
+              ),
+              onLongPress: () =>
                   showShareSheet(context, story.url, title: story.title),
               child: Stack(
                 children: [

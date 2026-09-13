@@ -41,6 +41,34 @@ Hero -> Day -> Stop -> Photos -> Road Route -> 小车动画 -> Summary
 路线随滚动推进，小车沿实际道路行驶，走过的路线逐渐画出来。
 Video 之后复用同一份 Story，不重新组织数据。
 
+### App 内阅读器（第二个 Renderer）
+
+`tv_shared/lib/src/story_viewer.dart` —— 桌面端和手机端共用的原生阅读器，
+配套 `story_bundle.dart` 负责"相对路径拼给谁"。
+
+**为什么不内嵌 WebView 复用 index.html：**
+
+- macOS / Windows 上没有轻量可靠的 WebView，为看一眼自己的游记
+  拖进一个浏览器内核不划算；
+- 网页那份要联网取 Leaflet 和底图，而"看自己刚做完的东西"
+  最可能发生在没网的路上。
+
+代价是渲染有两份。**约束因此只有一条：阅读器只呈现 manifest 里已有的东西，
+不自己算任何数据。** 两边显示不一样，只能是样式不一样，不会是数字不一样。
+
+两个来源，同一个 `StoryBundle`：
+
+| 来源 | 怎么来 | 图片根 |
+|---|---|---|
+| 本地导出产物 | `StoryBundle.openDirectory(dir)` | 导出目录本身 |
+| 已发布的故事 | `StoryBundle.openUrl('<站点>/s/<slug>')` | manifest 里的 `mediaBase` |
+
+服务器为此多给一个只读接口 `GET /s/<slug>/story.json`：manifest 原样返回，
+外加一个 `mediaBase`。**App 不解析公开页 HTML** —— 页面结构一改，
+所有装过 App 的人同时瞎掉；manifest 是发布协议的一部分，本来就稳定。
+可见性跟着公开页走，private 一律 404（认令牌会把一个公开只读接口变成鉴权接口，
+不值得）。
+
 ---
 
 ## 2. Route：完整 geometry，压缩存储
