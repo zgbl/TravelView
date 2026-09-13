@@ -1,6 +1,7 @@
 import { headers } from 'next/headers';
 import NavBar from '@/components/NavBar';
 import SiteFooter from '@/components/SiteFooter';
+import MacArchHint from '@/components/MacArchHint';
 import { getLocale } from '@/lib/i18n.server';
 import { href, t } from '@/lib/i18n';
 import {
@@ -93,7 +94,10 @@ function Card({
           <div className="mt-0.5 text-xs text-muted">
             {has
               ? `${t(locale, 'dl.version')} ${rel!.version}` +
-                (rel!.bytes ? ` · ${humanBytes(rel!.bytes)}` : '')
+                (rel!.bytes ? ` · ${humanBytes(rel!.bytes)}` : '') +
+                // 架构照实说: macOS 上"装上去打不开"最常见的原因就是它，
+                // 没声明就不编（宁可不说，也不要说错）
+                (rel!.arch ? ` · ${t(locale, `dl.arch.${rel!.arch}`)}` : '')
               : t(locale, 'dl.soon.b')}
           </div>
         </div>
@@ -113,6 +117,10 @@ function Card({
           </span>
         )}
       </div>
+
+      {platform === 'macos' && has && (
+        <MacArchHint arch={rel!.arch} locale={locale} />
+      )}
 
       {platform === 'macos' && has && (
         <p className="mt-4 border-t border-white/10 pt-3 text-xs">

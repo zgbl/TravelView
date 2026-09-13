@@ -18,6 +18,18 @@ export function isPlatform(x: string): x is Platform {
   return (platforms as readonly string[]).includes(x);
 }
 
+/**
+ * 安装包的 CPU 架构。**只在 macOS 上有意义** ——
+ * 在 M1 上编出来的包如果只含 arm64，Intel 机器装了也打不开，
+ * 而用户看不出任何原因。所以这个值由上传的人声明，下载页照实说。
+ */
+export const arches = ['universal', 'arm64', 'x64'] as const;
+export type Arch = (typeof arches)[number];
+
+export function isArch(x: string): x is Arch {
+  return (arches as readonly string[]).includes(x);
+}
+
 /// 安装包上限 500MB。桌面端打包出来通常几十 MB，超出这个数多半是传错了东西
 export const maxReleaseBytes = 500 * 1024 * 1024;
 
@@ -33,6 +45,7 @@ export type Release = {
   isCurrent: boolean;
   downloads: number;
   createdAt: string;
+  arch: Arch | null;
 };
 
 type Row = {
@@ -41,6 +54,7 @@ type Row = {
   notes: string; is_current: boolean; downloads: string | number;
   // pg 对 timestamptz 返回的是 Date 对象，不是字符串 —— 这里如实写
   created_at: string | Date;
+  arch: string | null;
 };
 
 function toRelease(r: Row): Release {
@@ -57,6 +71,8 @@ function toRelease(r: Row): Release {
     downloads: Number(r.downloads),
     // 在边界上统一成 ISO 字符串: 上层（后台页、/api/releases）都按字符串用它
     createdAt: toIso(r.created_at),
+    // 库里存的是 text，这里收窄成枚举，认不出来的当"未声明"
+    arch: r.arch && isArch(r.arch) ? r.arch : null,
   };
 }
 

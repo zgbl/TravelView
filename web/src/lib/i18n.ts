@@ -148,6 +148,21 @@ export const dict: Dict = {
     zh: '照片处理都在本地完成，所以需要装一个应用。桌面版负责导入、挑图和发布。',
     en: 'Photos are processed on your own device, so there is an app. The desktop app imports, curates and publishes.',
   },
+  'dl.arch.universal': {
+    zh: '通用（Apple 芯片 + Intel）', en: 'Universal (Apple silicon + Intel)',
+  },
+  'dl.arch.arm64': {
+    zh: '仅 Apple 芯片（M 系列）', en: 'Apple silicon (M series) only',
+  },
+  'dl.arch.x64': { zh: '仅 Intel', en: 'Intel only' },
+  'dl.arch.mismatch.arm64': {
+    zh: '⚠ 你这台是 Intel Mac，而这个版本只支持 Apple 芯片 —— 装上去打不开。',
+    en: '⚠ This is an Intel Mac, but this build is Apple silicon only — it will not open.',
+  },
+  'dl.arch.mismatch.x64': {
+    zh: '⚠ 你这台是 Apple 芯片的 Mac，而这个版本只支持 Intel —— 装上去打不开。',
+    en: '⚠ This is an Apple silicon Mac, but this build is Intel only — it will not open.',
+  },
   'dl.get': { zh: '下载', en: 'Download' },
   'dl.soon': { zh: '还没发布', en: 'Not yet released' },
   'dl.soon.b': {

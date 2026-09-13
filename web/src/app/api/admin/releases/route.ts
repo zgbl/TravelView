@@ -8,7 +8,7 @@ import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/admin';
 import { query, one } from '@/lib/db';
 import {
-  allReleases, isPlatform, maxReleaseBytes, releasePath, releasesDir,
+  allReleases, isArch, isPlatform, maxReleaseBytes, releasePath, releasesDir,
 } from '@/lib/releases';
 
 export const dynamic = 'force-dynamic';
@@ -42,6 +42,9 @@ export async function POST(req: Request) {
   const externalUrl = String(form.get('externalUrl') ?? '').trim();
   const makeCurrent = form.get('current') !== null;
   const file = form.get('file');
+  // 架构只在 macOS 上有意义；没填就是"未声明"，页面不显示
+  const archRaw = String(form.get('arch') ?? '').trim();
+  const arch = isArch(archRaw) ? archRaw : null;
 
   if (!isPlatform(platform)) {
     return NextResponse.json({ error: '平台不对' }, { status: 400 });
@@ -116,16 +119,18 @@ export async function POST(req: Request) {
     await query('begin');
     const row = await one<{ id: string }>(
       `insert into app_releases
-         (platform, version, filename, bytes, checksum, external_url, notes)
-       values ($1,$2,$3,$4,$5,$6,$7)
+         (platform, version, filename, bytes, checksum, external_url, notes, arch)
+       values ($1,$2,$3,$4,$5,$6,$7,$8)
        on conflict (platform, version) do update set
          filename = coalesce(excluded.filename, app_releases.filename),
          bytes = greatest(excluded.bytes, 0),
          checksum = coalesce(excluded.checksum, app_releases.checksum),
          external_url = nullif(excluded.external_url, ''),
-         notes = excluded.notes
+         notes = excluded.notes,
+         -- 没声明就保留原值: 重传一次不该把已经声明的架构抹掉
+         arch = coalesce(excluded.arch, app_releases.arch)
        returning id`,
-      [platform, version, filename, bytes, checksum, externalUrl || null, notes]);
+      [platform, version, filename, bytes, checksum, externalUrl || null, notes, arch]);
     if (makeCurrent && row) {
       await query(
         `update app_releases set is_current = false

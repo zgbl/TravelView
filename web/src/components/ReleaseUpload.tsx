@@ -23,6 +23,7 @@ function mb(n: number) {
 }
 
 export default function ReleaseUpload() {
+  const [platform, setPlatform] = useState('macos');
   const [busy, setBusy] = useState(false);
   const [phase, setPhase] = useState<Phase>('idle');
   const [pct, setPct] = useState(0);
@@ -114,7 +115,8 @@ export default function ReleaseUpload() {
     <form onSubmit={submit} className="grid gap-3 md:grid-cols-2">
       <label className="text-xs text-muted">
         平台
-        <select name="platform" className={field} defaultValue="macos">
+        <select name="platform" className={field} value={platform}
+          onChange={(e) => setPlatform(e.target.value)}>
           <option value="macos">macOS</option>
           <option value="windows">Windows</option>
           <option value="android">Android</option>
@@ -126,6 +128,24 @@ export default function ReleaseUpload() {
         版本号（1.2.0）
         <input name="version" required placeholder="1.0.0" className={field} />
       </label>
+
+      {/* 架构只在 macOS 上有意义 —— 在 M1 上编出来的包如果只含 arm64，
+          Intel 用户装了根本打不开，而页面不说的话他只会以为我们发了个坏包。
+          所以这里让上传的人如实声明。 */}
+      {platform === 'macos' && (
+        <label className="text-xs text-muted md:col-span-2">
+          架构（macOS 才需要声明）
+          <select name="arch" className={field} defaultValue="universal">
+            <option value="universal">通用 —— Apple 芯片 + Intel（Flutter release 默认）</option>
+            <option value="arm64">仅 Apple 芯片（M 系列）</option>
+            <option value="x64">仅 Intel</option>
+          </select>
+          <span className="mt-1 block text-[11px] text-muted/80">
+            不确定就查包里的二进制：<code>lipo -archs TravelView.app/Contents/MacOS/TravelView</code>
+            —— 输出了两个架构就是通用，只有一个就照实选。
+          </span>
+        </label>
+      )}
 
       <label className="text-xs text-muted md:col-span-2">
         安装包

@@ -1,0 +1,13 @@
+-- 安装包的 CPU 架构。**macOS 上这不是小事。**
+--
+-- 在 M1 上编出来的包不一定是通用的: Flutter 的 release 构建默认是
+-- x86_64 + arm64 通用二进制, 但只要构建参数或 CI runner 一变,
+-- 就可能只剩 arm64 —— 那时 Intel 用户下到的东西双击是打不开的,
+-- 而且页面什么都没说, 他只会以为是我们发了个坏包。
+--
+-- 所以让**上传的人在后台如实声明**, 下载页照实显示:
+--   universal = 通用（Apple 芯片 + Intel）
+--   arm64     = 仅 Apple 芯片（M 系列）
+--   x64       = 仅 Intel
+--   null      = 未声明 / 不适用（商店链接、外部地址）
+alter table app_releases add column if not exists arch text;
