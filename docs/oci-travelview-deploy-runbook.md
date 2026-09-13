@@ -140,6 +140,7 @@ sudo bash /etc/cron.daily/travelview-backup
 | 发布 403 票据无效 | 服务器时间不对 / 改过 UPLOAD_SECRET 没重启 |
 | 发布 401 | 令牌被吊销 → /account 重新生成 |
 | 发布 402 | 额度用完（正常业务，不是故障） |
+| 页面说"网络不通"，但 nginx 日志里明明是 502 | **Cloudflare 把源站 502/504 的响应体换成了它自己的 `error code: 502`**，前端的 `res.json()` 解析失败，只能退化成"网络不通"。实测 500/503/429 的响应体是原样透传的 —— 所以**业务错误别用 502/504 表达**，用 503（发信失败就是这么改的）。 |
 | 文字在、图片全裂 | nginx /media/ 段没配 / NEXT_PUBLIC_MEDIA_BASE 不对 |
 | 改了 NEXT_PUBLIC_* 不生效 | 它编译进前端，必须重跑 release.sh |
 
