@@ -19,7 +19,13 @@ export default async function Login() {
         <AuthForm mode="login" locale={L} />
       </div>
 
-      <p className="mt-6 text-sm text-muted">
+      <p className="mt-5 text-sm text-muted">
+        <Link href={href(L, '/forgot')} className="text-accentBright">
+          {t(L, 'forgot.link')}
+        </Link>
+      </p>
+
+      <p className="mt-3 text-sm text-muted">
         {t(L, 'auth.havent')}
         <Link href={href(L, '/signup')} className="text-accentBright">
           {t(L, 'auth.submit.signup')}

@@ -491,6 +491,39 @@ export const dict: Dict = {
   'outro.author.cta': { zh: '回到我的故事', en: 'Back to my stories' },
   'outro.author.cta2': { zh: 'TravelView 主页', en: 'TravelView home' },
 
+  // ── 忘记密码 ──
+  'forgot.link': { zh: '忘记密码？', en: 'Forgot your password?' },
+  'forgot.title': { zh: '重置密码', en: 'Reset your password' },
+  'forgot.intro': {
+    zh: '填你注册时用的邮箱，我们发一个链接过去，点开就能设新密码。',
+    en: 'Enter the email you signed up with. We will send you a link to set a '
+      + 'new password.',
+  },
+  'forgot.submit': { zh: '发送重置链接', en: 'Send the link' },
+  'forgot.sent': {
+    zh: '信已经发出去了。去邮箱点那个链接，就能设置新密码。',
+    en: 'The email is on its way. Open the link in it to set a new password.',
+  },
+  'forgot.sent.hint': {
+    zh: '链接 1 小时内有效，只能用一次。没收到就看看垃圾邮件；'
+      + '如果这个邮箱没有注册过，是不会收到信的。',
+    en: 'The link expires in an hour and works once. Check your spam folder if '
+      + 'it does not show up \u2014 and note that an address that was never '
+      + 'registered will not receive anything.',
+  },
+  'reset.title': { zh: '设置新密码', en: 'Set a new password' },
+  'reset.intro': {
+    zh: '设好之后会直接登录，不用再输一遍。',
+    en: 'You will be signed in right after \u2014 no need to log in again.',
+  },
+  'reset.again': { zh: '再输一遍', en: 'Repeat the password' },
+  'reset.submit': { zh: '设置新密码并登录', en: 'Set password and sign in' },
+  'reset.mismatch': { zh: '两次输入的密码不一样', en: 'The two passwords differ' },
+  'reset.notoken': {
+    zh: '这个地址里没有重置链接。重新申请一次就好。',
+    en: 'This address carries no reset link. Just request a new one.',
+  },
+
   'story.days': { zh: '天', en: 'DAYS' },
   'story.stops': { zh: '站', en: 'STOPS' },
   'story.miles': { zh: '英里', en: 'MILES' },

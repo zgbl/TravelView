@@ -79,18 +79,42 @@ case "$TARGET" in
 mac)
   cd "$ROOT/apps/tv_desktop"
   fl build macos --release
-  APP="build/macos/Build/Products/Release/tv_desktop.app"
+  # 产物名跟 Xcode 里的 PRODUCT_NAME 走，不同版本的模板不一样，
+  # **别写死**：哪个在就用哪个，都不在就当场报错，而不是后面莫名其妙失败
+  OUT="build/macos/Build/Products/Release"
+  APP=""
+  for cand in "$OUT/TravelView.app" "$OUT/tv_desktop.app"; do
+    [ -d "$cand" ] && APP="$cand" && break
+  done
+  if [ -z "$APP" ]; then
+    echo "没找到编出来的 .app（看看 $OUT 里有什么）"; exit 1
+  fi
+
+  # create-dmg 要的是**一个文件夹**，不是 .app 本身。
+  # 顺便在这里把包名统一成 TravelView.app —— 用户拖进"应用程序"时
+  # 看到的是这个名字，不该是内部的工程名。
+  STAGE="$(mktemp -d)"
+  trap 'rm -rf "$STAGE"' EXIT
+  cp -R "$APP" "$STAGE/TravelView.app"
+
   DMG="$DIST/TravelView-$VERSION.dmg"
-  rm -f "$DMG"
-  # create-dmg 没装就只留 .app —— 少一个 dmg 不该让整次构建算失败
+  ZIP="$DIST/TravelView-$VERSION-macOS.zip"
+  rm -f "$DMG" "$ZIP"
+
+  # **无论如何都要在 dist/ 里留下一个能发出去的文件。**
+  # 以前没装 create-dmg 时只打印一句"跳过"，产物还躺在 build/ 深处，
+  # 下次要发版时根本想不起来去哪儿找。
   if command -v create-dmg >/dev/null; then
     echo "==> 打 dmg"
     create-dmg --volname "TravelView $VERSION" --window-size 520 380 \
-      --icon-size 96 --app-drop-link 360 160 "$DMG" "$APP"
+      --icon-size 96 --app-drop-link 360 160 "$DMG" "$STAGE"
     echo "产物: $DMG"
   else
-    echo "没装 create-dmg（brew install create-dmg），跳过打 dmg"
-    echo "产物: apps/tv_desktop/$APP"
+    echo "==> 没装 create-dmg（brew install create-dmg），改打 zip"
+    # ditto 才能保住 .app 里的符号链接和权限；zip -r 会把包弄坏
+    ditto -c -k --keepParent "$STAGE/TravelView.app" "$ZIP"
+    echo "产物: $ZIP"
+    echo "     （装上 create-dmg 后重跑会得到更好发的 .dmg）"
   fi
   ;;
 

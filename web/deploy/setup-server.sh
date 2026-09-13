@@ -59,6 +59,16 @@ STRIPE_PRICE_CREDITS_5=
 STRIPE_PRICE_CREDITS_10=
 STRIPE_PRICE_CREDITS_25=
 
+# ── 发信（忘记密码）──
+# Zoho 的**应用专用密码**，不是登录密码（在 Zoho 后台生成）。
+# 发件人必须就是 SMTP_USER 这个账号或它的别名，否则 Zoho 直接拒收。
+# 欧洲区账号把 host 换成 smtp.zoho.eu。
+SMTP_HOST=smtp.zoho.com
+SMTP_PORT=465
+SMTP_USER=travelview@zoho.com
+SMTP_PASS=
+MAIL_FROM=TravelView <travelview@zoho.com>
+
 NEXT_PUBLIC_SITE_URL=https://yourtravelview.com
 NEXT_PUBLIC_MEDIA_BASE=https://yourtravelview.com/media
 NEXT_PUBLIC_MAP_TILES=

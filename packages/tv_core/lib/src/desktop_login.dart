@@ -95,6 +95,42 @@ class DesktopLogin {
     return signIn(email, password, label: label);
   }
 
+  /// 忘记密码：让服务器发一封带一次性链接的信。
+  ///
+  /// **App 里只做"发信"这一步，新密码在网页上设。**
+  /// 在 App 里收验证码、改密码，等于把一套认证逻辑再实现一遍，
+  /// 而这类代码最松的那一处就是整个系统的安全水位。
+  /// 邮件里那个链接本来就只能用一次、一小时过期，点开即可。
+  ///
+  /// [locale] 决定信里用哪种语言（'zh' / 'en'），跟着 App 的界面语言走。
+  ///
+  /// **邮箱没注册过时服务器也返回成功** —— 那是故意的，
+  /// 否则任何人都能拿这个接口逐个试探谁在这里注册过。
+  Future<void> requestPasswordReset(String email,
+      {String locale = 'zh'}) async {
+    final client = HttpClient()..connectionTimeout = timeout;
+    try {
+      final req = await client
+          .postUrl(Uri.parse('$_base/api/auth/forgot'))
+          .timeout(timeout);
+      req.headers.set('User-Agent', 'TravelView/0.1');
+      req.headers.contentType =
+          ContentType('application', 'json', charset: 'utf-8');
+      req.write(jsonEncode({'email': email.trim(), 'locale': locale}));
+      final res = await req.close().timeout(timeout);
+      final body = await utf8.decoder.bind(res).join();
+      if (res.statusCode >= 400) {
+        throw LoginException(_errorOf(body, res.statusCode));
+      }
+    } on SocketException catch (e) {
+      throw LoginException('连不上服务器: ${e.message}');
+    } on TimeoutException {
+      throw const LoginException('服务器没有响应（超时）');
+    } finally {
+      client.close(force: true);
+    }
+  }
+
   static String _errorOf(String body, int code) {
     try {
       final j = jsonDecode(body);

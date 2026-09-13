@@ -155,3 +155,19 @@ create table if not exists stripe_events (
   type         text not null,
   received_at  timestamptz not null default now()
 );
+
+-- 忘记密码。**存的是 token 的 sha256，不是 token 本身** ——
+-- 数据库被看一眼就等于所有在途的重置链接都能拿去改密码。
+-- 详见 db/migrations/012_password_resets.sql
+create table if not exists password_resets (
+  id         uuid primary key default gen_random_uuid(),
+  user_id    uuid not null references users(id) on delete cascade,
+  token_hash text not null unique,
+  expires_at timestamptz not null,
+  used_at    timestamptz,
+  requested_ip text,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists password_resets_user
+  on password_resets (user_id, created_at desc);

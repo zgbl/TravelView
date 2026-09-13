@@ -460,7 +460,7 @@ extension PhoneBridge {
       "format": format,
       "width": img.width,
       "height": img.height,
-      "bytes": size ?? 0,
+      "bytes": size,
     ]
   }
 

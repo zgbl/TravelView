@@ -110,6 +110,18 @@ class _LoginPageState extends State<LoginPage> {
               ),
             ),
             const SizedBox(height: 4),
+            // 注册时不显示：那一屏还没有"旧密码"这回事
+            if (!_signUp)
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => ForgotPassword.show(
+                          context,
+                          siteUrl: widget.session.account.settings.siteUrl,
+                          email: _email.text,
+                        ),
+                child: Text(tr('忘记密码？')),
+              ),
             TextButton(
               onPressed: _busy
                   ? null

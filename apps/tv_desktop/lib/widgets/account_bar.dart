@@ -224,6 +224,14 @@ class _LoginDialogState extends State<LoginDialog> {
           child: Text(tr('还没有账号？免费注册'),
               style: const TextStyle(fontSize: 12)),
         ),
+        // 密码想不起来是**在这一刻**发生的事，不能让人退出去自己找网页
+        TextButton(
+          onPressed: c.loggingIn
+              ? null
+              : () => ForgotPassword.show(context,
+                  siteUrl: c.settings.siteUrl, email: _email.text),
+          child: Text(tr('忘记密码？'), style: const TextStyle(fontSize: 12)),
+        ),
         TextButton(
           onPressed: c.loggingIn ? null : () => Navigator.pop(context),
           child: Text(tr('取消')),

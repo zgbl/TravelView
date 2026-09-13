@@ -156,7 +156,8 @@ bash tools/build.sh mac
 brew install create-dmg
 ```
 
-没装的话脚本不会失败，只是跳过打 dmg，留下 `.app`。
+没装的话脚本不会失败，改成用 `ditto` 打一个 `dist/TravelView-<版本>-macOS.zip`
+（照样能发给别人，只是不如 dmg 好看）。**任何情况下 dist/ 里都会有一个能发出去的文件。**
 
 **签名问题**：现在是未签名的。别人下载后打开会被 Gatekeeper 拦
 （「无法打开，因为无法验证开发者」），要右键 →「打开」才能运行。
@@ -228,6 +229,54 @@ python3 tools/bump-build.py
 - 桌面端：底部状态栏最右边 → `v0.6.2 (2)`，可选中复制
 
 括号里是构建号。两处都从 `package_info_plus` 读，**不写死**。
+
+---
+
+## 3.5 产物到底在哪 · 怎么上线供人下载
+
+### 产物路径（只有一处，别去 build/ 里翻）
+
+`bash tools/build.sh <目标>` 的成品**全部落在仓库根目录的 `dist/`**：
+
+| 目标 | 产物 |
+|---|---|
+| mac | `dist/TravelView-<版本>.dmg`；没装 create-dmg 时是 `dist/TravelView-<版本>-macOS.zip` |
+| win | `dist/TravelView-<版本>.msix` |
+| android | `dist/TravelView-<版本>.aab`（传 Play）+ `.apk`（自己装） |
+
+打开那个目录：
+
+```
+open ~/Codes/Github3/TravelView/dist
+```
+
+`flutter run -d macos` 编出来的东西在 `build/macos/Build/Products/Debug/`，
+**那是调试产物，不要发给任何人**：它没 bump 版本号、体积大、跑得慢，
+而且依赖你这台机器上的 Flutter。
+
+> `Failed to foreground app; open returned 1` 不是编译错误。
+> 它的意思只是"没能把窗口提到最前面"，App 已经起来了。
+
+### 上线供人下载
+
+安装包**不进 R2**，也不进数据库：它落在网站服务器的 `RELEASES_DIR`
+（默认 `web/.data/releases/<平台>/<版本>/`），下载走 `/api/releases/<id>/download`。
+R2 存的是游记的图片，两回事。
+
+正常路径 —— 在网站后台传：
+
+1. 用管理员账号打开 `https://yourtravelview.com/admin`
+2. 「上传新版本」：选平台、填版本号（和 `VERSION` 里那个一致）、
+   写更新说明、选 `dist/` 里那个文件
+3. 勾**「设为当前版本」**，下载页才会指向它
+
+如果确实想让文件躺在 R2（比如省服务器磁盘或走 CDN）：
+自己把 dmg 传进 R2 的公开桶，拿到 `https://` 直链，然后在同一个上传表单里
+**填「外部下载地址」而不是选文件** —— 后台支持二选一，元数据照样入库，
+下载页照样显示，只是文件由 R2 提供。
+
+**macOS 包目前没签名**，别人下载后 Gatekeeper 会拦。下载页必须写清楚
+右键 →「打开」怎么做，否则十个人有八个以为是病毒。
 
 ---
 

@@ -288,6 +288,52 @@ sudo nginx -t && sudo systemctl reload nginx
 
 ---
 
+## 6.5 发信（忘记密码）
+
+「忘记密码」靠 SMTP 发信。不配的话接口会**如实报错**
+（"这台服务器还没配置发信"），不会假装信已经发出去。
+
+1. Zoho 后台生成一个**应用专用密码**（App Password）。
+   **不是登录密码** —— 开了两步验证之后登录密码根本连不上 SMTP。
+2. 填进 `/etc/travelview/env`：
+
+```
+SMTP_HOST=smtp.zoho.com
+```
+```
+SMTP_PORT=465
+```
+```
+SMTP_USER=travelview@zoho.com
+```
+```
+SMTP_PASS=<那个应用专用密码>
+```
+```
+MAIL_FROM=TravelView <travelview@zoho.com>
+```
+
+3. `sudo systemctl restart travelview-web`
+4. 先跑一次迁移建表（重置记录存在 `password_resets`）：
+
+```
+cd /opt/travelview/web && node scripts/migrate.mjs --apply
+```
+
+5. 冒烟测试：打开 `/zh/forgot`，填自己的邮箱，收信，点链接，改密码。
+
+几条容易踩的：
+
+- **`MAIL_FROM` 里的地址必须就是 `SMTP_USER` 或它在 Zoho 里的别名**，
+  否则 Zoho 直接拒发。这是防伪造发件人的通用规则，不是配置写错。
+- 端口 465 是隐式 SSL；用 587 的话走 STARTTLS，代码里按端口自动切。
+- 欧洲区账号（zoho.eu）host 换成 `smtp.zoho.eu`。
+- 服务器出站 465 端口要通 —— 云厂商默认封 25，但 465/587 一般是开的。
+- 邮件进垃圾箱的话，给域名加 SPF / DKIM（Zoho 后台有现成的记录，
+  抄进 Cloudflare DNS 即可）。
+
+---
+
 ## 7. 分享到 Facebook
 
 公开链接粘进去，卡片必须有大图和标题。不对就用

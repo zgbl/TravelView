@@ -7,6 +7,23 @@
 ///
 /// 查漏用: dart run tool/i18n_scan.dart
 const Map<String, String> kEn = {
+  // ── 忘记密码 ──
+  '忘记密码？': 'Forgot your password?',
+  '重置密码': 'Reset your password',
+  '填你注册时用的邮箱，我们发一个链接过去，在网页上点开就能设新密码。':
+      'Enter the email you signed up with. We will send you a link \u2014 open '
+          'it in your browser to set a new password.',
+  '发送重置链接': 'Send the link',
+  '正在发送...': 'Sending\u2026',
+  '信已经发出去了': 'The email is on its way',
+  '去邮箱点那个链接，就能设置新密码。链接 1 小时内有效，只能用一次。\n\n没收到就看看垃圾邮件；如果这个邮箱没有注册过，是不会收到信的。':
+      'Open the link in it to set a new password. The link expires in an hour '
+          'and works once.\n\nCheck your spam folder if it does not show up '
+          '\u2014 and note that an address that was never registered receives '
+          'nothing.',
+  '邮箱格式不对': 'That email address does not look right',
+  '知道了': 'Got it',
+
   // ── 道路路线：补算 ──
   '补算这 {0} 段': 'Fill in these {0}',
   '补算缺的 {0} 段': 'Fill in the {0} missing',
