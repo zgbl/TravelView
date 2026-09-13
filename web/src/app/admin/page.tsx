@@ -7,6 +7,7 @@ import { query, one } from '@/lib/db';
 import { dayOf } from '@/lib/date';
 import DailyBars from '@/components/DailyBars';
 import ReleaseUpload from '@/components/ReleaseUpload';
+import ReleaseRowActions from '@/components/ReleaseRowActions';
 import { allReleases, humanBytes, platformLabel } from '@/lib/releases';
 
 export const dynamic = 'force-dynamic';
@@ -377,10 +378,11 @@ export default async function Admin() {
                   <td className="py-2 text-muted">
                     {dayOf(r.createdAt)}
                   </td>
-                  <td className="py-2 text-right">
-                    <a href={r.externalUrl ?? `/api/releases/${r.id}/download`}
-                      className="text-xs text-muted hover:text-paper">下载</a>
-                  </td>
+                  <ReleaseRowActions r={{
+                    id: r.id, platform: platformLabel(r.platform),
+                    version: r.version, isCurrent: r.isCurrent,
+                    externalUrl: r.externalUrl,
+                  }} />
                 </tr>
               ))}
             </tbody>

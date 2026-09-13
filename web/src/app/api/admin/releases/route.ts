@@ -153,13 +153,36 @@ export async function DELETE(req: Request) {
     return new NextResponse('Not found', { status: 404 });
   }
   const id = new URL(req.url).searchParams.get('id') ?? '';
-  const row = await one<{ platform: string; version: string; filename: string | null }>(
-    `delete from app_releases where id = $1
-      returning platform, version, filename`, [id]);
+  const row = await one<{
+    platform: string; version: string; filename: string | null; is_current: boolean;
+  }>(`delete from app_releases where id = $1
+      returning platform, version, filename, is_current`, [id]);
   if (!row) return NextResponse.json({ error: '没有这个版本' }, { status: 404 });
+
   if (row.filename) {
-    await rm(path.join(releasesDir, row.platform, row.version),
-      { recursive: true, force: true }).catch(() => {});
+    const dir = path.join(releasesDir, row.platform, row.version);
+    await rm(dir, { recursive: true, force: true }).catch(() => {});
+    // 顺手把这个平台空掉的上层目录也收掉，磁盘上别留一堆空壳
+    await rm(path.dirname(dir), { force: true }).catch(() => {});
   }
-  return NextResponse.json({ ok: true });
+
+  /**
+   * 删掉的正好是「当前版本」时，把该平台剩下最新的一条顶上来。
+   *
+   * 不这么做的话，那个平台会从下载页上**凭空消失** —— 站长只会以为下载页坏了，
+   * 而真正的原因是他刚删掉了当前版本。
+   */
+  let promoted: string | null = null;
+  if (row.is_current) {
+    const next = await one<{ id: string; version: string }>(
+      `select id, version from app_releases
+        where platform = $1 order by created_at desc limit 1`, [row.platform]);
+    if (next) {
+      await query('update app_releases set is_current = true where id = $1',
+        [next.id]);
+      promoted = next.version;
+    }
+  }
+
+  return NextResponse.json({ ok: true, promoted });
 }
