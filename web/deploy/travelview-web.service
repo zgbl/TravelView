@@ -14,12 +14,18 @@ ExecStart=/usr/bin/node server.js
 Restart=always
 RestartSec=3
 
-# 这个服务只该写图片目录，别的地方一律只读
+# 这个服务只该写这两个目录，别的地方一律只读。
+#
+# ⚠ 往这个列表里加目录时**两边都要加**（ReadWritePaths 和进程里用的路径）。
+# 2026-09-13 传安装包就是这么栽的: RELEASES_DIR 指到 /var/lib/travelview/releases，
+# 目录建好、权限也对、以 travelview 身份手动 mkdir 也成功，但服务里报
+# ENOENT —— 因为 ProtectSystem=strict 以后没列进 ReadWritePaths 的路径
+# 在服务的挂载命名空间里根本写不了。
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/var/lib/travelview/media
+ReadWritePaths=/var/lib/travelview/media /var/lib/travelview/releases
 
 [Install]
 WantedBy=multi-user.target
