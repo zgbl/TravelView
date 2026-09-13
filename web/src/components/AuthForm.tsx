@@ -27,7 +27,9 @@ export default function AuthForm(
           body: JSON.stringify({ email, password, name }),
         });
         if (!res.ok) {
-            setError((await res.json()).error ?? t(locale, 'auth.err.network'));
+          const j = await res.json().catch(() => ({}));
+          setError(j.error ?? t(locale, res.status >= 500
+            ? 'auth.err.server' : 'auth.err.network'));
           return;
         }
       }

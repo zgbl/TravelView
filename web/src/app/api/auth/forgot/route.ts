@@ -66,7 +66,10 @@ export async function POST(req: Request) {
     } catch (e) {
       // 发信挂了要让用户知道，否则他会一直刷新邮箱
       console.error('[forgot] 发信失败', e);
-      return NextResponse.json({ error: '发信失败，稍后再试' }, { status: 502 });
+      // ⚠ 用 503 不用 502: Cloudflare 会把源站 502/504 的响应体换成它自己的
+      // "error code: 502"（实测 500/503/429 才原样透传），前端就再也读不到
+      // 这句人话了，只能退化成"网络不通"。
+      return NextResponse.json({ error: '发信失败，稍后再试' }, { status: 503 });
     }
   }
 

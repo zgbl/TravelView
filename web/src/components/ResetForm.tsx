@@ -36,7 +36,8 @@ export default function ResetForm(
       });
       const j = await res.json().catch(() => ({}));
       if (!res.ok) {
-        setError(j.error ?? t(locale, 'auth.err.network'));
+        setError(j.error ?? t(locale, res.status >= 500
+          ? 'auth.err.server' : 'auth.err.network'));
         return;
       }
       // 密码是刚定的，这里一定能登进去；登不进去也不要卡住他，去登录页

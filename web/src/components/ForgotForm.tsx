@@ -28,7 +28,8 @@ export default function ForgotForm({ locale }: { locale: Locale }) {
       });
       if (!res.ok) {
         const j = await res.json().catch(() => ({}));
-        setError(j.error ?? t(locale, 'auth.err.network'));
+        setError(j.error ?? t(locale, res.status >= 500
+          ? 'auth.err.server' : 'auth.err.network'));
         return;
       }
       setSent(true);

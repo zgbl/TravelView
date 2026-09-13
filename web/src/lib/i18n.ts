@@ -199,6 +199,8 @@ export const dict: Dict = {
   'auth.busy': { zh: '请稍候...', en: 'Working...' },
   'auth.err.credentials': { zh: '邮箱或密码不对', en: 'Wrong email or password' },
   'auth.err.network': { zh: '网络不通，稍后再试一次', en: 'Network error, try again' },
+  // 服务端 5xx 跟"网络不通"是两回事: 说成网络问题会把排查方向彻底带偏
+  'auth.err.server': { zh: '服务器暂时出错，稍后再试', en: 'Server error, try again later' },
   'auth.err.signedup': {
     zh: '账号建好了，但自动登录失败，去登录页试一次',
     en: 'Account created, but sign-in failed. Try the log in page.',
