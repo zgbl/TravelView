@@ -120,7 +120,7 @@ export default async function Admin() {
   const published = series(pubRows);
 
   const [recent, recentErr] = await safe('最近注册', () => query<{
-    email: string; created_at: string; stories: string;
+    email: string; created_at: string | Date; stories: string;
   }>(`select u.email, u.created_at,
              (select count(*) from stories s where s.user_id = u.id)::text
                as stories
@@ -300,7 +300,7 @@ export default async function Admin() {
                     {r.stories} 篇
                   </td>
                   <td className="py-2 pl-3 text-right text-xs text-muted">
-                    {r.created_at.toString().slice(0, 10)}
+                    {dayOf(r.created_at)}
                   </td>
                 </tr>
               ))}
