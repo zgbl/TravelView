@@ -314,10 +314,27 @@ MAIL_FROM=TravelView <travelview@zoho.com>
 ```
 
 3. `sudo systemctl restart travelview-web`
-4. 先跑一次迁移建表（重置记录存在 `password_resets`）：
+   （只改了 env、没动代码时，这一步就够了；服务只读
+   `/etc/travelview/env`，放在 `/etc/travelview/smtp.env` 之类的文件里它看不到）
+4. 建表。**迁移脚本在源码目录 `/opt/travelview/src/web`，不是
+   `/opt/travelview/web`** —— 后者是构建产物目录，里面只有 `current` 软链和
+   编译结果，没有 `scripts/`：
 
 ```
-cd /opt/travelview/web && node scripts/migrate.mjs --apply
+cd /opt/travelview/src/web
+```
+```
+set -a; . /etc/travelview/env; set +a
+```
+```
+node scripts/migrate.mjs --apply
+```
+
+   报 `Cannot find module .../scripts/migrate.mjs`，十有八九是**代码还没拉到
+   这台机器上**（新加的迁移和接口都还在 GitHub 上）。先让它上线：
+
+```
+sudo bash /usr/local/bin/travelview-autodeploy.sh
 ```
 
 5. 冒烟测试：打开 `/zh/forgot`，填自己的邮箱，收信，点链接，改密码。
