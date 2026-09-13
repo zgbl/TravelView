@@ -2,12 +2,15 @@ import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
 import StoryRenderer from '@/components/StoryRenderer';
 import ShareBar from '@/components/ShareBar';
+import StoryOutro, { StoryHomeLink } from '@/components/StoryOutro';
+import { requireUser } from '@/lib/auth';
 import { getLocale } from '@/lib/i18n.server';
 import { one, query } from '@/lib/db';
 import { mediaUrl, type Story } from '@/lib/story';
 
 type Row = {
   slug: string;
+  user_id: string;
   media_prefix: string | null;
   title: string;
   subtitle: string | null;
@@ -18,7 +21,8 @@ type Row = {
 
 async function load(slug: string) {
   return one<Row>(
-    `select slug, media_prefix, title, subtitle, cover_path, manifest, visibility
+    `select slug, user_id, media_prefix, title, subtitle, cover_path,
+            manifest, visibility
        from stories
       where slug = $1 and visibility <> 'private'
         and published_at is not null`,
@@ -101,16 +105,20 @@ export default async function PublicStory(
   query('select bump_story_view($1)', [slug]).catch(() => {});
 
   const locale = await getLocale();
+  const me = await requireUser();
   const url = `${process.env.NEXT_PUBLIC_SITE_URL}/${locale}/s/${row.slug}`;
   return (
     <>
-      {/* 底部分享条是固定的，留出空间，别压住结束卡片 */}
+      {/* 中途划走的人也要有一条回去的路，不能只有读到底的人才有 */}
+      <StoryHomeLink locale={locale} />
+      <StoryRenderer
+        locale={locale}
+        story={row.manifest}
+        prefix={row.media_prefix ?? `s/${row.slug}`}
+      />
+      {/* 底部分享条是固定的，留出空间，别压住这一块 */}
       <div className="pb-24">
-        <StoryRenderer
-          locale={locale}
-          story={row.manifest}
-          prefix={row.media_prefix ?? `s/${row.slug}`}
-        />
+        <StoryOutro locale={locale} isAuthor={me?.id === row.user_id} />
       </div>
       {/* 未公开的（unlisted）也给分享入口 —— 用户自己拿链接给谁是他的事 */}
       <ShareBar url={url} title={row.title} locale={locale} />

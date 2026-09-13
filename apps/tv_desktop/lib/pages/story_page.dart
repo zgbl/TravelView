@@ -398,8 +398,12 @@ class _StoryPageState extends State<StoryPage> {
     );
   }
 
-  /// 工具栏那个按钮上的一句话摘要。**要能一眼看出当前是什么设置** ——
-  /// 一个只写"呈现"的按钮，用户每次都得点开才知道自己上次选了什么。
+  /// 按钮上那行字**必须是"这里面装着什么"，不是"现在是什么状态"**。
+  ///
+  /// 之前按钮直接显示当前封面模式，于是配乐的入口写着「整屏地图」——
+  /// 音乐怎么会在地图里？用户（包括作者自己）找半天都找不到。
+  /// 状态摘要退到 tooltip 里；配乐有没有单独用 ♪ 标出来，
+  /// 因为那是唯一一个"传过就该一直在"的东西。
   String _lookSummary() {
     final cover = {
       'auto': tr('自动封面'), 'map': tr('整屏地图'), 'mapcard': tr('地图卡片'), 'photo': tr('照片封面'),
@@ -423,7 +427,7 @@ class _StoryPageState extends State<StoryPage> {
           final scheme = Theme.of(ctx).colorScheme;
           void refresh() { setLocal(() {}); setState(() {}); }
           return AlertDialog(
-            title: Text(tr('这篇怎么呈现')),
+            title: Text(tr('这篇的设置：封面 · 配乐 · 距离单位')),
             content: SizedBox(
               width: 460,
               child: Column(
@@ -922,11 +926,18 @@ class _StoryPageState extends State<StoryPage> {
               // 封面、距离单位、配乐都是"这篇长什么样"，不是"现在要做什么"。
               // 它们平时不用改，却一直占着工具栏最贵的横向空间 ——
               // 而这一行还要继续加东西，塞到最后就是谁也看不清。
-              OutlinedButton.icon(
-                onPressed: _openLookSettings,
-                icon: const Icon(Icons.tune, size: 15),
-                label: Text(_lookSummary(),
-                    style: const TextStyle(fontSize: 12)),
+              Tooltip(
+                message: _lookSummary(),
+                child: OutlinedButton.icon(
+                  onPressed: _openLookSettings,
+                  icon: const Icon(Icons.tune, size: 15),
+                  label: Text(
+                    widget.c.music.isEmpty
+                        ? tr('这篇的设置')
+                        : trf('这篇的设置 · ♪{0}', [widget.c.music.length]),
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
               ),
 
               _sep(scheme),

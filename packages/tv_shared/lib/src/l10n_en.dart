@@ -138,7 +138,10 @@ const Map<String, String> kEn = {
   '清除查找': 'Clear search',
 
   // ── 呈现设置 ──
-  '这篇怎么呈现': 'How this story looks',
+  '这篇的设置：封面 · 配乐 · 距离单位':
+      'This story: cover, music, distance units',
+  '这篇的设置': 'This story\u2019s settings',
+  '这篇的设置 · \u266a{0}': 'This story\u2019s settings \u00b7 \u266a{0}',
   '封面': 'Cover',
   '整屏地图': 'Full-screen map',
   '地图卡片': 'Map card',

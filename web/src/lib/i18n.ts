@@ -463,6 +463,34 @@ export const dict: Dict = {
     en: 'Tap ··· at the top right, then "Send to Chat" or "Share to Moments"',
   },
 
+  // ── 故事读完之后（最大的一个入口，别拆）──
+  'outro.title': {
+    zh: '你的照片里也有这样一趟旅行',
+    en: 'There is a trip like this in your photos too',
+  },
+  'outro.body': {
+    zh: '这篇回顾是用 TravelView 做的：从照片自己的时间和位置还原出路线，'
+      + '挑出值得看的那些，生成一个可以分享的页面。原图始终留在你自己的电脑上。',
+    en: 'This story was made with TravelView: it rebuilds the route from your '
+      + 'photos\u2019 own time and location, picks the ones worth showing, and '
+      + 'turns them into a page you can share. Your originals never leave your '
+      + 'own computer.',
+  },
+  'outro.cta': { zh: '去 TravelView 主页', en: 'Go to TravelView' },
+  'outro.cta2': { zh: '免费做一篇', en: 'Make one free' },
+  'outro.note': {
+    zh: '免费开始，不需要先付费。',
+    en: 'Free to start \u2014 no payment up front.',
+  },
+
+  'outro.author.title': { zh: '这一篇就是这样了', en: 'That\u2019s the story' },
+  'outro.author.body': {
+    zh: '接着做下一趟，或者回去管理已经发布的这些。',
+    en: 'Start the next trip, or go back and manage what you have published.',
+  },
+  'outro.author.cta': { zh: '回到我的故事', en: 'Back to my stories' },
+  'outro.author.cta2': { zh: 'TravelView 主页', en: 'TravelView home' },
+
   'story.days': { zh: '天', en: 'DAYS' },
   'story.stops': { zh: '站', en: 'STOPS' },
   'story.miles': { zh: '英里', en: 'MILES' },

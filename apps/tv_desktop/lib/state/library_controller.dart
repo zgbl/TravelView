@@ -1144,10 +1144,22 @@ class LibraryController extends ChangeNotifier {
           ? _tmpCover
           : (old?.coverPhotoId ?? ''),
       coverMode: _tmpCoverMode,
+      // **这里每漏一个字段，用户就会丢一次东西。**
+      // 之前漏了配乐：保存草稿 = 用一个新的 Project 覆盖旧的，
+      // 没写进来的字段全部回到默认值，于是"传了音乐 -> 改个字 -> 保存"
+      // 之后音乐就没了，用户还得重新上传一遍。
+      // 加字段时**必须同时加到这里**，宁可啰嗦。
+      units: _tmpUnits,
+      music: List.of(_tmpMusic),
+      musicRightsOk: _tmpRights,
       storyTitle: _tmpTitle,
       storySubtitle: _tmpSubtitle,
       publishedStoryId: old?.publishedStoryId ?? '',
       publishedUrl: old?.publishedUrl ?? '',
+      // 发布指纹也一样 —— 丢了它，下次发布会被判成"另一趟行程"，
+      // 只能新发一篇、再扣一次额度
+      publishedKey: old?.publishedKey ?? '',
+      publishedTitle: old?.publishedTitle ?? '',
     );
     projects.removeWhere((e) => e.name == trimmed);
     projects.insert(0, proj);
