@@ -208,6 +208,14 @@ export default async function Billing({
             busyLabel={t(L, 'checkout.busy')}
             errLabel={t(L, 'checkout.err')}
             loginPath={href(L, '/login')}
+            qrLabels={{
+              action: t(L, 'checkout.qr.action'),
+              title: t(L, 'checkout.qr.title'),
+              hint: t(L, 'checkout.qr.hint'),
+              done: t(L, 'checkout.qr.done'),
+              failed: t(L, 'checkout.qr.failed'),
+              close: t(L, 'checkout.qr.close'),
+            }}
           />
         ) : (
           <p className="mt-6 rounded-xl border border-white/12 px-4 py-3

@@ -432,6 +432,22 @@ export const dict: Dict = {
     zh: '暂时无法发起支付，请稍后再试',
     en: "Couldn't start checkout — please try again",
   },
+  // 扫码支付。二维码里装的是**这个用户自己的会话地址**，
+  // 不是 Stripe 后台那个 Payment Link（静态的，认不出扫码的是谁）
+  'checkout.qr.action': { zh: '扫码支付', en: 'Scan to pay' },
+  'checkout.qr.title': { zh: '用手机扫码支付', en: 'Scan with your phone' },
+  'checkout.qr.hint': {
+    zh: '打开手机相机，或微信「扫一扫」。付款在手机上完成，'
+      + '付完回到这一页点下面的按钮就行。',
+    en: 'Use your phone camera, or “Scan” in WeChat. Payment happens on '
+      + 'your phone — come back to this page and tap the button below.',
+  },
+  'checkout.qr.done': { zh: '我已付好，刷新额度', en: "I've paid — refresh" },
+  'checkout.qr.failed': {
+    zh: '二维码没画出来。稍后在本页重试，或直接在这台电脑上付。',
+    en: "The QR didn't render. Try again here, or just pay on this computer.",
+  },
+  'checkout.qr.close': { zh: '关闭', en: 'Close' },
 
   // 档位名。价格数字不翻译，文字要翻译
   'plan.pro_yearly.name': { zh: 'Pro · 年付', en: 'Pro · yearly' },
