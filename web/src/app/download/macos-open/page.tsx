@@ -1,4 +1,3 @@
-import NavBar from '@/components/NavBar';
 import SiteFooter from '@/components/SiteFooter';
 import { getLocale } from '@/lib/i18n.server';
 import { href } from '@/lib/i18n';
@@ -59,7 +58,6 @@ export default async function MacOpenPage() {
 
   return (
     <main className="min-h-screen bg-ink text-paper">
-      <NavBar />
       <section className="mx-auto max-w-4xl px-6 py-16">
         <a href={href(L, '/download')} className="inline-block text-sm text-muted hover:text-paper">
           {T('back')}

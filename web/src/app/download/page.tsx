@@ -1,5 +1,4 @@
 import { headers } from 'next/headers';
-import NavBar from '@/components/NavBar';
 import SiteFooter from '@/components/SiteFooter';
 import MacArchHint from '@/components/MacArchHint';
 import { getLocale } from '@/lib/i18n.server';
@@ -34,7 +33,6 @@ export default async function Download() {
 
   return (
     <main className="min-h-screen bg-ink text-paper">
-      <NavBar />
       <section className="mx-auto max-w-4xl px-6 py-16">
         <h1 className="text-[clamp(28px,4vw,44px)] font-semibold tracking-tight">
           {t(L, 'dl.title')}

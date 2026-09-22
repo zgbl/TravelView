@@ -61,7 +61,8 @@ class _LoginPageState extends State<LoginPage> {
         child: ListView(
           padding: const EdgeInsets.fromLTRB(26, 60, 26, 26),
           children: [
-            Icon(Icons.travel_explore, size: 46, color: scheme.primary),
+            // 品牌标记，和 app 图标、网站是同一枚
+            Image.asset('assets/logo.png', width: 46, height: 46),
             const SizedBox(height: 18),
             const Text('TravelView',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700)),

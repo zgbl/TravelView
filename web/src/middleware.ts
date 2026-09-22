@@ -21,7 +21,12 @@ export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
   // 静态资源、API、图片一律不碰
-  if (/^\/(api|_next|media|favicon|robots|sitemap)/.test(pathname)) {
+  //
+  // brand / icon.png / apple-icon.png 是品牌图。漏了它们不会 404 ——
+  // 会被 302 到 /zh/... 再 rewrite 回来，只是凭空多一跳。
+  // favicon 和 brand 每个页面都要取，icon/apple-icon 是浏览器开页就拉，
+  // 都不该绕这一下。
+  if (/^\/(api|_next|media|brand|favicon|icon\.png|apple-icon\.png|robots|sitemap)/.test(pathname)) {
     return NextResponse.next();
   }
 
@@ -56,5 +61,7 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next/static|_next/image|media|favicon.ico).*)'],
+  matcher: [
+    '/((?!api|_next/static|_next/image|media|brand|favicon|icon\\.png|apple-icon\\.png).*)',
+  ],
 };

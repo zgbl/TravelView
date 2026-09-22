@@ -52,3 +52,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # 登录页顶上的品牌标记，由 tools/brand/build_logo_assets.py 从源图生成
+    - assets/logo.png

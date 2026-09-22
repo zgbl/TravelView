@@ -23,6 +23,11 @@ test-output/runs/
 !**/tv_desktop/assets/*.png
 !**/assets/logo*.png
 
+# 新 logo 的**源图**。tools/brand/build_logo_assets.py 从它推各端尺寸，
+# 缺了它脚本在别的机器上跑不起来。只留这一张 master ——
+# 其余尺寸都是脚本产物，进库只会各自失同步
+!shared/logo/earth/travelview_earth.png
+
 # ── Dart / Flutter 构建产物 ──
 .dart_tool/
 .flutter-plugins
@@ -50,8 +55,15 @@ DerivedData/
 # ── 系统垃圾 ──
 .DS_Store
 _to_delete/
+__pycache__/
 # TravelView 下载页帮助截图（放 web/public/ 下供站点引用）
 !**/web/public/**/*.png
+
+# Next.js 的 metadata 图标约定: web/src/app/ 下这两个**文件名本身就是路由**。
+# 一直被 *.png 挡在库外，于是换台机器构建出来的站点根本不发
+# <link rel="icon" type="image/png">，只剩一个 favicon.ico
+!web/src/app/icon.png
+!web/src/app/apple-icon.png
 
 
 # 出包产物（tools/build.sh 写的）
