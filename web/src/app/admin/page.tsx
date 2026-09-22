@@ -16,7 +16,7 @@ export const dynamic = 'force-dynamic';
  * 站长后台。
  *
  * 只回答三个问题:
- *   1. 有多少人注册了（离 100 人还差多远 —— 到了就该开始收费）
+ *   1. 有多少人注册了（离免费期结束还差多远 —— 到了就该开始收费）
  *   2. 有没有人真的发布
  *   3. 发出去的东西有没有人看
  *
@@ -70,7 +70,7 @@ export default async function Admin() {
   keep(relErr);
 
   const [beta, betaErr] = await safe('内测名额', betaState,
-    { free: true, users: 0, limit: 100, remaining: 100 });
+    { free: true, users: 0, limit: 10, remaining: 10 });
   keep(betaErr);
 
   const stripe = stripeStatus();

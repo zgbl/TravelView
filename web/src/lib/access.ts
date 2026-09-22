@@ -4,7 +4,11 @@ import { one } from './db';
  * 谁可以发布。
  *
  * 现在是**公测期：所有注册用户都按付费用户对待**，不扣额度、不看订阅。
- * 等注册数到了 `FREE_BETA_LIMIT`（默认 100）自动结束，转为按额度收费。
+ * 等注册数到了 `FREE_BETA_LIMIT`（默认 10）自动结束，转为按额度收费。
+ *
+ * ⚠ 这是个**全局开关，不是"前 N 个用户终身免费"**:
+ * 第 11 个人注册的那一刻 `users < limit` 就不成立了，公测期对**所有人**结束 ——
+ * 包括第 1 个注册的人。要改成"先来的永远免费"得另做一套，别以为改这个数就够了。
  *
  * 为什么用"注册人数"当闸门，而不是日期:
  * 日期到了但只有 3 个用户，这时候收费只会把仅有的几个人吓走；
@@ -15,7 +19,7 @@ import { one } from './db';
  *   FREE_BETA=on    强制免费，不看人数
  *   FREE_BETA=off   立刻开始收费
  */
-export const freeBetaLimit = Number(process.env.FREE_BETA_LIMIT ?? 100);
+export const freeBetaLimit = Number(process.env.FREE_BETA_LIMIT ?? 10);
 const mode = (process.env.FREE_BETA ?? 'auto').toLowerCase();
 
 export type BetaState = {
