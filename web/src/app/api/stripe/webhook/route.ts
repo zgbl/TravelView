@@ -49,18 +49,45 @@ export async function POST(req: Request) {
   }
 
   // 续费成功、被暂停、过期，都从这一个事件走 ——
-  // 以 Stripe 的 current_period_end 为准，不要自己算一年后是哪天
+  // 以 Stripe 的账期为准，不要自己算一年后是哪天
   if (event.type === 'customer.subscription.updated' ||
       event.type === 'customer.subscription.created') {
     const sub = event.data.object as any;
-    const until = sub.current_period_end
-      ? new Date(sub.current_period_end * 1000).toISOString()
-      : null;
-    await one(
-      `update users set subscription_status = $2, subscription_until = $3
-         where stripe_customer_id = $1`,
-      [String(sub.customer), String(sub.status), until],
-    );
+    /**
+     * 账期字段在**两个地方**，都要认。
+     *
+     * Stripe 从 2025-03-31.basil 起把 current_period_end 从 Subscription 顶层
+     * 挪到了 subscription item 上。而 webhook 的 payload 是按**端点配置的
+     * API 版本**渲染的 —— 端点用 dahlia 就只在 items[0] 里，用 acacia 才在顶层。
+     * 同一个应用的本地/测试/线上可能各配各的，所以不能只读一个位置。
+     *
+     * 只看顶层会拿到 undefined，把 subscription_until 写成 NULL，
+     * 而 entitlementOf() 把 NULL 当成"永不过期" —— 等于白送。
+     */
+    const periodEnd = sub.current_period_end ??
+      sub.items?.data?.[0]?.current_period_end;
+
+    if (periodEnd) {
+      const until = new Date(periodEnd * 1000).toISOString();
+      await one(
+        `update users set subscription_status = $2, subscription_until = $3
+           where stripe_customer_id = $1`,
+        [String(sub.customer), String(sub.status), until],
+      );
+    } else {
+      // 两个位置都没有: 说明字段名又变了。**这时绝不能写 NULL** ——
+      // 保留旧的到期时间，最坏是沿用上一期，好过变成永久免费。
+      // 只更新状态，并把这件事喊出来，别让它静默发生。
+      console.error(
+        '[stripe webhook] 取不到账期，subscription_until 保持不变', {
+          eventId: event.id, type: event.type,
+          customer: sub.customer, status: sub.status,
+        });
+      await one(
+        `update users set subscription_status = $2 where stripe_customer_id = $1`,
+        [String(sub.customer), String(sub.status)],
+      );
+    }
   }
 
   if (event.type === 'customer.subscription.deleted') {

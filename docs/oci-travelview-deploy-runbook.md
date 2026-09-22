@@ -85,13 +85,32 @@
   然后我在这台机上跑 `certbot` 即可，不需要你贴任何证书。
 
 ### 4.2 Stripe（两条路线都需要）
-把 `/etc/travelview/env` 里这几个占位符换成真实值，然后 `sudo systemctl restart travelview-web`：
-`STRIPE_SECRET_KEY`（sk_test_… 或 sk_live_…）、`STRIPE_PRICE_ONETIME`（price_…）、
-可选 `STRIPE_PRICE_SUBSCRIPTION`；webhook 地址填 `https://travelview.blackrice.top/api/stripe/webhook`
-（事件：checkout.session.completed / customer.subscription.updated / customer.subscription.deleted），
+把 `/etc/travelview/env` 里的 Stripe 段换成真实值，然后 `sudo systemctl restart travelview-web`：
+`STRIPE_SECRET_KEY`（sk_test_… 或 sk_live_…），加 5 条 price ID ——
+`STRIPE_PRICE_PRO_YEARLY`（$50/年）、`STRIPE_PRICE_PRO_MONTHLY`（$8/月）、
+`STRIPE_PRICE_CREDITS_5`（$5=2 篇）、`STRIPE_PRICE_CREDITS_10`（$10=5 篇）、
+`STRIPE_PRICE_CREDITS_25`（$25=15 篇）。测试和正式是两套完全不同的 ID，
+**切换只改这一段，代码一行不动**（模式由密钥前缀 `sk_test_` / `sk_live_` 决定）。
+
+webhook 地址填 `https://yourtravelview.com/api/stripe/webhook`
+
+> ⚠ **必须用裸域，不要填 `www.yourtravelview.com`。**
+> nginx 把 www 301 到裸域，而 **Stripe 不跟随跳转**，3xx 一律算投递失败 ——
+> 填 www 的结果是每一笔付款的 webhook 都到不了，额度一条都发不出去。
+
+事件勾这 5 个，少一个就会出事：
+
+| 事件 | 漏了会怎样 |
+|---|---|
+| `checkout.session.completed` | 付了钱不发额度 |
+| `customer.subscription.created` / `.updated` | 续费后 `subscription_until` 不更新 → 续了费的人到期反而失去权限 |
+| `customer.subscription.deleted` | 退订后状态还留在 `active` |
+| `invoice.payment_failed` | 卡过期了不知道，不会标 `past_due` |
+
 拿到 `whsec_…` 填 `STRIPE_WEBHOOK_SECRET`。
 
-> **注意** 现在的 env 里 Stripe 还是占位符，**没有真实支付能力**；`NEXT_PUBLIC_MAP_TILES`
+> **注意** 截至 2026-09-22，env 里是 **test 模式**的真实密钥 + 5 条 test price，
+> live 配置还没有；`NEXT_PUBLIC_MAP_TILES`
 > 也还指向公共 OSM（正式流量前要换成自托管，见 `Design/map-tiles.md`）。
 
 ### 4.3 证书就位后的收尾命令（届时我来执行）
