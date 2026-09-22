@@ -19,6 +19,7 @@ export 'src/l10n.dart';
 export 'src/music.dart';
 export 'src/profile.dart';
 export 'src/projects.dart';
+export 'src/route_planner.dart';
 export 'src/stories_store.dart';
 export 'src/story_bundle.dart';
 export 'src/story_exporter.dart';

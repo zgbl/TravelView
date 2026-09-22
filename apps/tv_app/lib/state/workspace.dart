@@ -60,6 +60,13 @@ class Workspace {
   /// 界面上的缩略图直接问系统相册要，不落盘（见 AssetThumb）。
   Directory get analysisDir => Directory(p.join(root.path, 'analysis'));
 
+  /// 路线缓存。算过一次的每一段路都留在这儿。
+  ///
+  /// 一趟 30 站的行程是 29 次规划请求，配了 openrouteservice 的话
+  /// 重发一次要等半分钟。缓存住之后，只有没算过的段才会打网络。
+  /// 里面全是派生数据，被系统清掉或用户手动清缓存都只是重算一遍。
+  File get routeCacheFile => File(p.join(root.path, 'routes.json'));
+
   Future<Directory> ensure(Directory d) => d.create(recursive: true);
 
   /// 发布成功、或者用户放弃这一篇之后，把它的中间产物删掉。

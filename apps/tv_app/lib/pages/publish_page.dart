@@ -79,6 +79,30 @@ class _PublishPageState extends State<PublishPage> {
         final out = Workspace.instance.exportDir(widget.title);
         await Workspace.instance.ensure(out);
 
+        // ── 先把路线补齐。**Story 里绝不能没有线。** ──
+        //
+        // 原来这里传的是 `legs: const []`，于是手机发出去的每一篇
+        // 地图上都只剩几个孤零零的点 —— 而路线是这个产品的主视觉，
+        // 同一趟行程从桌面端发就有线、从手机发就没有，说不过去。
+        //
+        // planStoryLegs 不抛异常: 没配路线服务时它逐段退回直线
+        // （和桌面端同一条规则），所以这一步只会让地图从"没有线"
+        // 变成"有线"，不会让发布失败。有缓存，重发不用重算。
+        final routeCache = RouteCache(Workspace.instance.routeCacheFile);
+        await routeCache.load();
+        setState(() => _label = tr('正在准备路线'));
+        final legs = await planStoryLegs(
+          widget.route,
+          widget.account.settings,
+          cache: routeCache,
+          onProgress: (d, t) {
+            if (mounted) {
+              setState(() { _done = d; _total = t; _label = tr('正在规划路线'); });
+            }
+          },
+        );
+        if (mounted) setState(() { _done = 0; _total = 0; _label = ''; });
+
         final exporter = StoryExporter(
           source: AlbumSource(widget.photos),
           outRoot: out,
@@ -92,7 +116,7 @@ class _PublishPageState extends State<PublishPage> {
           // 由 StoryBuilder 回落到第一站首图 —— 和桌面端同一条规则。
           coverPhotoId: widget.draft.coverId,
           coverMode: widget.draft.coverId == null ? 'auto' : 'photo',
-          legs: const [],
+          legs: legs,
           title: widget.draft.effectiveTitle,
           subtitle: widget.draft.subtitle.trim().isEmpty
               ? null
