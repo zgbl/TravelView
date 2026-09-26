@@ -38,7 +38,8 @@
 | 备份 | `/etc/cron.daily/travelview-backup` → `/var/backups/tv-*.sql.gz / tv-media-*.tgz`，保留 30 天 |
 | 正式域名 | `yourtravelview.com`（Cloudflare 橙云 → 129.80.4.27；`www` 301 到裸域） |
 | 老域名 | `travelview.blackrice.top`（**继续直接服务、不跳转**，只是账号类页面 301 到正式域名） |
-| 环境变量 | `AUTH_URL=https://yourtravelview.com` + `NEXT_PUBLIC_SITE_URL/MEDIA_BASE` 同域（见 §9） |
+| 演示站 | `demo.yourtravelview.com`（**灰云 DNS-only → 另一台实例 `193.122.150.15`，不在生产机上**；证书与配置见 §9） |
+| 环境变量 | `AUTH_URL=https://yourtravelview.com` + `NEXT_PUBLIC_SITE_URL/MEDIA_BASE` 同域（见 §6.5） |
 
 ---
 
@@ -162,6 +163,7 @@ sudo bash /etc/cron.daily/travelview-backup
 | 页面说"网络不通"，但 nginx 日志里明明是 502 | **Cloudflare 把源站 502/504 的响应体换成了它自己的 `error code: 502`**，前端的 `res.json()` 解析失败，只能退化成"网络不通"。实测 500/503/429 的响应体是原样透传的 —— 所以**业务错误别用 502/504 表达**，用 503（发信失败就是这么改的）。 |
 | 文字在、图片全裂 | nginx /media/ 段没配 / NEXT_PUBLIC_MEDIA_BASE 不对 |
 | 改了 NEXT_PUBLIC_* 不生效 | 它编译进前端，必须重跑 release.sh |
+| **演示站**地址栏 "Not Secure" / DevTools "broken HTTPS" + "active content with certificate errors" | 演示站是灰云，证书得由演示机自己出。多半是 `demo.yourtravelview.com` 的 Let's Encrypt 证书缺失或名字不匹配，nginx 对该 SNI 回落到了默认 server 块的证书（见 §9）。**把生产机那套 Cloudflare Origin CA 证书搬过去没用** —— 浏览器不认 Origin CA。 |
 
 ---
 
@@ -212,4 +214,174 @@ Proxied（橙云），公网只见 Cloudflare 边缘 IP，看不到源站 129.80
   - TensuGo（`https://tensugo.com`）→ 200，未受影响
 - **提醒**：Cloudflare SSL 模式需为 **Full (strict)**（当前公网 200 说明已生效）。
 - **还欠**：真实 Stripe 密钥（§4.2）；地图瓦片仍指向公共 OSM（见 `Design/map-tiles.md`）。
+
+---
+
+## 9. 演示站 `demo.yourtravelview.com`（独立实例，2026-09-26 补记）
+
+### 9.1 它和主站不是一台机器
+
+这是本节最要紧的一条，**别把两边的 nginx 配置互相抄**：
+
+| | 正式站 | 演示站 |
+|---|---|---|
+| 域名 | `yourtravelview.com` | `demo.yourtravelview.com` |
+| DNS | Cloudflare **Proxied（橙云）** | **DNS-only（灰云）** |
+| 解析到 | `129.80.4.27`（生产机） | **`193.122.150.15`（另一台 OCI 实例）** |
+| 访客看到的证书 | Cloudflare 边缘证书 | **演示机自己的 Let's Encrypt** |
+| 源站证书 | Cloudflare **Origin CA**（`/etc/ssl/travelview/yourtravelview_origin.pem`） | **Let's Encrypt**（`/etc/letsencrypt/live/demo.yourtravelview.com/`） |
+| nginx 配置 | `/etc/nginx/sites-available/travelview` | `/etc/nginx/sites-available/demo.yourtravelview.com`（仓库源文件 `web/deploy/nginx-travelview-demo.conf`） |
+| SSH | `ubuntu@129.80.4.27`（`~/Documents/Work/OCI/Keys/` 下的私钥） | `ubuntu@193.122.150.15`（`~/Documents/JH/2026/Cloudflare/OCI-Key/ssh-key-2026-09-25.key`） |
+
+> 生产机 `129.80.4.27` 上**没有、也不该有** demo 的 server 块
+> （2026-09-26 用 `sudo nginx -T | grep server_name` 确认过，只有 tensugo / forum /
+> yourtravelview / www / blackrice 这些）。
+
+### 9.2 2026-09-26 那次 broken HTTPS 的根因
+
+现象（用户截图）：
+
+- Chrome 地址栏 `Not Secure`
+- DevTools → Security：`This page isn't secure (broken HTTPS).`
+  → Resources：`active content with certificate errors`
+  → `You have recently allowed content loaded with certificate errors (such as scripts or iframes) to run on this site.`
+
+根因：**演示站当时没有属于自己的证书**。演示站是灰云，浏览器直连 `193.122.150.15`；
+该 SNI 在演示机上匹配不到带证书的 server 块，nginx 回落到当时唯一可用的 443
+server 块的证书，名字和 `demo.yourtravelview.com` 对不上 → 整页证书校验失败。
+用户点了"继续访问"后，同一连接上加载的脚本/iframe 就都记成"certificate errors"
+的 active content。
+
+**为什么主站没事**：主站走 Cloudflare 橙云，访客那一段的证书由 CF 边缘提供，
+源站用不用 Origin CA 浏览器根本看不到。演示站是灰云，这套就完全不适用 ——
+**Origin CA 证书只有 Cloudflare 认，浏览器不认**，照抄主站必然翻车。
+
+当天 `02:19:36 UTC` 签发 `demo.yourtravelview.com` 的 Let's Encrypt 证书后恢复正常。
+
+### 9.3 复验（2026-09-26，公网 + 登机双重复核，全绿）
+
+公网侧与登录后两侧都核过：`nginx -t` 通过；`/etc/nginx/sites-available/demo.yourtravelview.com`
+与仓库 `web/deploy/nginx-travelview-demo.conf` **非注释部分 47/47 行一致**。
+
+```bash
+# 证书名字、签发者、有效期  →  CN=demo.yourtravelview.com / issuer=Let's Encrypt / Verify 0
+echo | openssl s_client -connect demo.yourtravelview.com:443 \
+      -servername demo.yourtravelview.com 2>/dev/null | \
+      openssl x509 -noout -subject -issuer -dates
+
+# 跳转与响应
+curl -sSI http://demo.yourtravelview.com/en    | head -1   # 301 → https
+curl -sSI https://demo.yourtravelview.com/en   | head -1   # 200
+```
+
+实测结果：A 记录唯一（`193.122.150.15`，无 AAAA、无 CNAME）；证书
+`notBefore=Sep 26 02:19:36 2026` / `notAfter=Dec 25 02:19:35 2026`；
+链路 leaf → YE1 → Root YE → ISRG Root X2，TLS 1.2 与 1.3 均 `Verify return code: 0`；
+`http` → `301 https`；`/en` → `HTTP/2 200`；`/media/**` 与 `/_next/static/**`
+由 nginx 直发（`cache-control: public, max-age=31536000, immutable`）。
+
+> 附注：演示站 `/robots.txt` 返回 Next 的 404 页，而主站返回一份"内容信号"策略文本 ——
+> 这**不是**演示站版本旧。那份 robots.txt 是 **Cloudflare 注入**的
+> （响应头 `server: cloudflare` + `cf-cache-status: BYPASS`），灰云站自然没有。
+
+### 9.4 这台机器长什么样（2026-09-26 登录实测）
+
+SSH：`ssh -i /Users/tuxy/Documents/JH/2026/Cloudflare/OCI-Key/ssh-key-2026-09-25.key ubuntu@193.122.150.15`
+（**不是** `~/Documents/Work/OCI/Keys/` 里那些 —— 那批私钥在这台机器上全部被拒。）
+
+| 项 | 值 |
+|---|---|
+| hostname | `instance-20260925-cf-demo`（Ubuntu 24.04 aarch64） |
+| 代码 | `/opt/TravelView`（ubuntu 用户克隆，HEAD `467b0f5`，与仓库 main 同点） |
+| 发布根 | `/opt/travelview/web/releases/<时间戳>` + `current` 软链 |
+| systemd | `travelview-web.service`（跑在 `0.0.0.0:3001`，与生产机同款 unit，含 `ProtectSystem=strict` + `ReadWritePaths`） |
+| env | `/etc/travelview/env`，`AUTH_URL` / `NEXT_PUBLIC_SITE_URL` / `NEXT_PUBLIC_MEDIA_BASE` **都指向 `demo.yourtravelview.com`**（自洽，链接不会跑回主站） |
+| nginx 站点 | `/etc/nginx/sites-available/demo.yourtravelview.com`（79 行，**把反代与 /media 段落内联写全**，不用 snippet） |
+| 上游 | 文件里 `upstream travelview_app { server 127.0.0.1:3001; }` —— 改端口只改这一处 |
+| 证书 | `/etc/letsencrypt/live/demo.yourtravelview.com/`，ECDSA，`notAfter=2026-12-25 02:19:35 UTC` |
+| 续期 | certbot 2.9.0，`authenticator = webroot`，`webroot_path = /var/www/certbot`；`certbot.timer` **在跑**；已装 deploy hook 在续期后 `systemctl reload nginx`（见 §9.5） |
+
+**仓库源文件**：`web/deploy/nginx-travelview-demo.conf` —— 已与线上文件**逐行比对，
+非注释部分 47/47 行完全一致**，并在本机 `nginx -t` 通过（用桩证书/桩路径验证）。
+改仓库那份之后，记得同步回这台机器再 `nginx -t && systemctl reload nginx`。
+
+> ⚠ 别往这台机器上抄生产机的配置写法：这里**没有**
+> `/etc/nginx/snippets/travelview-app.conf`（只有 Ubuntu 自带的
+> `fastcgi-php.conf` / `snakeoil.conf`）。写成生产机那种
+> `include /etc/nginx/snippets/travelview-app.conf` 会让 `nginx -t` 直接失败。
+
+### 9.5 续期后必须 reload nginx —— **已修复**（2026-09-26）
+
+**背景（曾经是下一次 broken HTTPS 的种子）：**
+
+`certbot renew --dry-run` 实测通过：
+
+```
+Congratulations, all simulated renewals succeeded:
+  /etc/letsencrypt/live/demo.yourtravelview.com/fullchain.pem (success)
+no renewal failures
+```
+
+**但续期成功并不等于站点用上新证书。** nginx 只在启动/reload 时把证书读进内存，
+之后**不会**因为磁盘上的文件变了就自动重读。而这台机器上原本：
+
+- `/etc/letsencrypt/renewal/demo.yourtravelview.com.conf` 里**没有** `renew_hook`
+- `/etc/letsencrypt/renewal-hooks/deploy/`（以及 pre/post）**三个目录全空**
+- `certbot.service` 就是 `ExecStart=/usr/bin/certbot -q renew --no-random-sleep-on-renew`，
+  **没有任何 reload 动作**
+- `cli.ini` 里也没有 hook
+
+原本会这样演进：
+
+1. 约 **2026-11-25**（到期前 30 天）certbot 自动续期 → 新证书文件落盘，一切"正常"。
+2. nginx **仍在内存里发那张旧证书**（旧证书到 12-25 才过期，所以这一个月看不出问题，
+   监控也发现不了）。
+3. **2026-12-25 02:19:35 UTC 旧证书过期** → 访客看到过期证书 → 又是
+   "Not Secure / broken HTTPS … certificate errors"，和这次故障症状一模一样。
+
+**已执行的修复**：加了一个 certbot deploy hook。
+
+```bash
+# /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh （0755, root）
+#!/bin/sh
+set -e
+systemctl reload nginx
+```
+
+放在这个目录下的可执行文件，certbot 在**成功续期**后会自动执行
+（dry-run 不会执行，所以别指望在 `--dry-run` 里看到它跑）。
+
+**验证（2026-09-26 04:49 UTC，在机器上实跑）**：
+
+- 直接以 root 执行该 hook → `exit=0`
+- nginx worker PID 由 `26002 29523` 变为 `29523 29532` —— **确认真的触发了 reload**
+- `systemctl is-active nginx` → `active`；`nginx -t` → successful
+- 复查公网：`https://demo.yourtravelview.com/en` → **200**，
+  `http://…` → **301**，证书仍是 `CN=demo.yourtravelview.com` / 到期 12-25
+
+> 顺带（**未执行**，只是提示）：`systemctl cat certbot.service` 和 reload 时的输出都提示
+> *"unit file … changed on disk. Run 'systemctl daemon-reload'"* —— `certbot.service`
+> 与 `nginx.service` 两个 unit 的磁盘版本都比 systemd 里加载的新。
+> 不影响本次修复，得空 `sudo systemctl daemon-reload` 即可。
+
+### 9.6 其它遗留项
+
+- **443 的默认 server 就是演示站**：这台机器上**只有这一个 443 server 块**
+  （`sites-available/default` 里两个 443 `listen` 都是注释掉的），所以任意不存在的 SNI
+  连 `193.122.150.15:443` 都会拿到 demo 的证书和内容。要收口可在 `default` 里启用
+  `listen 443 ssl default_server;` + `return 444;`。**本次没做** —— 这取决于
+  "这台机器还想不想服务别的域名"，属于产品决定，不该顺手改。
+- **`橙云` 注释与实测不符**：配置文件第 2 行写的是"Cloudflare 橙云 Proxied / 回源
+  Full (strict)"，但实测 DNS 是**灰云**（A 记录直指 `193.122.150.15`，响应头无
+  `cf-ray`，`server: nginx`）。两种模式下本配置都能工作（LE 证书都有效），
+  但**要确认这块 A 记录到底想用哪种模式**：走橙云就少了源站暴露、且该把 CF SSL
+  模式设成 Full (strict)；走灰云就得保证这台机器上的 LE 续期链路永远健康
+  （见 §9.5）。
+- **演示站没有 HSTS**（主站也没有）。配置里预留了指令但**故意注释掉**：
+  这个站刚因证书问题整站不可用，HSTS 会让下次证书出问题时访客连"继续访问"都没有，
+  先观察一个完整续期周期再开；且**不要**加 `includeSubDomains`（会波及走 CF 的主站）。
+- **部署脚本没有单独留档**：这台机器上只有生产版的 `web/deploy/release.sh`
+  （硬编码 `/opt/travelview` + `/etc/travelview/env`），演示站的发布是照着它做的，
+  但**具体命令没记录**。已知发布根/软链/服务与生产机同构，能对上。
+  `/opt/TravelView` 是 ubuntu 的克隆；`~/.pm2` 存在但当前服务是 systemd 管的。
 

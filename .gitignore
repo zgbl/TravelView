@@ -72,3 +72,6 @@ __pycache__/
 # 项目备份目录（backup.sh）
 /release/
 /releases/
+
+# Cloudflare Assignment
+/CF-Assignment/
