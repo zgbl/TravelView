@@ -27,7 +27,7 @@ export default async function NavBar() {
       <nav className="mx-auto flex max-w-6xl items-center gap-6 px-6 py-3">
         <Link href={href(L, '/')}
           className="flex items-center gap-2.5 font-semibold tracking-tight">
-          <Logo size={36} />
+          <Logo size={48} />
           TravelView
         </Link>
 
