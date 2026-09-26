@@ -26,7 +26,7 @@ export function middleware(req: NextRequest) {
   // 会被 302 到 /zh/... 再 rewrite 回来，只是凭空多一跳。
   // favicon 和 brand 每个页面都要取，icon/apple-icon 是浏览器开页就拉，
   // 都不该绕这一下。
-  if (/^\/(api|_next|media|brand|favicon|icon\.png|apple-icon\.png|robots|sitemap)/.test(pathname)) {
+  if (/^\/(api|_next|media|brand|favicon|icon\.png|apple-icon\.png|robots|sitemap|headers)/.test(pathname)) {
     return NextResponse.next();
   }
 
@@ -62,6 +62,7 @@ export function middleware(req: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|media|brand|favicon|icon\\.png|apple-icon\\.png).*)',
+    '/((?!api|_next/static|_next/image|media|brand|favicon|icon\\.png|apple-icon\\.png|headers).*)',
   ],
 };
+

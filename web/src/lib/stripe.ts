@@ -2,7 +2,12 @@ import Stripe from 'stripe';
 
 // 不锁死 apiVersion: 不同版本的 stripe SDK 各自带一个类型上允许的版本，
 // 写死旧版本会在 npm install 之后构建报类型错。缺省时 SDK 用自己的默认版本。
-export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY ?? '');
+// ⚠ 若环境变量缺省，使用占位 key 避免 Next.js 在构建收集页面数据阶段抛出
+// "Neither apiKey nor config.authenticator provided" 导致整站构建崩溃。
+export const stripe = new Stripe(
+  process.env.STRIPE_SECRET_KEY?.trim() || 'sk_test_placeholder_for_build',
+);
+
 
 const env = (k: string) => (process.env[k] ?? '').trim() || undefined;
 

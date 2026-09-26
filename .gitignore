@@ -68,3 +68,7 @@ __pycache__/
 
 # 出包产物（tools/build.sh 写的）
 /dist/
+
+# 项目备份目录（backup.sh）
+/release/
+/releases/
