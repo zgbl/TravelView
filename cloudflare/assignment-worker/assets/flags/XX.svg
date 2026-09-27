@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title">
+  <title id="title">Country flag unavailable</title>
+  <rect width="640" height="480" fill="#eef2f7"/>
+  <circle cx="320" cy="220" r="112" fill="none" stroke="#49627d" stroke-width="24"/>
+  <path d="M208 220h224M320 108c-34 34-52 72-52 112s18 78 52 112m0-224c34 34 52 72 52 112s-18 78-52 112M234 160h172M234 280h172" fill="none" stroke="#49627d" stroke-width="16" stroke-linecap="round"/>
+  <text x="320" y="405" text-anchor="middle" font-family="system-ui,sans-serif" font-size="30" fill="#172033">Country unavailable</text>
+</svg>
